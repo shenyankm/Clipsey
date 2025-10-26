@@ -7,6 +7,8 @@ const CONTENT_SCRIPT_ID = 'page-clipper-selection';
 const CONTENT_MATCHES = ['https://*/*', 'http://*/*'];
 const FOCUS_MAX_ATTEMPTS = 5;
 const FOCUS_RETRY_DELAY_MS = 400;
+const REQUEST_SELECTION_MAX_ATTEMPTS = 3;
+const REQUEST_SELECTION_RETRY_DELAY_MS = 200;
 const NOTIFICATION_ICON = chrome.runtime.getURL('assets/icon128.png');
 
 type MessageResponse<T = unknown> = {
@@ -164,7 +166,7 @@ async function handleOpenClip(clipId?: string): Promise<void> {
   }, 15000);
 }
 
-async function requestSelection(tabId: number): Promise<void> {
+async function requestSelection(tabId: number, attempt = 0): Promise<void> {
   try {
     const response = (await sendMessageToTab(tabId, {
       type: 'REQUEST_SELECTION'
@@ -172,6 +174,12 @@ async function requestSelection(tabId: number): Promise<void> {
 
     handleSelectionResponse(response);
   } catch (error) {
+    if (isFrameRemovedError(error) && attempt < REQUEST_SELECTION_MAX_ATTEMPTS - 1) {
+      await delay(REQUEST_SELECTION_RETRY_DELAY_MS * (attempt + 1));
+      await requestSelection(tabId, attempt + 1);
+      return;
+    }
+
     if (!isMissingReceiverError(error)) {
       void showNotification('Clip failed', getErrorMessage(error));
       throw error;
@@ -267,7 +275,7 @@ function isMissingReceiverError(error: unknown): boolean {
     return false;
   }
 
-  return message.includes('Receiving end does not exist');
+  return message.includes('Receiving end does not exist') || isFrameRemovedError(error);
 }
 
 function isNoSuchContentScriptError(error: unknown): boolean {
@@ -281,6 +289,19 @@ function isNoSuchContentScriptError(error: unknown): boolean {
   }
 
   return message.includes('No such content script') || message.includes('Nonexistent script ID');
+}
+
+function isFrameRemovedError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const message = (error as { message?: string }).message?.toLowerCase();
+  if (!message) {
+    return false;
+  }
+
+  return message.includes('frame with id') && message.includes('removed');
 }
 
 async function attemptFocusClip(tabId: number, clip: Clip): Promise<void> {

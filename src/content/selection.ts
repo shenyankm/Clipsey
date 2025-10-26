@@ -36,6 +36,8 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
           title: document.title
         };
 
+        underlineSelection(selection);
+
         sendMessage({ type: 'SAVE_CLIP', payload })
           .then(() => sendResponse({ success: true }))
           .catch(error => sendResponse({ success: false, error: error?.message }));
@@ -56,6 +58,11 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
 }
 
 let cachedSafeAreaInsetTop: number | null = null;
+let underlineContainer: HTMLDivElement | null = null;
+const activeUnderlines: HTMLDivElement[] = [];
+const UNDERLINE_THICKNESS = 2;
+const UNDERLINE_COLOR = 'rgba(59, 130, 246, 0.9)';
+const UNDERLINE_ID = 'page-clipper-underline-layer';
 
 function extractSelectionHtml(selection: Selection | null): string | undefined {
   if (!selection || selection.rangeCount === 0) {
@@ -72,7 +79,7 @@ function extractSelectionHtml(selection: Selection | null): string | undefined {
 }
 
 async function focusClip(
-  payload: { textContent?: string } | undefined
+  payload: { textContent?: string; id?: string } | undefined
 ): Promise<boolean> {
   const textContent = payload?.textContent?.trim();
   if (!textContent) {
@@ -287,6 +294,7 @@ function focusRange(range: Range): boolean {
     return false;
   }
 
+  underlineRange(range);
   scrollRectToTop(rect);
   return true;
 }
@@ -767,6 +775,95 @@ function matchTokensAt(
   }
 
   return { start: startPosition, end: endPosition };
+}
+
+function underlineSelection(selection: Selection | null): void {
+  if (!selection || selection.rangeCount === 0) {
+    return;
+  }
+
+  const ranges: Range[] = [];
+  for (let i = 0; i < selection.rangeCount; i += 1) {
+    ranges.push(selection.getRangeAt(i).cloneRange());
+  }
+
+  underlineRanges(ranges);
+}
+
+function underlineRange(range: Range): void {
+  underlineRanges([range.cloneRange()]);
+}
+
+function underlineRanges(ranges: Range[]): void {
+  if (!ranges.length || !document.body) {
+    return;
+  }
+
+  const container = ensureUnderlineContainer();
+  if (!container) {
+    return;
+  }
+
+  clearUnderlines();
+
+  const scrollX = window.scrollX ?? window.pageXOffset ?? 0;
+  const scrollY = window.scrollY ?? window.pageYOffset ?? 0;
+
+  for (const range of ranges) {
+    const rects = Array.from(range.getClientRects());
+    for (const rect of rects) {
+      if (!rect || rect.width <= 0 || rect.height <= 0) {
+        continue;
+      }
+
+      const underline = document.createElement('div');
+      underline.className = 'page-clipper-underline';
+      underline.style.position = 'absolute';
+      underline.style.pointerEvents = 'none';
+      underline.style.left = `${rect.left + scrollX}px`;
+      underline.style.top = `${rect.bottom + scrollY - UNDERLINE_THICKNESS}px`;
+      underline.style.width = `${rect.width}px`;
+      underline.style.height = '0';
+      underline.style.borderBottom = `${UNDERLINE_THICKNESS}px solid ${UNDERLINE_COLOR}`;
+      underline.style.boxSizing = 'border-box';
+      underline.style.borderRadius = `${UNDERLINE_THICKNESS}px`;
+      container.appendChild(underline);
+      activeUnderlines.push(underline);
+    }
+  }
+}
+
+function ensureUnderlineContainer(): HTMLDivElement | null {
+  if (!document.body) {
+    return null;
+  }
+
+  if (underlineContainer && document.body.contains(underlineContainer)) {
+    return underlineContainer;
+  }
+
+  underlineContainer = document.createElement('div');
+  underlineContainer.id = UNDERLINE_ID;
+  underlineContainer.style.position = 'absolute';
+  underlineContainer.style.left = '0';
+  underlineContainer.style.top = '0';
+  underlineContainer.style.width = '0';
+  underlineContainer.style.height = '0';
+  underlineContainer.style.pointerEvents = 'none';
+  underlineContainer.style.zIndex = '2147483647';
+  underlineContainer.style.margin = '0';
+  underlineContainer.style.padding = '0';
+  underlineContainer.style.border = '0';
+
+  document.body.appendChild(underlineContainer);
+  return underlineContainer;
+}
+
+function clearUnderlines(): void {
+  while (activeUnderlines.length) {
+    const underline = activeUnderlines.pop();
+    underline?.remove();
+  }
 }
 
 
