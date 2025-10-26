@@ -49,6 +49,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         .then(() => sendResponse({ success: true }))
         .catch(error => sendResponse({ success: false, error: error?.message }));
       return true;
+    case 'OPEN_CLIP':
+      handleOpenClip(message?.payload?.id)
+        .then(() => sendResponse({ success: true }))
+        .catch(error => sendResponse({ success: false, error: error?.message }));
+      return true;
     default:
       break;
   }
@@ -71,6 +76,64 @@ async function handleSaveClip(payload: Partial<Clip> & { textContent?: string })
   };
 
   await addClip(clip);
+}
+
+async function handleOpenClip(clipId?: string): Promise<void> {
+  if (!clipId) {
+    throw new Error('Missing clip id');
+  }
+
+  const clips = await getClips();
+  const clip = clips.find(entry => entry.id === clipId);
+  if (!clip) {
+    throw new Error('Clip not found');
+  }
+
+  if (!clip.sourceUrl) {
+    throw new Error('Clip does not have a source URL');
+  }
+
+  const tab = await chrome.tabs.create({ url: clip.sourceUrl });
+  if (!tab?.id) {
+    throw new Error('Unable to open tab for clip');
+  }
+
+  const tabId = tab.id;
+  const scheduleHighlight = () => {
+    if (!clip.textContent) {
+      return;
+    }
+
+    void attemptHighlightClip(tabId, clip);
+  };
+
+  if (tab.status === 'complete') {
+    setTimeout(scheduleHighlight, 300);
+    return;
+  }
+
+  const listener: Parameters<typeof chrome.tabs.onUpdated.addListener>[0] = (
+    updatedTabId,
+    changeInfo
+  ) => {
+    if (updatedTabId !== tabId) {
+      return;
+    }
+
+    if (changeInfo.status === 'complete') {
+      chrome.tabs.onUpdated.removeListener(listener);
+      setTimeout(scheduleHighlight, 300);
+    }
+  };
+
+  chrome.tabs.onUpdated.addListener(listener);
+
+  setTimeout(() => {
+    if (chrome.tabs.onUpdated.hasListener(listener)) {
+      chrome.tabs.onUpdated.removeListener(listener);
+      setTimeout(scheduleHighlight, 500);
+    }
+  }, 15000);
 }
 
 async function requestSelection(tabId: number): Promise<void> {
@@ -154,4 +217,40 @@ function isNoSuchContentScriptError(error: unknown): boolean {
   }
 
   return message.includes('No such content script') || message.includes('Nonexistent script ID');
+}
+
+async function attemptHighlightClip(tabId: number, clip: Clip): Promise<void> {
+  if (!clip.textContent) {
+    return;
+  }
+
+  const maxAttempts = 5;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      const response = await sendMessageToTab(tabId, {
+        type: 'HIGHLIGHT_CLIP',
+        payload: {
+          id: clip.id,
+          textContent: clip.textContent
+        }
+      });
+
+      if ((response as { success?: boolean })?.success) {
+        return;
+      }
+    } catch (error) {
+      if (!isMissingReceiverError(error)) {
+        console.warn('Failed to highlight clip', error);
+        return;
+      }
+    }
+
+    await delay(400);
+  }
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise(resolve => {
+    setTimeout(resolve, milliseconds);
+  });
 }

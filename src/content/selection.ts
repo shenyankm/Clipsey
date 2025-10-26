@@ -3,6 +3,15 @@ import type { Clip } from '@/types/clip';
 declare global {
   interface Window {
     __PAGE_CLIPPER_CONTENT_INITIALIZED__?: boolean;
+    find(
+      string: string,
+      caseSensitive?: boolean,
+      backwards?: boolean,
+      wrapAround?: boolean,
+      wholeWord?: boolean,
+      searchInFrames?: boolean,
+      showDialog?: boolean
+    ): boolean;
   }
 }
 
@@ -10,30 +19,39 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
   window.__PAGE_CLIPPER_CONTENT_INITIALIZED__ = true;
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type !== 'REQUEST_SELECTION') {
-      return;
+    switch (message?.type) {
+      case 'REQUEST_SELECTION': {
+        const selection = window.getSelection();
+        const textContent = selection?.toString().trim();
+
+        if (!textContent) {
+          sendResponse({ success: false, error: 'No selection' });
+          return;
+        }
+
+        const payload: Partial<Clip> = {
+          textContent,
+          htmlContent: extractSelectionHtml(selection),
+          sourceUrl: window.location.href,
+          title: document.title
+        };
+
+        sendMessage({ type: 'SAVE_CLIP', payload })
+          .then(() => sendResponse({ success: true }))
+          .catch(error => sendResponse({ success: false, error: error?.message }));
+
+        return true;
+      }
+      case 'HIGHLIGHT_CLIP':
+        highlightClip(message?.payload)
+          .then(success => sendResponse({ success }))
+          .catch(error => sendResponse({ success: false, error: (error as Error).message }));
+        return true;
+      default:
+        break;
     }
 
-    const selection = window.getSelection();
-    const textContent = selection?.toString().trim();
-
-    if (!textContent) {
-      sendResponse({ success: false, error: 'No selection' });
-      return;
-    }
-
-    const payload: Partial<Clip> = {
-      textContent,
-      htmlContent: extractSelectionHtml(selection),
-      sourceUrl: window.location.href,
-      title: document.title
-    };
-
-    sendMessage({ type: 'SAVE_CLIP', payload })
-      .then(() => sendResponse({ success: true }))
-      .catch(error => sendResponse({ success: false, error: error?.message }));
-
-    return true;
+    return undefined;
   });
 }
 
@@ -49,6 +67,116 @@ function extractSelectionHtml(selection: Selection | null): string | undefined {
 
   // Using innerHTML keeps original markup where possible.
   return container.innerHTML || undefined;
+}
+
+async function highlightClip(
+  payload: { textContent?: string } | undefined
+): Promise<boolean> {
+  const textContent = payload?.textContent?.trim();
+  if (!textContent) {
+    return false;
+  }
+
+  if (typeof window.find !== 'function') {
+    console.warn('window.find is not available in this context');
+    return false;
+  }
+
+  const selection = window.getSelection();
+  if (!selection) {
+    return false;
+  }
+
+  const queries = buildHighlightQueries(textContent);
+  const maxAttempts = 6;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    for (const query of queries) {
+      if (!query) {
+        continue;
+      }
+
+      selection.removeAllRanges();
+      const found = window.find(query, false, false, true, false, false, false);
+      if (!found || selection.rangeCount === 0) {
+        continue;
+      }
+
+      const range = selection.getRangeAt(0);
+      const rect = getFirstVisibleRect(range);
+      if (!rect) {
+        continue;
+      }
+
+      centerOnRect(rect);
+      return true;
+    }
+
+    await delay(300);
+  }
+
+  return false;
+}
+
+function buildHighlightQueries(textContent: string): string[] {
+  const trimmed = textContent.trim();
+  const normalized = trimmed.replace(/\s+/g, ' ');
+  const queries = new Set<string>();
+
+  queries.add(trimmed);
+  queries.add(normalized);
+
+  const lines = trimmed.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  for (const line of lines) {
+    if (line.length >= 6) {
+      queries.add(line);
+    }
+  }
+
+  if (normalized.length > 140) {
+    queries.add(normalized.slice(0, 140));
+    queries.add(normalized.slice(-140));
+  }
+
+  const words = normalized.split(' ').filter(Boolean);
+  if (words.length > 12) {
+    queries.add(words.slice(0, 12).join(' '));
+    queries.add(words.slice(-12).join(' '));
+  }
+
+  return Array.from(queries).filter(query => query.length >= 4);
+}
+
+function getFirstVisibleRect(range: Range): DOMRect | null {
+  const rects = range.getClientRects();
+  for (const rect of Array.from(rects)) {
+    if (rect.width > 0 || rect.height > 0) {
+      return rect;
+    }
+  }
+
+  const rect = range.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) {
+    return null;
+  }
+
+  return rect;
+}
+
+function centerOnRect(rect: DOMRect): void {
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+  const targetTop = rect.top + window.scrollY - viewportHeight / 2 + rect.height / 2;
+
+  window.scrollTo({
+    top: targetTop < 0 ? 0 : targetTop,
+    behavior: 'smooth'
+  });
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise(resolve => {
+    setTimeout(resolve, milliseconds);
+  });
 }
 
 function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> {

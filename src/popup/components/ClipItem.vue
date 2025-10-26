@@ -1,50 +1,344 @@
 <template>
-  <n-card size="small" class="clip-item" :title="clip.title || 'Untitled clip'">
-    <div class="clip-item__content">
-      <n-scrollbar x-scrollable>
-        <p class="clip-item__text">{{ clip.textContent }}</p>
-      </n-scrollbar>
+  <n-card size="small" class="clip-item">
+    <template #header>
+      <div class="clip-item__header">
+        <div class="clip-item__row">
+          <n-tooltip v-if="showTitleTooltip" trigger="hover">
+            <template #trigger>
+              <span ref="titleRef" class="clip-item__title">{{ titleText }}</span>
+            </template>
+            <span class="clip-item__tooltip">{{ titleText }}</span>
+          </n-tooltip>
+          <span v-else ref="titleRef" class="clip-item__title">{{ titleText }}</span>
+        </div>
+        <div class="clip-item__row">
+          <n-tooltip v-if="clip.sourceUrl && showUrlTooltip" trigger="hover">
+            <template #trigger>
+              <span ref="urlRef" class="clip-item__url">{{ clip.sourceUrl }}</span>
+            </template>
+            <span class="clip-item__tooltip">{{ clip.sourceUrl }}</span>
+          </n-tooltip>
+          <span v-else-if="clip.sourceUrl" ref="urlRef" class="clip-item__url">
+            {{ clip.sourceUrl }}
+          </span>
+          <span v-else class="clip-item__url clip-item__url--placeholder">{{ missingUrlLabel }}</span>
+        </div>
+      </div>
+    </template>
+    <div class="clip-item__content" :class="{ 'clip-item__content--expanded': isExpanded }">
+      <p
+        ref="textRef"
+        class="clip-item__text"
+        :class="{ 'clip-item__text--clamped': !isExpanded }"
+      >
+        {{ clip.textContent }}
+      </p>
+      <n-button
+        v-if="showExpandButton"
+        text
+        size="small"
+        class="clip-item__expand"
+        @click="handleExpand"
+      >
+        {{ expandLabel }}
+      </n-button>
     </div>
     <template #footer>
       <div class="clip-item__meta">
         <n-text depth="3">{{ formattedDate }}</n-text>
-        <n-button text tag="a" :href="clip.sourceUrl" target="_blank">Open</n-button>
+        <n-button text :disabled="!clip.sourceUrl" :loading="opening" @click="handleOpen">
+          Open
+        </n-button>
       </div>
     </template>
   </n-card>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { NButton, NCard, NScrollbar, NText } from 'naive-ui';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { NButton, NCard, NText, NTooltip, useMessage } from 'naive-ui';
 import type { Clip } from '@/types/clip';
 import { formatDate } from '@/utils/helpers';
+import { sendMessage } from '@/utils/chrome';
 
 const props = defineProps<{
   clip: Clip;
 }>();
 
 const formattedDate = computed(() => formatDate(props.clip.createdAt));
+const titleText = computed(() => props.clip.title?.trim() || 'Untitled clip');
+const message = useMessage();
+const opening = ref(false);
+const isExpanded = ref(false);
+const showExpandButton = ref(false);
+const textRef = ref<HTMLElement | null>(null);
+const titleRef = ref<HTMLElement | null>(null);
+const urlRef = ref<HTMLElement | null>(null);
+const showTitleTooltip = ref(false);
+const showUrlTooltip = ref(false);
+const expandLabel = '\u67E5\u770B\u5168\u90E8';
+const missingUrlLabel = 'Source URL not provided';
+
+function checkHeaderOverflow() {
+  const titleEl = titleRef.value;
+  const urlEl = urlRef.value;
+
+  showTitleTooltip.value = Boolean(
+    titleEl && titleEl.scrollWidth - titleEl.clientWidth > 1
+  );
+
+  if (!props.clip.sourceUrl) {
+    showUrlTooltip.value = false;
+    return;
+  }
+
+  showUrlTooltip.value = Boolean(
+    urlEl && urlEl.scrollWidth - urlEl.clientWidth > 1
+  );
+}
+
+function checkContentOverflow() {
+  const el = textRef.value;
+
+  if (!el || isExpanded.value) {
+    showExpandButton.value = false;
+    return;
+  }
+
+  showExpandButton.value = el.scrollHeight - el.clientHeight > 1;
+}
+
+function handleExpand() {
+  if (isExpanded.value) {
+    return;
+  }
+
+  isExpanded.value = true;
+  showExpandButton.value = false;
+}
+
+async function handleOpen() {
+  if (opening.value) {
+    return;
+  }
+
+  if (!props.clip.sourceUrl) {
+    message.warning('No source URL available');
+    return;
+  }
+
+  opening.value = true;
+  try {
+    const response = await sendMessage<{ success: boolean; error?: string }>({
+      type: 'OPEN_CLIP',
+      payload: { id: props.clip.id }
+    });
+
+    if (!response?.success) {
+      throw new Error(response?.error ?? 'Unable to open clip');
+    }
+
+    window.close();
+  } catch (error) {
+    message.error((error as Error).message);
+  } finally {
+    opening.value = false;
+  }
+}
+
+const handleResize = () => {
+  checkHeaderOverflow();
+  if (!isExpanded.value) {
+    checkContentOverflow();
+  }
+};
+
+onMounted(() => {
+  window.addEventListener('resize', handleResize);
+  nextTick(() => {
+    checkHeaderOverflow();
+    checkContentOverflow();
+  });
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize);
+});
+
+watch(
+  () => props.clip.title,
+  () => {
+    showTitleTooltip.value = false;
+    nextTick(checkHeaderOverflow);
+  }
+);
+
+watch(
+  () => props.clip.sourceUrl,
+  () => {
+    showUrlTooltip.value = false;
+    nextTick(checkHeaderOverflow);
+  }
+);
+
+watch(
+  () => props.clip.textContent,
+  () => {
+    isExpanded.value = false;
+    nextTick(checkContentOverflow);
+  }
+);
+
+watch(isExpanded, expanded => {
+  if (!expanded) {
+    nextTick(checkContentOverflow);
+  }
+});
 </script>
 
 <style scoped>
 .clip-item {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.clip-item :deep(.n-card__header),
+.clip-item :deep(.n-card__content),
+.clip-item :deep(.n-card__footer) {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.clip-item :deep(.n-card__header) {
+  padding-top: 14px;
+  padding-bottom: 0;
+}
+
+.clip-item :deep(.n-card__content) {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.clip-item :deep(.n-card__footer) {
+  padding-top: 10px;
+  padding-bottom: 14px;
+}
+
+.clip-item__header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.clip-item__row {
+  width: 100%;
+  min-width: 0;
+}
+
+.clip-item__row :deep(.n-base-popper-trigger) {
+  display: block;
+  width: 100%;
+}
+
+.clip-item__title {
+  display: block;
+  max-width: 100%;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clip-item__url {
+  display: block;
+  max-width: 100%;
+  font-size: 12px;
+  color: var(--n-text-color-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clip-item__url--placeholder {
+  color: var(--n-text-color-disabled);
+}
+
+.clip-item__tooltip {
+  display: block;
+  max-width: min(360px, 80vw);
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .clip-item__content {
-  max-height: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .clip-item__text {
   margin: 0;
-  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-line;
   word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.clip-item__text--clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+}
+
+.clip-item__expand {
+  align-self: flex-start;
+  padding: 0;
 }
 
 .clip-item__meta {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 480px) {
+  .clip-item :deep(.n-card__header),
+  .clip-item :deep(.n-card__content),
+  .clip-item :deep(.n-card__footer) {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .clip-item__text {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .clip-item :deep(.n-card__header),
+  .clip-item :deep(.n-card__content),
+  .clip-item :deep(.n-card__footer) {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .clip-item__header {
+    gap: 4px;
+  }
 }
 </style>

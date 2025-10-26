@@ -73,19 +73,50 @@ onMounted(() => {
 <style scoped>
 .popup {
   box-sizing: border-box;
-  padding: 16px;
-  width: 340px;
+  margin: 0 auto;
+  padding: 20px 18px;
+  width: min(480px, 100vw - 24px);
   background: #fff;
+  border-radius: 12px;
+}
+
+.popup :deep(.n-space) {
+  width: 100%;
 }
 
 .popup__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
 .popup__header h1 {
   margin: 0;
   font-size: 18px;
+}
+
+@media (max-width: 480px) {
+  .popup {
+    width: calc(100vw - 16px);
+    padding: 16px 12px;
+    border-radius: 8px;
+  }
+
+  .popup__header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 360px) {
+  .popup {
+    padding: 14px 10px;
+  }
+
+  .popup__header h1 {
+    font-size: 16px;
+  }
 }
 </style>
