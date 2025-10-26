@@ -31,7 +31,7 @@
         class="clip-item__text"
         :class="{ 'clip-item__text--clamped': !isExpanded }"
       >
-        {{ clip.textContent }}
+        {{ hasSummary ? summaryText : '暂无摘要' }}
       </p>
       <n-button
         v-if="showExpandButton"
@@ -40,7 +40,7 @@
         class="clip-item__expand"
         @click="handleExpand"
       >
-        {{ expandLabel }}
+        {{ expandButtonLabel }}
       </n-button>
     </div>
     <template #footer>
@@ -77,7 +77,13 @@ const urlRef = ref<HTMLElement | null>(null);
 const showTitleTooltip = ref(false);
 const showUrlTooltip = ref(false);
 const expandLabel = '\u67E5\u770B\u5168\u90E8';
+const collapseLabel = '\u6536\u8D77';
 const missingUrlLabel = 'Source URL not provided';
+const summaryText = computed(() => props.clip.textContent?.trim() ?? '');
+const hasSummary = computed(() => summaryText.value.length > 0);
+const expandButtonLabel = computed(() =>
+  isExpanded.value ? collapseLabel : expandLabel
+);
 
 function checkHeaderOverflow() {
   const titleEl = titleRef.value;
@@ -100,8 +106,13 @@ function checkHeaderOverflow() {
 function checkContentOverflow() {
   const el = textRef.value;
 
-  if (!el || isExpanded.value) {
+  if (!el || !hasSummary.value) {
     showExpandButton.value = false;
+    return;
+  }
+
+  if (isExpanded.value) {
+    showExpandButton.value = true;
     return;
   }
 
@@ -109,12 +120,16 @@ function checkContentOverflow() {
 }
 
 function handleExpand() {
-  if (isExpanded.value) {
+  if (!hasSummary.value) {
     return;
   }
 
-  isExpanded.value = true;
-  showExpandButton.value = false;
+  isExpanded.value = !isExpanded.value;
+  if (!isExpanded.value) {
+    nextTick(() => {
+      checkContentOverflow();
+    });
+  }
 }
 
 async function handleOpen() {
@@ -151,9 +166,7 @@ let fallbackResizeHandler: (() => void) | null = null;
 
 function handleDimensionChange() {
   checkHeaderOverflow();
-  if (!isExpanded.value) {
-    checkContentOverflow();
-  }
+  checkContentOverflow();
 }
 
 function setupResizeMonitoring() {
@@ -246,9 +259,7 @@ watch(
 
 watch(isExpanded, expanded => {
   nextTick(() => {
-    if (!expanded) {
-      checkContentOverflow();
-    }
+    checkContentOverflow();
     updateResizeObserverTargets();
   });
 });
