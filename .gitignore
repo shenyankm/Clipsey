@@ -6,6 +6,11 @@ dist/
 build/
 tmp/
 temp/
+.nuxt/
+.next/
+.turbo/
+.vercel/
+out/
 
 # Logs and reports
 *.log
@@ -15,14 +20,40 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 coverage/
+.nyc_output/
 
 # Environment files
 .env
 .env.*
 !.env.example
+*.local
 
 # TypeScript metadata
 *.tsbuildinfo
+
+# Package archives
+*.tgz
+*.tar.gz
+
+# Runtime data
+*.pid
+*.pid.lock
+
+# Tooling caches
+.eslintcache
+.stylelintcache
+.cache/
+.vite/
+
+# Yarn 2+
+.pnp.*
+.yarn/*
+!.yarn/patches/
+!.yarn/cache/
+!.yarn/plugins/
+!.yarn/releases/
+!.yarn/sdks/
+!.yarn/versions/
 
 # Editor artifacts
 .DS_Store
@@ -36,3 +67,4 @@ Thumbs.db
 *.swp
 *.swo
 *.orig
+*.tmp
