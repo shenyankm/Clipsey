@@ -16,18 +16,11 @@
     "type": "module"
   },
   "options_page": "options/index.html",
-  "permissions": ["contextMenus", "storage", "scripting"],
-  "host_permissions": ["<all_urls>"],
+  "permissions": ["contextMenus", "storage", "scripting", "notifications"],
+  "host_permissions": ["https://*/*", "http://*/*"],
   "icons": {
     "16": "assets/icon16.png",
     "48": "assets/icon48.png",
     "128": "assets/icon128.png"
-  },
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["scripts/content.js"],
-      "run_at": "document_idle"
-    }
-  ]
+  }
 }
