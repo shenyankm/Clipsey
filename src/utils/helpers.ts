@@ -1,0 +1,22 @@
+export function formatDate(isoString: string): string {
+  const date = new Date(isoString);
+  return date.toLocaleString();
+}
+
+export function createId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `clip-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function stripHtml(html: string): string {
+  const temp = globalThis.document?.createElement('div');
+  if (!temp) {
+    return html;
+  }
+
+  temp.innerHTML = html;
+  return temp.textContent ?? html;
+}

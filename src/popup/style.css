@@ -1,0 +1,16 @@
+:root {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+  line-height: 1.5;
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-width: 320px;
+  background-color: #f7f7f9;
+}
+
+#app {
+  min-height: 100vh;
+}
