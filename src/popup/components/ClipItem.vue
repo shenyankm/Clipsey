@@ -146,30 +146,79 @@ async function handleOpen() {
   }
 }
 
-const handleResize = () => {
+let resizeObserver: ResizeObserver | null = null;
+let fallbackResizeHandler: (() => void) | null = null;
+
+function handleDimensionChange() {
   checkHeaderOverflow();
   if (!isExpanded.value) {
     checkContentOverflow();
   }
-};
+}
+
+function setupResizeMonitoring() {
+  if (typeof ResizeObserver === 'undefined') {
+    fallbackResizeHandler = () => {
+      handleDimensionChange();
+    };
+    window.addEventListener('resize', fallbackResizeHandler);
+    return;
+  }
+
+  resizeObserver = new ResizeObserver(() => {
+    handleDimensionChange();
+  });
+
+  updateResizeObserverTargets();
+}
+
+function updateResizeObserverTargets() {
+  if (!resizeObserver) {
+    return;
+  }
+
+  resizeObserver.disconnect();
+
+  const targets = [titleRef.value, urlRef.value, textRef.value].filter(
+    (element): element is HTMLElement => Boolean(element)
+  );
+
+  targets.forEach(element => resizeObserver?.observe(element));
+}
+
+function teardownResizeMonitoring() {
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+
+  if (fallbackResizeHandler) {
+    window.removeEventListener('resize', fallbackResizeHandler);
+    fallbackResizeHandler = null;
+  }
+}
 
 onMounted(() => {
-  window.addEventListener('resize', handleResize);
+  setupResizeMonitoring();
   nextTick(() => {
+    updateResizeObserverTargets();
     checkHeaderOverflow();
     checkContentOverflow();
   });
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', handleResize);
+  teardownResizeMonitoring();
 });
 
 watch(
   () => props.clip.title,
   () => {
     showTitleTooltip.value = false;
-    nextTick(checkHeaderOverflow);
+    nextTick(() => {
+      checkHeaderOverflow();
+      updateResizeObserverTargets();
+    });
   }
 );
 
@@ -177,7 +226,10 @@ watch(
   () => props.clip.sourceUrl,
   () => {
     showUrlTooltip.value = false;
-    nextTick(checkHeaderOverflow);
+    nextTick(() => {
+      checkHeaderOverflow();
+      updateResizeObserverTargets();
+    });
   }
 );
 
@@ -185,14 +237,20 @@ watch(
   () => props.clip.textContent,
   () => {
     isExpanded.value = false;
-    nextTick(checkContentOverflow);
+    nextTick(() => {
+      checkContentOverflow();
+      updateResizeObserverTargets();
+    });
   }
 );
 
 watch(isExpanded, expanded => {
-  if (!expanded) {
-    nextTick(checkContentOverflow);
-  }
+  nextTick(() => {
+    if (!expanded) {
+      checkContentOverflow();
+    }
+    updateResizeObserverTargets();
+  });
 });
 </script>
 

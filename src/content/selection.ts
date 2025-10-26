@@ -77,11 +77,6 @@ async function highlightClip(
     return false;
   }
 
-  if (typeof window.find !== 'function') {
-    console.warn('window.find is not available in this context');
-    return false;
-  }
-
   const selection = window.getSelection();
   if (!selection) {
     return false;
@@ -96,23 +91,99 @@ async function highlightClip(
         continue;
       }
 
-      selection.removeAllRanges();
-      const found = window.find(query, false, false, true, false, false, false);
-      if (!found || selection.rangeCount === 0) {
-        continue;
+      if (highlightWithWindowFind(selection, query)) {
+        return true;
       }
 
-      const range = selection.getRangeAt(0);
-      const rect = getFirstVisibleRect(range);
-      if (!rect) {
-        continue;
+      if (highlightWithDomSearch(selection, query)) {
+        return true;
       }
-
-      centerOnRect(rect);
-      return true;
     }
 
     await delay(300);
+  }
+
+  return false;
+}
+
+function highlightWithWindowFind(selection: Selection, query: string): boolean {
+  if (typeof window.find !== 'function') {
+    return false;
+  }
+
+  selection.removeAllRanges();
+
+  const found = window.find(query, false, false, true, false, false, false);
+  if (!found || selection.rangeCount === 0) {
+    return false;
+  }
+
+  const range = selection.getRangeAt(0);
+  const rect = getFirstVisibleRect(range);
+  if (!rect) {
+    return false;
+  }
+
+  centerOnRect(rect);
+  return true;
+}
+
+function highlightWithDomSearch(selection: Selection, query: string): boolean {
+  if (!document.body) {
+    return false;
+  }
+
+  const normalizedQuery = query.trim();
+  if (!normalizedQuery) {
+    return false;
+  }
+
+  const lowerQuery = normalizedQuery.toLowerCase();
+
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node?.parentElement) {
+        return NodeFilter.FILTER_SKIP;
+      }
+
+      const parent = node.parentElement;
+      if (parent.closest('script, style, noscript, svg, canvas')) {
+        return NodeFilter.FILTER_REJECT;
+      }
+
+      const text = node.textContent;
+      if (!text || !text.trim()) {
+        return NodeFilter.FILTER_SKIP;
+      }
+
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+
+  let current: Node | null = walker.nextNode();
+  while (current) {
+    const text = current.textContent;
+    if (text) {
+      const lower = text.toLowerCase();
+      const startIndex = lower.indexOf(lowerQuery);
+      if (startIndex !== -1) {
+        const range = document.createRange();
+        range.setStart(current, startIndex);
+        range.setEnd(current, startIndex + normalizedQuery.length);
+        selection.removeAllRanges();
+        selection.addRange(range);
+
+        const rect = getFirstVisibleRect(range);
+        if (!rect) {
+          return false;
+        }
+
+        centerOnRect(rect);
+        return true;
+      }
+    }
+
+    current = walker.nextNode();
   }
 
   return false;

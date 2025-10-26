@@ -1,6 +1,6 @@
 import { defineConfig, type Plugin } from 'vite';
 import vue from '@vitejs/plugin-vue';
-import { resolve, basename } from 'path';
+import { resolve, basename, posix } from 'path';
 import {
   readdirSync,
   readFileSync,
@@ -63,8 +63,14 @@ function relocateHtmlEntries(): Plugin {
         mkdirSync(resolve(toPath, '..'), { recursive: true });
         renameSync(fromPath, toPath);
 
-        const html = readFileSync(toPath, 'utf-8').replaceAll('../../assets/', '../assets/');
-        writeFileSync(toPath, html);
+        const html = readFileSync(toPath, 'utf-8');
+        const relativeDir = posix.dirname(toRelative);
+        const relativeAssetsPath = posix
+          .relative(relativeDir, 'assets')
+          .replace(/\/$/, '');
+        const assetPrefix = `${relativeAssetsPath}/`;
+        const normalizedHtml = html.replace(/\.\.\/\.\.\/assets\//g, assetPrefix);
+        writeFileSync(toPath, normalizedHtml);
       }
 
       const straySrcDir = resolve(distDir, 'src');

@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { NButton, NSpace, NSpin, useMessage } from 'naive-ui';
 import type { Clip } from '@/types/clip';
 import ClipList from './components/ClipList.vue';
@@ -28,8 +28,14 @@ const clips = ref<Clip[]>([]);
 const loading = ref(false);
 const message = useMessage();
 
-async function refreshClips() {
-  loading.value = true;
+async function refreshClips(): Promise<void> {
+  await loadClips(true);
+}
+
+async function loadClips(showLoader: boolean): Promise<void> {
+  if (showLoader) {
+    loading.value = true;
+  }
   try {
     const response = await sendMessage<{ success: boolean; data?: Clip[]; error?: string }>({
       type: 'REQUEST_CLIPS'
@@ -42,7 +48,9 @@ async function refreshClips() {
   } catch (error) {
     message.error((error as Error).message);
   } finally {
-    loading.value = false;
+    if (showLoader) {
+      loading.value = false;
+    }
   }
 }
 
@@ -67,7 +75,28 @@ async function handleClear() {
 
 onMounted(() => {
   refreshClips();
+
+  if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+    chrome.storage.onChanged.addListener(handleStorageChange);
+  }
 });
+
+onBeforeUnmount(() => {
+  if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+    chrome.storage.onChanged.removeListener(handleStorageChange);
+  }
+});
+
+function handleStorageChange(
+  changes: Record<string, chrome.storage.StorageChange>,
+  areaName: string
+) {
+  if (areaName !== 'local' || !changes.clips) {
+    return;
+  }
+
+  void loadClips(false);
+}
 </script>
 
 <style scoped>

@@ -1,6 +1,7 @@
 import type { Clip } from '@/types/clip';
 
 const STORAGE_KEY = 'clips';
+const MAX_CLIP_ENTRIES = 200;
 
 function getStorage(): chrome.storage.StorageArea {
   return chrome.storage.local;
@@ -18,6 +19,9 @@ export async function saveClips(clips: Clip[]): Promise<void> {
 export async function addClip(clip: Clip): Promise<void> {
   const existing = await getClips();
   existing.unshift(clip);
+  if (existing.length > MAX_CLIP_ENTRIES) {
+    existing.length = MAX_CLIP_ENTRIES;
+  }
   await saveClips(existing);
 }
 

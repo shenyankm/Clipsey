@@ -3,13 +3,31 @@ import { createId } from '@/utils/helpers';
 import type { Clip } from '@/types/clip';
 
 const CONTEXT_MENU_ID = 'page-clipper-context-menu';
+const CONTENT_SCRIPT_ID = 'page-clipper-selection';
+const CONTENT_MATCHES = ['https://*/*', 'http://*/*'];
+const HIGHLIGHT_MAX_ATTEMPTS = 5;
+const NOTIFICATION_ICON = chrome.runtime.getURL('assets/icon128.png');
+
+type MessageResponse<T = unknown> = {
+  success: boolean;
+  data?: T;
+  error?: string;
+};
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: CONTEXT_MENU_ID,
-    title: 'Clip current selection',
-    contexts: ['selection']
-  });
+  chrome.contextMenus.create(
+    {
+      id: CONTEXT_MENU_ID,
+      title: 'Clip current selection',
+      contexts: ['selection']
+    },
+    () => {
+      const error = chrome.runtime.lastError;
+      if (error && !error.message?.includes('duplicate id')) {
+        console.error('Unable to create context menu', error);
+      }
+    }
+  );
 
   registerContentScript().catch(error => {
     console.error('Failed to register content script', error);
@@ -24,6 +42,11 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId !== CONTEXT_MENU_ID || !tab?.id) {
+    return;
+  }
+
+  if (!info.selectionText || !info.selectionText.trim()) {
+    void showNotification('Nothing to save', 'Select the text you want to clip and try again.');
     return;
   }
 
@@ -93,6 +116,10 @@ async function handleOpenClip(clipId?: string): Promise<void> {
     throw new Error('Clip does not have a source URL');
   }
 
+  if (!isSupportedHttpUrl(clip.sourceUrl)) {
+    throw new Error('Clip contains an unsupported URL');
+  }
+
   const tab = await chrome.tabs.create({ url: clip.sourceUrl });
   if (!tab?.id) {
     throw new Error('Unable to open tab for clip');
@@ -138,14 +165,39 @@ async function handleOpenClip(clipId?: string): Promise<void> {
 
 async function requestSelection(tabId: number): Promise<void> {
   try {
-    await sendMessageToTab(tabId, { type: 'REQUEST_SELECTION' });
+    const response = (await sendMessageToTab(tabId, {
+      type: 'REQUEST_SELECTION'
+    })) as MessageResponse;
+
+    handleSelectionResponse(response);
   } catch (error) {
     if (!isMissingReceiverError(error)) {
+      void showNotification('Clip failed', getErrorMessage(error));
       throw error;
     }
 
-    await injectContentScript(tabId);
-    await sendMessageToTab(tabId, { type: 'REQUEST_SELECTION' });
+    const injected = await injectContentScript(tabId);
+    if (!injected) {
+      return;
+    }
+
+    try {
+      const response = (await sendMessageToTab(tabId, {
+        type: 'REQUEST_SELECTION'
+      })) as MessageResponse;
+      handleSelectionResponse(response);
+    } catch (retryError) {
+      if (isMissingReceiverError(retryError)) {
+        void showNotification(
+          'Clip failed',
+          'Helper script is not available on this page.'
+        );
+        return;
+      }
+
+      void showNotification('Clip failed', getErrorMessage(retryError));
+      throw retryError;
+    }
   }
 }
 
@@ -166,16 +218,27 @@ async function sendMessageToTab(tabId: number, message: unknown): Promise<unknow
   });
 }
 
-async function injectContentScript(tabId: number): Promise<void> {
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    files: ['scripts/content.js']
-  });
+async function injectContentScript(tabId: number): Promise<boolean> {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['scripts/content.js']
+    });
+    return true;
+  } catch (error) {
+    const message = getErrorMessage(error);
+    if (message.includes('Cannot access contents of url')) {
+      void showNotification('Cannot access page', 'This page does not allow extension scripts.');
+      return false;
+    }
+
+    throw error;
+  }
 }
 
 async function registerContentScript(): Promise<void> {
   try {
-    await chrome.scripting.unregisterContentScripts({ ids: ['page-clipper-selection'] });
+    await chrome.scripting.unregisterContentScripts({ ids: [CONTENT_SCRIPT_ID] });
   } catch (error) {
     if (!isNoSuchContentScriptError(error)) {
       throw error;
@@ -184,8 +247,8 @@ async function registerContentScript(): Promise<void> {
 
   await chrome.scripting.registerContentScripts([
     {
-      id: 'page-clipper-selection',
-      matches: ['<all_urls>'],
+      id: CONTENT_SCRIPT_ID,
+      matches: CONTENT_MATCHES,
       js: ['scripts/content.js'],
       runAt: 'document_idle',
       persistAcrossSessions: true
@@ -224,8 +287,7 @@ async function attemptHighlightClip(tabId: number, clip: Clip): Promise<void> {
     return;
   }
 
-  const maxAttempts = 5;
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+  for (let attempt = 0; attempt < HIGHLIGHT_MAX_ATTEMPTS; attempt += 1) {
     try {
       const response = await sendMessageToTab(tabId, {
         type: 'HIGHLIGHT_CLIP',
@@ -253,4 +315,62 @@ function delay(milliseconds: number): Promise<void> {
   return new Promise(resolve => {
     setTimeout(resolve, milliseconds);
   });
+}
+
+function handleSelectionResponse(response: MessageResponse | undefined): void {
+  if (!response) {
+    void showNotification('Clip failed', 'Unknown error, please try again later.');
+    return;
+  }
+
+  if (response.success) {
+    void showNotification('Clip saved', 'Open the extension popup to view your clips.');
+    return;
+  }
+
+  if (response.error?.includes('No selection')) {
+    void showNotification('Nothing to save', 'Select the text you want to clip and try again.');
+    return;
+  }
+
+  void showNotification('Clip failed', response.error ?? 'Unknown error, please try again later.');
+}
+
+function isSupportedHttpUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function getErrorMessage(error: unknown): string {
+  if (!error || typeof error !== 'object') {
+    return String(error ?? 'Unknown error');
+  }
+
+  return (
+    (error as { message?: string; toString?: () => string }).message ??
+    (error as { toString?: () => string }).toString?.() ??
+    'Unknown error'
+  );
+}
+
+async function showNotification(title: string, message: string): Promise<void> {
+  if (!chrome.notifications?.create) {
+    console.warn('Notifications API is not available.');
+    return;
+  }
+
+  try {
+    await chrome.notifications.create({
+      type: 'basic',
+      title,
+      message,
+      iconUrl: NOTIFICATION_ICON
+    });
+  } catch (error) {
+    console.warn('Unable to show notification', error);
+  }
 }

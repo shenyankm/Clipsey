@@ -10,13 +10,3 @@ export function createId(): string {
 
   return `clip-${Math.random().toString(36).slice(2, 10)}`;
 }
-
-export function stripHtml(html: string): string {
-  const temp = globalThis.document?.createElement('div');
-  if (!temp) {
-    return html;
-  }
-
-  temp.innerHTML = html;
-  return temp.textContent ?? html;
-}
