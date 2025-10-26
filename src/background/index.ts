@@ -5,7 +5,8 @@ import type { Clip } from '@/types/clip';
 const CONTEXT_MENU_ID = 'page-clipper-context-menu';
 const CONTENT_SCRIPT_ID = 'page-clipper-selection';
 const CONTENT_MATCHES = ['https://*/*', 'http://*/*'];
-const HIGHLIGHT_MAX_ATTEMPTS = 5;
+const FOCUS_MAX_ATTEMPTS = 5;
+const FOCUS_RETRY_DELAY_MS = 400;
 const NOTIFICATION_ICON = chrome.runtime.getURL('assets/icon128.png');
 
 type MessageResponse<T = unknown> = {
@@ -126,16 +127,16 @@ async function handleOpenClip(clipId?: string): Promise<void> {
   }
 
   const tabId = tab.id;
-  const scheduleHighlight = () => {
+  const scheduleFocus = () => {
     if (!clip.textContent) {
       return;
     }
 
-    void attemptHighlightClip(tabId, clip);
+    void attemptFocusClip(tabId, clip);
   };
 
   if (tab.status === 'complete') {
-    setTimeout(scheduleHighlight, 300);
+    setTimeout(scheduleFocus, 300);
     return;
   }
 
@@ -149,7 +150,7 @@ async function handleOpenClip(clipId?: string): Promise<void> {
 
     if (changeInfo.status === 'complete') {
       chrome.tabs.onUpdated.removeListener(listener);
-      setTimeout(scheduleHighlight, 300);
+      setTimeout(scheduleFocus, 300);
     }
   };
 
@@ -158,7 +159,7 @@ async function handleOpenClip(clipId?: string): Promise<void> {
   setTimeout(() => {
     if (chrome.tabs.onUpdated.hasListener(listener)) {
       chrome.tabs.onUpdated.removeListener(listener);
-      setTimeout(scheduleHighlight, 500);
+      setTimeout(scheduleFocus, 500);
     }
   }, 15000);
 }
@@ -282,15 +283,17 @@ function isNoSuchContentScriptError(error: unknown): boolean {
   return message.includes('No such content script') || message.includes('Nonexistent script ID');
 }
 
-async function attemptHighlightClip(tabId: number, clip: Clip): Promise<void> {
+async function attemptFocusClip(tabId: number, clip: Clip): Promise<void> {
   if (!clip.textContent) {
     return;
   }
 
-  for (let attempt = 0; attempt < HIGHLIGHT_MAX_ATTEMPTS; attempt += 1) {
+  let attemptedManualInjection = false;
+
+  for (let attempt = 0; attempt < FOCUS_MAX_ATTEMPTS; attempt += 1) {
     try {
       const response = await sendMessageToTab(tabId, {
-        type: 'HIGHLIGHT_CLIP',
+        type: 'FOCUS_CLIP',
         payload: {
           id: clip.id,
           textContent: clip.textContent
@@ -301,13 +304,26 @@ async function attemptHighlightClip(tabId: number, clip: Clip): Promise<void> {
         return;
       }
     } catch (error) {
-      if (!isMissingReceiverError(error)) {
-        console.warn('Failed to highlight clip', error);
+      if (isMissingReceiverError(error)) {
+        if (!attemptedManualInjection) {
+          attemptedManualInjection = true;
+          try {
+            const injected = await injectContentScript(tabId);
+            if (!injected) {
+              return;
+            }
+          } catch (injectionError) {
+            console.warn('Failed to inject focus helper', injectionError);
+            return;
+          }
+        }
+      } else {
+        console.warn('Failed to focus clip', error);
         return;
       }
     }
 
-    await delay(400);
+    await delay(FOCUS_RETRY_DELAY_MS);
   }
 }
 
