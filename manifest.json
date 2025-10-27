@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Clipsey",
-  "description": "Clipsey — a modern web snippet clipper built with Vite, Vue 3, Naive UI, and TypeScript.",
+  "description": "Clipsey 是一款基于 Vite、Vue 3、Naive UI 和 TypeScript 的现代网页摘录工具。",
   "version": "0.0.1",
   "action": {
     "default_popup": "popup/index.html",

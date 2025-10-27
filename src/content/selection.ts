@@ -25,7 +25,7 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
         const textContent = selection?.toString().trim();
 
         if (!textContent) {
-          sendResponse({ success: false, error: 'No selection' });
+          sendResponse({ success: false, error: '未选择任何内容' });
           return;
         }
 
@@ -49,6 +49,16 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
           .then(success => sendResponse({ success }))
           .catch(error => sendResponse({ success: false, error: (error as Error).message }));
         return true;
+      case 'ACTIVATE_HIGHLIGHTS': {
+        const texts: string[] = Array.isArray(message?.payload?.texts)
+          ? message.payload.texts.filter((t: unknown) => typeof t === 'string')
+          : [];
+
+        void activateHighlights(texts)
+          .then(success => sendResponse({ success }))
+          .catch(error => sendResponse({ success: false, error: (error as Error).message }));
+        return true;
+      }
       default:
         break;
     }
@@ -61,7 +71,8 @@ let cachedSafeAreaInsetTop: number | null = null;
 let underlineContainer: HTMLDivElement | null = null;
 const activeUnderlines: HTMLDivElement[] = [];
 const UNDERLINE_THICKNESS = 2;
-const UNDERLINE_COLOR = 'rgba(59, 130, 246, 0.9)';
+// 背景高亮颜色（半透明蓝色），替代原下划线效果
+const UNDERLINE_COLOR = 'rgba(59, 130, 246, 0.22)';
 const UNDERLINE_ID = 'page-clipper-underline-layer';
 
 function extractSelectionHtml(selection: Selection | null): string | undefined {
@@ -74,7 +85,7 @@ function extractSelectionHtml(selection: Selection | null): string | undefined {
     container.appendChild(selection.getRangeAt(i).cloneContents());
   }
 
-  // Using innerHTML keeps original markup where possible.
+  // 使用 innerHTML 时尽量保留原始标记
   return container.innerHTML || undefined;
 }
 
@@ -749,7 +760,7 @@ function matchTokensAt(
       continue;
     }
 
-    // whitespace token
+    // 空白字符标记
     while (charIndex < characters.length) {
       const whitespaceCandidate = characters[charIndex];
       if (
@@ -804,8 +815,6 @@ function underlineRanges(ranges: Range[]): void {
     return;
   }
 
-  clearUnderlines();
-
   const scrollX = window.scrollX ?? window.pageXOffset ?? 0;
   const scrollY = window.scrollY ?? window.pageYOffset ?? 0;
 
@@ -817,16 +826,16 @@ function underlineRanges(ranges: Range[]): void {
       }
 
       const underline = document.createElement('div');
-      underline.className = 'page-clipper-underline';
+      underline.className = 'clipsey-highlight';
       underline.style.position = 'absolute';
       underline.style.pointerEvents = 'none';
       underline.style.left = `${rect.left + scrollX}px`;
-      underline.style.top = `${rect.bottom + scrollY - UNDERLINE_THICKNESS}px`;
+      underline.style.top = `${rect.top + scrollY}px`;
       underline.style.width = `${rect.width}px`;
-      underline.style.height = '0';
-      underline.style.borderBottom = `${UNDERLINE_THICKNESS}px solid ${UNDERLINE_COLOR}`;
+      underline.style.height = `${rect.height}px`;
+      underline.style.backgroundColor = UNDERLINE_COLOR;
       underline.style.boxSizing = 'border-box';
-      underline.style.borderRadius = `${UNDERLINE_THICKNESS}px`;
+      underline.style.borderRadius = '3px';
       container.appendChild(underline);
       activeUnderlines.push(underline);
     }
@@ -864,6 +873,50 @@ function clearUnderlines(): void {
     const underline = activeUnderlines.pop();
     underline?.remove();
   }
+}
+
+
+async function activateHighlights(texts: string[]): Promise<boolean> {
+  if (!texts?.length) {
+    return false;
+  }
+
+  const documentCharacters = collectDocumentCharacters();
+  let highlighted = 0;
+
+  for (const text of texts) {
+    const trimmed = text?.trim();
+    if (!trimmed) continue;
+
+    const range = findRangeForTextContent(trimmed, documentCharacters);
+    if (range) {
+      underlineRange(range);
+      highlighted += 1;
+      continue;
+    }
+
+    const queries = buildFocusQueries(trimmed);
+    const maxAttempts = 3;
+    let success = false;
+    for (let attempt = 0; attempt < maxAttempts && !success; attempt += 1) {
+      for (const query of queries) {
+        if (!query) continue;
+        if (focusWithDomSearch(query, documentCharacters)) {
+          success = true;
+          highlighted += 1;
+          break;
+        }
+        if (focusWithWindowFind(query)) {
+          success = true;
+          highlighted += 1;
+          break;
+        }
+      }
+      await delay(250);
+    }
+  }
+
+  return highlighted > 0;
 }
 
 

@@ -8,8 +8,11 @@
   box-sizing: border-box;
 }
 
-html, body, #app {
-  height: 100%;
+/* 让整体高度随内容自适应，避免固定高度造成额外留白 */
+html,
+body,
+#app {
+  height: auto;
 }
 
 body {
@@ -22,4 +25,11 @@ body {
 
 #app {
   width: 100%;
+}
+
+/* 统一控制 Naive UI Tooltip 的换行表现，防止长链接溢出 */
+.clipsey-tooltip-overlay {
+  /* 配合 overlay-style 的动态宽度，确保文本可读 */
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }

@@ -18,34 +18,34 @@ type MessageResponse<T = unknown> = {
 };
 
 chrome.runtime.onInstalled.addListener(() => {
-  // Clean up old context menu id from previous branding
+  // 清理旧版本遗留的上下文菜单标识
   chrome.contextMenus.remove('page-clipper-context-menu', () => {
     const err = chrome.runtime.lastError;
-    // ignore missing id errors
+    // 忽略缺失 ID 的错误
   });
 
   chrome.contextMenus.create(
     {
       id: CONTEXT_MENU_ID,
-      title: 'Clip current selection',
+      title: '保存当前选中内容',
       contexts: ['selection']
     },
     () => {
       const error = chrome.runtime.lastError;
       if (error && !error.message?.includes('duplicate id')) {
-        console.error('Unable to create context menu', error);
+        console.error('创建右键菜单失败', error);
       }
     }
   );
 
   registerContentScript().catch(error => {
-    console.error('Failed to register content script', error);
+    console.error('注册内容脚本失败', error);
   });
 });
 
 chrome.runtime.onStartup.addListener(() => {
   registerContentScript().catch(error => {
-    console.error('Failed to register content script on startup', error);
+    console.error('启动时注册内容脚本失败', error);
   });
 });
 
@@ -55,12 +55,12 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   }
 
   if (!info.selectionText || !info.selectionText.trim()) {
-    void showNotification('Nothing to save', 'Select the text you want to clip and try again.');
+    void showNotification('没有可保存的内容', '请选择要保存的文字后重试。');
     return;
   }
 
   requestSelection(tab.id).catch(error => {
-    console.error('Failed to request selection', error);
+    console.error('请求选区失败', error);
   });
 });
 
@@ -93,6 +93,85 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return false;
 });
 
+// 在用户访问匹配网址时自动激活页面中的相关摘要高亮
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  try {
+    const url = tab?.url;
+    if (!url || changeInfo.status !== 'complete') {
+      return;
+    }
+
+    void activatePageHighlights(tabId, url);
+  } catch (error) {
+    console.warn('自动启用高亮失败', error);
+  }
+});
+
+async function activatePageHighlights(tabId: number, url: string): Promise<void> {
+  // 跳过不允许内容脚本运行的受限页面
+  if (!isSupportedHttpUrl(url)) {
+    return;
+  }
+  const clips = await getClips();
+  const matchingTexts = clips
+    .filter(c => urlsMatch(c.sourceUrl, url))
+    .map(c => c.textContent)
+    .filter(Boolean);
+
+  if (!matchingTexts.length) {
+    return;
+  }
+
+  try {
+    const response = await sendMessageToTab(tabId, {
+      type: 'ACTIVATE_HIGHLIGHTS',
+      payload: { texts: matchingTexts }
+    });
+
+    if (!(response as { success?: boolean })?.success) {
+      // 如有必要，尝试注入脚本后重试
+      const injected = await injectContentScript(tabId);
+      if (!injected) {
+        return;
+      }
+      await sendMessageToTab(tabId, {
+        type: 'ACTIVATE_HIGHLIGHTS',
+        payload: { texts: matchingTexts }
+      });
+    }
+  } catch (error) {
+    if (isMissingReceiverError(error)) {
+      try {
+        const injected = await injectContentScript(tabId);
+        if (!injected) {
+          return;
+        }
+        await sendMessageToTab(tabId, {
+          type: 'ACTIVATE_HIGHLIGHTS',
+          payload: { texts: matchingTexts }
+        });
+      } catch (injectionError) {
+        console.warn('无法为高亮注入脚本', injectionError);
+      }
+    } else {
+      console.warn('启用高亮失败', error);
+    }
+  }
+}
+
+function urlsMatch(clipUrl: string, pageUrl: string): boolean {
+  try {
+    const a = new URL(clipUrl);
+    const b = new URL(pageUrl);
+    // 忽略末尾斜杠和哈希，匹配同源同路径的页面
+    const aPath = a.pathname.replace(/\/+$/, '');
+    const bPath = b.pathname.replace(/\/+$/, '');
+    return a.origin === b.origin && aPath === bPath;
+  } catch {
+    return clipUrl === pageUrl;
+  }
+}
+
 async function handleSaveClip(payload: Partial<Clip> & { textContent?: string }): Promise<void> {
   if (!payload?.textContent) {
     return;
@@ -112,26 +191,26 @@ async function handleSaveClip(payload: Partial<Clip> & { textContent?: string })
 
 async function handleOpenClip(clipId?: string): Promise<void> {
   if (!clipId) {
-    throw new Error('Missing clip id');
+    throw new Error('缺少剪辑 ID');
   }
 
   const clips = await getClips();
   const clip = clips.find(entry => entry.id === clipId);
   if (!clip) {
-    throw new Error('Clip not found');
+    throw new Error('未找到剪辑');
   }
 
   if (!clip.sourceUrl) {
-    throw new Error('Clip does not have a source URL');
+    throw new Error('该剪辑没有来源链接');
   }
 
   if (!isSupportedHttpUrl(clip.sourceUrl)) {
-    throw new Error('Clip contains an unsupported URL');
+    throw new Error('剪辑包含不受支持的链接');
   }
 
   const tab = await chrome.tabs.create({ url: clip.sourceUrl });
   if (!tab?.id) {
-    throw new Error('Unable to open tab for clip');
+    throw new Error('无法打开剪辑页面');
   }
 
   const tabId = tab.id;
@@ -173,6 +252,17 @@ async function handleOpenClip(clipId?: string): Promise<void> {
 }
 
 async function requestSelection(tabId: number, attempt = 0): Promise<void> {
+  // 预检查：避免向受限页面（如 chrome://）发送消息
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const url = tab?.url;
+    if (url && !isSupportedHttpUrl(url)) {
+      void showNotification('无法访问页面', '此页面不允许扩展脚本运行。');
+      return;
+    }
+  } catch {
+    // 如果查询标签页失败，继续执行并交由后续错误处理
+  }
   try {
     const response = (await sendMessageToTab(tabId, {
       type: 'REQUEST_SELECTION'
@@ -187,7 +277,7 @@ async function requestSelection(tabId: number, attempt = 0): Promise<void> {
     }
 
     if (!isMissingReceiverError(error)) {
-      void showNotification('Clip failed', getErrorMessage(error));
+      void showNotification('保存失败', getErrorMessage(error));
       throw error;
     }
 
@@ -204,13 +294,13 @@ async function requestSelection(tabId: number, attempt = 0): Promise<void> {
     } catch (retryError) {
       if (isMissingReceiverError(retryError)) {
         void showNotification(
-          'Clip failed',
-          'Helper script is not available on this page.'
+          '保存失败',
+          '此页面无法使用辅助脚本。'
         );
         return;
       }
 
-      void showNotification('Clip failed', getErrorMessage(retryError));
+      void showNotification('保存失败', getErrorMessage(retryError));
       throw retryError;
     }
   }
@@ -242,8 +332,11 @@ async function injectContentScript(tabId: number): Promise<boolean> {
     return true;
   } catch (error) {
     const message = getErrorMessage(error);
-    if (message.includes('Cannot access contents of url')) {
-      void showNotification('Cannot access page', 'This page does not allow extension scripts.');
+    if (
+      message.includes('Cannot access contents of url') ||
+      message.includes('Cannot access a chrome:// URL')
+    ) {
+      void showNotification('无法访问页面', '此页面不允许扩展脚本运行。');
       return false;
     }
 
@@ -260,15 +353,23 @@ async function registerContentScript(): Promise<void> {
     }
   }
 
-  await chrome.scripting.registerContentScripts([
-    {
-      id: CONTENT_SCRIPT_ID,
-      matches: CONTENT_MATCHES,
-      js: ['scripts/content.js'],
-      runAt: 'document_idle',
-      persistAcrossSessions: true
+  try {
+    await chrome.scripting.registerContentScripts([
+      {
+        id: CONTENT_SCRIPT_ID,
+        matches: CONTENT_MATCHES,
+        js: ['scripts/content.js'],
+        runAt: 'document_idle',
+        persistAcrossSessions: true
+      }
+    ]);
+  } catch (error) {
+    if (isDuplicateScriptIdError(error)) {
+      return;
     }
-  ]);
+
+    throw error;
+  }
 }
 
 function isMissingReceiverError(error: unknown): boolean {
@@ -295,6 +396,19 @@ function isNoSuchContentScriptError(error: unknown): boolean {
   }
 
   return message.includes('No such content script') || message.includes('Nonexistent script ID');
+}
+
+function isDuplicateScriptIdError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const message = (error as { message?: string }).message?.toLowerCase();
+  if (!message) {
+    return false;
+  }
+
+  return message.includes('duplicate script id');
 }
 
 function isFrameRemovedError(error: unknown): boolean {
@@ -340,12 +454,12 @@ async function attemptFocusClip(tabId: number, clip: Clip): Promise<void> {
               return;
             }
           } catch (injectionError) {
-            console.warn('Failed to inject focus helper', injectionError);
+            console.warn('注入辅助脚本失败', injectionError);
             return;
           }
         }
       } else {
-        console.warn('Failed to focus clip', error);
+        console.warn('定位剪辑失败', error);
         return;
       }
     }
@@ -362,21 +476,21 @@ function delay(milliseconds: number): Promise<void> {
 
 function handleSelectionResponse(response: MessageResponse | undefined): void {
   if (!response) {
-    void showNotification('Clip failed', 'Unknown error, please try again later.');
+    void showNotification('保存失败', '发生未知错误，请稍后重试。');
     return;
   }
 
   if (response.success) {
-    void showNotification('Clip saved', 'Open the extension popup to view your clips.');
+    void showNotification('保存成功', '打开插件弹窗以查看剪辑。');
     return;
   }
 
-  if (response.error?.includes('No selection')) {
-    void showNotification('Nothing to save', 'Select the text you want to clip and try again.');
+  if (response.error?.includes('未选择任何内容')) {
+    void showNotification('没有可保存的内容', '请选择要保存的文字后重试。');
     return;
   }
 
-  void showNotification('Clip failed', response.error ?? 'Unknown error, please try again later.');
+  void showNotification('保存失败', response.error ?? '发生未知错误，请稍后重试。');
 }
 
 function isSupportedHttpUrl(url: string): boolean {
@@ -390,19 +504,19 @@ function isSupportedHttpUrl(url: string): boolean {
 
 function getErrorMessage(error: unknown): string {
   if (!error || typeof error !== 'object') {
-    return String(error ?? 'Unknown error');
+    return String(error ?? '未知错误');
   }
 
   return (
     (error as { message?: string; toString?: () => string }).message ??
     (error as { toString?: () => string }).toString?.() ??
-    'Unknown error'
+    '未知错误'
   );
 }
 
 async function showNotification(title: string, message: string): Promise<void> {
   if (!chrome.notifications?.create) {
-    console.warn('Notifications API is not available.');
+    console.warn('通知 API 不可用。');
     return;
   }
 
@@ -414,6 +528,7 @@ async function showNotification(title: string, message: string): Promise<void> {
       iconUrl: NOTIFICATION_ICON
     });
   } catch (error) {
-    console.warn('Unable to show notification', error);
+    console.warn('无法显示通知', error);
   }
 }
+

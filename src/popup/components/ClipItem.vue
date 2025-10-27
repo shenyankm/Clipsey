@@ -1,53 +1,66 @@
 <template>
-  <n-card size="small" hoverable>
-    <template #header>
-      <n-space align="center" justify="space-between" wrap>
-        <div class="clip-item__title-row clip-item__hoverable" @click="toggleTitle">
-          <n-ellipsis v-if="!expandedTitle" :line-clamp="1" :tooltip="false">
-            <n-text strong>{{ titleText }}</n-text>
+  <div class="clip-item" ref="cardRef">
+    <n-card size="small" hoverable>
+      <template #header>
+        <n-space align="center" justify="space-between" wrap>
+          <div class="clip-item__title-row clip-item__hoverable" @click="toggleTitle">
+            <n-ellipsis v-if="!expandedTitle" :line-clamp="1" :tooltip="false">
+              <n-text class="clip-item__title" strong>{{ titleText }}</n-text>
+            </n-ellipsis>
+            <n-text v-else class="clip-item__title" strong>{{ titleText }}</n-text>
+            <n-icon class="clip-item__hover-icon" @click.stop="toggleTitle">
+              <svg width="16" height="16" viewBox="0 0 24 24">
+                <path :d="titleChevronD" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </n-icon>
+          </div>
+          <n-tooltip
+            v-if="topDomain"
+            placement="bottom"
+            trigger="hover"
+            overlay-class="clipsey-tooltip-overlay"
+            :overlay-style="{ maxWidth: cardWidth + 'px' }"
+          >
+            <template #trigger>
+              <n-tag size="small" type="info" round>{{ topDomain }}</n-tag>
+            </template>
+            <div class="clip-item__tooltip-url">{{ clip.sourceUrl }}</div>
+          </n-tooltip>
+        </n-space>
+      </template>
+      <n-space vertical size="small">
+        <div class="clip-item__summary-wrap clip-item__hoverable" @click="toggleSummary">
+          <n-ellipsis v-if="hasSummary && !expandedSummary" :line-clamp="2" :tooltip="false">
+            <n-text class="clip-item__summary" style="display: block; white-space: pre-line;">
+              {{ summaryText }}
+            </n-text>
           </n-ellipsis>
-          <n-text v-else strong>{{ titleText }}</n-text>
-          <n-icon class="clip-item__hover-icon" @click.stop="toggleTitle">
+          <n-text v-else-if="hasSummary" class="clip-item__summary" style="display: block; white-space: pre-line;">
+            {{ summaryText }}
+          </n-text>
+          <n-text v-else depth="3">{{ missingSummaryLabel }}</n-text>
+          <n-icon class="clip-item__hover-icon clip-item__summary-icon" @click.stop="toggleSummary">
             <svg width="16" height="16" viewBox="0 0 24 24">
-              <path :d="titleChevronD" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+              <path :d="summaryChevronD" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
           </n-icon>
         </div>
-        <n-tag v-if="domain" size="small" type="info" round>{{ domain }}</n-tag>
       </n-space>
-    </template>
-    <n-space vertical size="small">
-      <div class="clip-item__summary-wrap clip-item__hoverable" @click="toggleSummary">
-        <n-ellipsis v-if="hasSummary && !expandedSummary" :line-clamp="2" :tooltip="false">
-          <n-text style="display: block; white-space: pre-line;">
-            {{ summaryText }}
-          </n-text>
-        </n-ellipsis>
-        <n-text v-else-if="hasSummary" style="display: block; white-space: pre-line;">
-          {{ summaryText }}
-        </n-text>
-        <n-text v-else depth="3">{{ missingSummaryLabel }}</n-text>
-        <n-icon class="clip-item__hover-icon clip-item__summary-icon" @click.stop="toggleSummary">
-          <svg width="16" height="16" viewBox="0 0 24 24">
-            <path :d="summaryChevronD" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </n-icon>
-      </div>
-    </n-space>
-    <template #footer>
-      <n-space justify="space-between" align="center" wrap>
-        <n-text depth="3">{{ formattedDate }}</n-text>
-        <n-button text :disabled="!clip.sourceUrl" :loading="opening" @click.stop="handleOpen">
-          打开
-        </n-button>
-      </n-space>
-    </template>
-  </n-card>
+      <template #footer>
+        <n-space justify="space-between" align="center" wrap>
+          <n-text depth="3">{{ formattedDate }}</n-text>
+          <n-button text :disabled="!clip.sourceUrl" :loading="opening" @click.stop="handleOpen">
+            打开
+          </n-button>
+        </n-space>
+      </template>
+    </n-card>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { NButton, NCard, NEllipsis, NTag, NSpace, NText, NIcon, useMessage } from 'naive-ui';
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
+import { NButton, NCard, NEllipsis, NTag, NSpace, NText, NIcon, NTooltip, useMessage } from 'naive-ui';
 import type { Clip } from '@/types/clip';
 import { formatDate } from '@/utils/helpers';
 import { sendMessage } from '@/utils/chrome';
@@ -58,8 +71,30 @@ const formattedDate = computed(() => formatDate(props.clip.createdAt));
 const titleText = computed(() => props.clip.title?.trim() || '未命名剪辑');
 const summaryText = computed(() => props.clip.textContent?.trim() ?? '');
 const hasSummary = computed(() => summaryText.value.length > 0);
+const missingSummaryLabel = '暂无摘要';
 const message = useMessage();
 const opening = ref(false);
+
+const cardRef = ref<HTMLElement | null>(null);
+const cardWidth = ref(360);
+let resizeObserver: ResizeObserver | null = null;
+
+onMounted(() => {
+  const el = cardRef.value;
+  if (!el) return;
+  cardWidth.value = el.getBoundingClientRect().width;
+  resizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      cardWidth.value = entry.contentRect.width;
+    }
+  });
+  resizeObserver.observe(el);
+});
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+});
 
 const expandedTitle = ref(false);
 const expandedSummary = ref(false);
@@ -80,20 +115,31 @@ const domain = computed(() => {
   }
 });
 
-const missingSummaryLabel = '暂无摘要';
+const topDomain = computed(() => {
+  const host = domain.value;
+  if (!host) return '';
+  const parts = host.split('.');
+  if (parts.length <= 2) return host;
+  const multiPartTlds = new Set(['co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'com.cn', 'net.cn', 'org.cn', 'gov.cn']);
+  const lastTwo = parts.slice(-2).join('.');
+  if (multiPartTlds.has(lastTwo)) {
+    return parts.slice(-3).join('.');
+  }
+  return lastTwo;
+});
 
-function toggleTitle() {
+function toggleTitle(): void {
   expandedTitle.value = !expandedTitle.value;
 }
 
-function toggleSummary() {
+function toggleSummary(): void {
   expandedSummary.value = !expandedSummary.value;
 }
 
-async function handleOpen() {
+async function handleOpen(): Promise<void> {
   if (opening.value) return;
   if (!props.clip.sourceUrl) {
-    message.warning('无可用来源链接');
+    message.warning('暂无可用的来源链接');
     return;
   }
   opening.value = true;
@@ -102,10 +148,12 @@ async function handleOpen() {
       type: 'OPEN_CLIP',
       payload: { id: props.clip.id }
     });
-    if (!response?.success) throw new Error(response?.error ?? '无法打开剪辑');
+    if (!response?.success) {
+      throw new Error(response?.error ?? '无法打开剪辑');
+    }
     window.close();
   } catch (error) {
-    message.error((error as Error).message);
+    message.error((error as Error).message || '无法打开剪辑');
   } finally {
     opening.value = false;
   }
@@ -122,6 +170,10 @@ async function handleOpen() {
   gap: 8px;
 }
 
+.clip-item__title {
+  font-size: 16px;
+}
+
 .clip-item__hover-icon {
   opacity: 0;
   transition: opacity 0.2s ease;
@@ -136,9 +188,20 @@ async function handleOpen() {
   position: relative;
 }
 
+.clip-item__summary {
+  line-height: 1.6;
+}
+
 .clip-item__summary-icon {
   position: absolute;
   right: 0;
   top: 0;
+}
+
+.clip-item__tooltip-url {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 </style>

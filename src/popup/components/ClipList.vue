@@ -2,7 +2,11 @@
   <n-space v-if="clips.length" vertical size="large">
     <clip-item v-for="clip in clips" :key="clip.id" :clip="clip" />
   </n-space>
-  <n-empty v-else description="No clips yet" />
+  <n-empty
+    v-else
+    description="暂无内容"
+    :style="{ minHeight: '400px' }"
+  />
 </template>
 
 <script setup lang="ts">
