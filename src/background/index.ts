@@ -2,8 +2,8 @@ import { addClip, clearClips, getClips } from './storage';
 import { createId } from '@/utils/helpers';
 import type { Clip } from '@/types/clip';
 
-const CONTEXT_MENU_ID = 'page-clipper-context-menu';
-const CONTENT_SCRIPT_ID = 'page-clipper-selection';
+const CONTEXT_MENU_ID = 'clipsey-context-menu';
+const CONTENT_SCRIPT_ID = 'clipsey-selection';
 const CONTENT_MATCHES = ['https://*/*', 'http://*/*'];
 const FOCUS_MAX_ATTEMPTS = 5;
 const FOCUS_RETRY_DELAY_MS = 400;
@@ -18,6 +18,12 @@ type MessageResponse<T = unknown> = {
 };
 
 chrome.runtime.onInstalled.addListener(() => {
+  // Clean up old context menu id from previous branding
+  chrome.contextMenus.remove('page-clipper-context-menu', () => {
+    const err = chrome.runtime.lastError;
+    // ignore missing id errors
+  });
+
   chrome.contextMenus.create(
     {
       id: CONTEXT_MENU_ID,
@@ -247,7 +253,7 @@ async function injectContentScript(tabId: number): Promise<boolean> {
 
 async function registerContentScript(): Promise<void> {
   try {
-    await chrome.scripting.unregisterContentScripts({ ids: [CONTENT_SCRIPT_ID] });
+    await chrome.scripting.unregisterContentScripts({ ids: [CONTENT_SCRIPT_ID, 'page-clipper-selection'] });
   } catch (error) {
     if (!isNoSuchContentScriptError(error)) {
       throw error;

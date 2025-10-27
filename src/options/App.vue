@@ -2,7 +2,7 @@
   <n-config-provider>
     <n-message-provider>
       <div class="options">
-        <h1>Page Clipper Settings</h1>
+        <h1>Clipsey Settings</h1>
         <n-form :model="form" label-width="140">
           <n-form-item label="Enable cloud sync">
             <n-switch v-model:value="form.enableSync" />
@@ -46,7 +46,7 @@ interface OptionsForm {
   hotkey: string;
 }
 
-const STORAGE_KEY = 'page-clipper-options';
+const STORAGE_KEY = 'clipsey-options';
 
 const form = reactive<OptionsForm>({
   enableSync: false,
@@ -77,12 +77,13 @@ async function handleSave() {
 async function getSettings(): Promise<OptionsForm> {
   return new Promise((resolve, reject) => {
     try {
-      chrome.storage.sync.get({ [STORAGE_KEY]: form }, result => {
+      chrome.storage.sync.get([STORAGE_KEY, 'page-clipper-options'], result => {
         if (chrome.runtime.lastError) {
           reject(chrome.runtime.lastError);
           return;
         }
-        resolve(result[STORAGE_KEY] as OptionsForm);
+        const stored = (result[STORAGE_KEY] ?? result['page-clipper-options'] ?? form) as OptionsForm;
+        resolve(stored);
       });
     } catch (error) {
       reject(error);

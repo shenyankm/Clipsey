@@ -1,4 +1,4 @@
-# Page Clipper
+# Clipsey
 
 _A modern Chrome extension starter for capturing, organizing, and revisiting web snippets with Vue 3 + Vite + Naive UI._  
 _基于 Vue 3 + Vite + Naive UI 的现代网页摘录 Chrome 扩展脚手架。_

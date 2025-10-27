@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Page Clipper Template",
-  "description": "A starter template for building a Chrome extension with Vite, Vue 3, Naive UI, and TypeScript.",
+  "name": "Clipsey",
+  "description": "Clipsey — a modern web snippet clipper built with Vite, Vue 3, Naive UI, and TypeScript.",
   "version": "0.0.1",
   "action": {
     "default_popup": "popup/index.html",
