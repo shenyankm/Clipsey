@@ -1,4 +1,4 @@
-import { addClip, clearClips, getClips } from './storage';
+import { addClip, clearClips, getClips, getClipsForUrl } from './storage';
 import { createId, delay } from '@/utils/helpers';
 import type { Clip } from '@/types/clip';
 
@@ -8,6 +8,8 @@ const CONTENT_SCRIPT_FILE = 'scripts/content.js';
 const CONTENT_MATCHES = ['https://*/*', 'http://*/*'];
 const FOCUS_MAX_ATTEMPTS = 5;
 const FOCUS_RETRY_DELAY_MS = 400;
+const HIGHLIGHT_MAX_ATTEMPTS = 5;
+const HIGHLIGHT_RETRY_DELAY_MS = 400;
 const REQUEST_SELECTION_MAX_ATTEMPTS = 3;
 const REQUEST_SELECTION_RETRY_DELAY_MS = 200;
 const NOTIFICATION_ICON = chrome.runtime.getURL('assets/icon128.png');
@@ -111,67 +113,79 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 async function activatePageHighlights(tabId: number, url: string): Promise<void> {
-  // 跳过不允许内容脚本运行的受限页面
+  // Skip unsupported URLs before asking the content script to highlight.
   if (!isSupportedHttpUrl(url)) {
     return;
   }
-  const clips = await getClips();
-  const matchingTexts = clips
-    .filter(c => urlsMatch(c.sourceUrl, url))
-    .map(c => c.textContent)
-    .filter(Boolean);
+
+  const clips = await getClipsForUrl(url);
+  if (!clips.length) {
+    return;
+  }
+
+  const matchingTexts = Array.from(
+    new Set(
+      clips
+        .map(clip => clip.textContent?.trim())
+        .filter((text): text is string => Boolean(text))
+    )
+  );
 
   if (!matchingTexts.length) {
     return;
   }
 
-  try {
-    const response = await sendMessageToTab(tabId, {
-      type: 'ACTIVATE_HIGHLIGHTS',
-      payload: { texts: matchingTexts }
-    });
+  for (let attempt = 0; attempt < HIGHLIGHT_MAX_ATTEMPTS; attempt += 1) {
+    const success = await attemptActivateHighlights(tabId, matchingTexts);
+    if (success) {
+      return;
+    }
 
-    if (!(response as { success?: boolean })?.success) {
-      // 如有必要，尝试注入脚本后重试
-      const injected = await injectContentScript(tabId);
-      if (!injected) {
-        return;
-      }
-      await sendMessageToTab(tabId, {
-        type: 'ACTIVATE_HIGHLIGHTS',
-        payload: { texts: matchingTexts }
-      });
-    }
-  } catch (error) {
-    if (isMissingReceiverError(error)) {
-      try {
-        const injected = await injectContentScript(tabId);
-        if (!injected) {
-          return;
-        }
-        await sendMessageToTab(tabId, {
-          type: 'ACTIVATE_HIGHLIGHTS',
-          payload: { texts: matchingTexts }
-        });
-      } catch (injectionError) {
-        console.warn('无法为高亮注入脚本', injectionError);
-      }
-    } else {
-      console.warn('启用高亮失败', error);
-    }
+    await delay(HIGHLIGHT_RETRY_DELAY_MS);
   }
 }
 
-function urlsMatch(clipUrl: string, pageUrl: string): boolean {
+async function attemptActivateHighlights(tabId: number, texts: string[]): Promise<boolean> {
+  const sendHighlightRequest = async (): Promise<boolean> => {
+    const response = await sendMessageToTab(tabId, {
+      type: 'ACTIVATE_HIGHLIGHTS',
+      payload: { texts }
+    });
+
+    return Boolean((response as { success?: boolean })?.success);
+  };
+
   try {
-    const a = new URL(clipUrl);
-    const b = new URL(pageUrl);
-    // 忽略末尾斜杠和哈希，匹配同源同路径的页面
-    const aPath = a.pathname.replace(/\/+$/, '');
-    const bPath = b.pathname.replace(/\/+$/, '');
-    return a.origin === b.origin && aPath === bPath;
-  } catch {
-    return clipUrl === pageUrl;
+    const success = await sendHighlightRequest();
+    if (success) {
+      return true;
+    }
+
+    const injected = await injectContentScript(tabId);
+    if (!injected) {
+      return false;
+    }
+
+    return await sendHighlightRequest();
+  } catch (error) {
+    if (!isMissingReceiverError(error)) {
+      console.warn('Failed to apply highlights', error);
+      return false;
+    }
+
+    const injected = await injectContentScript(tabId);
+    if (!injected) {
+      return false;
+    }
+
+    try {
+      return await sendHighlightRequest();
+    } catch (retryError) {
+      if (!isMissingReceiverError(retryError)) {
+        console.warn('Failed to apply highlights', retryError);
+      }
+      return false;
+    }
   }
 }
 
@@ -528,5 +542,12 @@ async function showNotification(title: string, message: string): Promise<void> {
     console.warn('无法显示通知', error);
   }
 }
+
+
+
+
+
+
+
 
 

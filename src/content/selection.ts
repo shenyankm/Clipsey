@@ -904,21 +904,32 @@ async function activateHighlights(texts: string[]): Promise<boolean> {
     return false;
   }
 
+  const uniqueTexts = Array.from(
+    new Set(
+      texts
+        .map(text => text?.trim())
+        .filter((text): text is string => Boolean(text))
+    )
+  );
+
+  if (!uniqueTexts.length) {
+    return false;
+  }
+
+  clearUnderlines();
+
   const documentCharacters = collectDocumentCharacters();
   let highlighted = 0;
 
-  for (const text of texts) {
-    const trimmed = text?.trim();
-    if (!trimmed) continue;
-
-    const range = findRangeForTextContent(trimmed, documentCharacters);
+  for (const text of uniqueTexts) {
+    const range = findRangeForTextContent(text, documentCharacters);
     if (range) {
       underlineRange(range);
       highlighted += 1;
       continue;
     }
 
-    const queries = buildFocusQueries(trimmed);
+    const queries = buildFocusQueries(text);
     const maxAttempts = 3;
     let success = false;
     for (let attempt = 0; attempt < maxAttempts && !success; attempt += 1) {
