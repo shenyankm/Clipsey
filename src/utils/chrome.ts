@@ -14,3 +14,7 @@ export function sendMessage<TResponse = unknown>(message: unknown): Promise<TRes
     }
   });
 }
+
+export function isChromeExtensionEnv(): boolean {
+  return typeof chrome !== 'undefined' && typeof chrome.runtime !== 'undefined';
+}

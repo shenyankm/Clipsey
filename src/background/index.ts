@@ -1,9 +1,10 @@
 import { addClip, clearClips, getClips } from './storage';
-import { createId } from '@/utils/helpers';
+import { createId, delay } from '@/utils/helpers';
 import type { Clip } from '@/types/clip';
 
 const CONTEXT_MENU_ID = 'clipsey-context-menu';
 const CONTENT_SCRIPT_ID = 'clipsey-selection';
+const CONTENT_SCRIPT_FILE = 'scripts/content.js';
 const CONTENT_MATCHES = ['https://*/*', 'http://*/*'];
 const FOCUS_MAX_ATTEMPTS = 5;
 const FOCUS_RETRY_DELAY_MS = 400;
@@ -20,8 +21,10 @@ type MessageResponse<T = unknown> = {
 chrome.runtime.onInstalled.addListener(() => {
   // 清理旧版本遗留的上下文菜单标识
   chrome.contextMenus.remove('page-clipper-context-menu', () => {
-    const err = chrome.runtime.lastError;
-    // 忽略缺失 ID 的错误
+    const removalError = chrome.runtime.lastError;
+    if (removalError && removalError.message && !removalError.message.includes('Cannot find menu item')) {
+      console.debug('移除旧上下文菜单时的非致命错误', removalError);
+    }
   });
 
   chrome.contextMenus.create(
@@ -327,7 +330,7 @@ async function injectContentScript(tabId: number): Promise<boolean> {
   try {
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: ['scripts/content.js']
+      files: [CONTENT_SCRIPT_FILE]
     });
     return true;
   } catch (error) {
@@ -358,7 +361,7 @@ async function registerContentScript(): Promise<void> {
       {
         id: CONTENT_SCRIPT_ID,
         matches: CONTENT_MATCHES,
-        js: ['scripts/content.js'],
+        js: [CONTENT_SCRIPT_FILE],
         runAt: 'document_idle',
         persistAcrossSessions: true
       }
@@ -468,12 +471,6 @@ async function attemptFocusClip(tabId: number, clip: Clip): Promise<void> {
   }
 }
 
-function delay(milliseconds: number): Promise<void> {
-  return new Promise(resolve => {
-    setTimeout(resolve, milliseconds);
-  });
-}
-
 function handleSelectionResponse(response: MessageResponse | undefined): void {
   if (!response) {
     void showNotification('保存失败', '发生未知错误，请稍后重试。');
@@ -531,4 +528,5 @@ async function showNotification(title: string, message: string): Promise<void> {
     console.warn('无法显示通知', error);
   }
 }
+
 

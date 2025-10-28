@@ -76,6 +76,7 @@ import {
   zhCN,
   dateZhCN
 } from 'naive-ui';
+import { isChromeExtensionEnv } from '@/utils/chrome';
 
 interface OptionsForm {
   enableSync: boolean;
@@ -88,17 +89,19 @@ interface OptionsForm {
 type StoredOptions = Omit<OptionsForm, 'language'> & { language?: string };
 
 const STORAGE_KEY = 'clipsey-options';
-
-const form = reactive<OptionsForm>({
+const DEFAULT_OPTIONS: OptionsForm = {
   enableSync: false,
   endpoint: '',
   hotkey: '',
   language: 'zh-CN',
   theme: 'light'
-});
+};
+
+const form = reactive<OptionsForm>({ ...DEFAULT_OPTIONS });
 
 const saving = ref(false);
 const message = useMessage();
+const chromeEnv = isChromeExtensionEnv();
 
 const languageOptions = [{ label: '简体中文', value: 'zh-CN' }];
 
@@ -129,8 +132,17 @@ function t(key: TextKey) {
   return texts[key];
 }
 
-function normalizeLanguage(value: string | undefined): OptionsForm['language'] {
-  return value === 'zh-CN' ? 'zh-CN' : 'zh-CN';
+function mergeStoredOptions(
+  current: Partial<StoredOptions> = {},
+  legacy: Partial<StoredOptions> = {}
+): OptionsForm {
+  return {
+    enableSync: current.enableSync ?? legacy.enableSync ?? DEFAULT_OPTIONS.enableSync,
+    endpoint: current.endpoint ?? legacy.endpoint ?? DEFAULT_OPTIONS.endpoint,
+    hotkey: current.hotkey ?? legacy.hotkey ?? DEFAULT_OPTIONS.hotkey,
+    language: 'zh-CN',
+    theme: (current.theme ?? legacy.theme ?? DEFAULT_OPTIONS.theme) as OptionsForm['theme']
+  };
 }
 
 onMounted(async () => {
@@ -141,7 +153,7 @@ onMounted(async () => {
 async function handleSave(): Promise<void> {
   saving.value = true;
   try {
-    if (typeof chrome !== 'undefined' && chrome.storage?.sync) {
+    if (chromeEnv && chrome.storage?.sync) {
       await chrome.storage.sync.set({ [STORAGE_KEY]: { ...form } });
     } else {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...form }));
@@ -155,8 +167,7 @@ async function handleSave(): Promise<void> {
 }
 
 async function getSettings(): Promise<OptionsForm> {
-  const defaults: OptionsForm = { ...form };
-  if (typeof chrome !== 'undefined' && chrome.storage?.sync) {
+  if (chromeEnv && chrome.storage?.sync) {
     return new Promise((resolve, reject) => {
       try {
         chrome.storage.sync.get([STORAGE_KEY, 'page-clipper-options'], result => {
@@ -166,14 +177,7 @@ async function getSettings(): Promise<OptionsForm> {
           }
           const legacy = (result['page-clipper-options'] ?? {}) as Partial<StoredOptions>;
           const current = (result[STORAGE_KEY] ?? {}) as Partial<StoredOptions>;
-          const merged: OptionsForm = {
-            enableSync: current.enableSync ?? legacy.enableSync ?? defaults.enableSync,
-            endpoint: current.endpoint ?? legacy.endpoint ?? defaults.endpoint,
-            hotkey: current.hotkey ?? legacy.hotkey ?? defaults.hotkey,
-            language: normalizeLanguage(current.language ?? legacy.language ?? defaults.language),
-            theme: (current.theme ?? legacy.theme ?? defaults.theme) as OptionsForm['theme']
-          };
-          resolve(merged);
+          resolve(mergeStoredOptions(current, legacy));
         });
       } catch (error) {
         reject(error);
@@ -181,20 +185,18 @@ async function getSettings(): Promise<OptionsForm> {
     });
   }
 
+  return loadSettingsFromLocal();
+}
+
+function loadSettingsFromLocal(): OptionsForm {
   try {
     const rawCurrent = localStorage.getItem(STORAGE_KEY);
     const rawLegacy = localStorage.getItem('page-clipper-options');
     const legacy = (rawLegacy ? JSON.parse(rawLegacy) : {}) as Partial<StoredOptions>;
     const current = (rawCurrent ? JSON.parse(rawCurrent) : {}) as Partial<StoredOptions>;
-    return {
-      enableSync: current.enableSync ?? legacy.enableSync ?? defaults.enableSync,
-      endpoint: current.endpoint ?? legacy.endpoint ?? defaults.endpoint,
-      hotkey: current.hotkey ?? legacy.hotkey ?? defaults.hotkey,
-      language: normalizeLanguage(current.language ?? legacy.language ?? defaults.language),
-      theme: (current.theme ?? legacy.theme ?? defaults.theme) as OptionsForm['theme']
-    };
+    return mergeStoredOptions(current, legacy);
   } catch {
-    return defaults;
+    return { ...DEFAULT_OPTIONS };
   }
 }
 </script>

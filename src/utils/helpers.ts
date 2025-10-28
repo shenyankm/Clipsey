@@ -10,3 +10,9 @@ export function createId(): string {
 
   return `clip-${Math.random().toString(36).slice(2, 10)}`;
 }
+
+export function delay(milliseconds: number): Promise<void> {
+  return new Promise(resolve => {
+    setTimeout(resolve, milliseconds);
+  });
+}

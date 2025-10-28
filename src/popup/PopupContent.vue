@@ -72,7 +72,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { NButton, NCard, NInput, NSpace, NSpin, NText, NScrollbar, NIcon, NTooltip, NSelect, useMessage } from 'naive-ui';
 import type { Clip } from '@/types/clip';
 import ClipList from './components/ClipList.vue';
-import { sendMessage } from '@/utils/chrome';
+import { sendMessage, isChromeExtensionEnv } from '@/utils/chrome';
 
 const clips = ref<Clip[]>([]);
 const loading = ref(false);
@@ -85,6 +85,7 @@ const searchTypeOptions = [
   { label: '摘要', value: 'summary' }
 ];
 const message = useMessage();
+const chromeEnv = isChromeExtensionEnv();
 
 const filteredClips = computed(() => {
   const q = query.value.trim().toLowerCase();
@@ -148,7 +149,7 @@ async function handleClear(): Promise<void> {
 
 function openSettings(): void {
   try {
-    if (typeof chrome !== 'undefined' && chrome.runtime?.openOptionsPage) {
+    if (chromeEnv && chrome.runtime?.openOptionsPage) {
       chrome.runtime.openOptionsPage();
     } else {
       const url = new URL('/src/options/index.html', window.location.origin).toString();
@@ -161,13 +162,13 @@ function openSettings(): void {
 
 onMounted(() => {
   refreshClips();
-  if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+  if (chromeEnv && chrome.storage?.onChanged) {
     chrome.storage.onChanged.addListener(handleStorageChange);
   }
 });
 
 onBeforeUnmount(() => {
-  if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+  if (chromeEnv && chrome.storage?.onChanged) {
     chrome.storage.onChanged.removeListener(handleStorageChange);
   }
 });

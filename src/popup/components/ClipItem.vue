@@ -65,6 +65,8 @@ import type { Clip } from '@/types/clip';
 import { formatDate } from '@/utils/helpers';
 import { sendMessage } from '@/utils/chrome';
 
+const MULTI_PART_TLDS = new Set(['co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'com.cn', 'net.cn', 'org.cn', 'gov.cn']);
+
 const props = defineProps<{ clip: Clip }>();
 
 const formattedDate = computed(() => formatDate(props.clip.createdAt));
@@ -120,9 +122,8 @@ const topDomain = computed(() => {
   if (!host) return '';
   const parts = host.split('.');
   if (parts.length <= 2) return host;
-  const multiPartTlds = new Set(['co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'com.cn', 'net.cn', 'org.cn', 'gov.cn']);
   const lastTwo = parts.slice(-2).join('.');
-  if (multiPartTlds.has(lastTwo)) {
+  if (MULTI_PART_TLDS.has(lastTwo)) {
     return parts.slice(-3).join('.');
   }
   return lastTwo;

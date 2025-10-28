@@ -1,3 +1,5 @@
+import { delay } from '@/utils/helpers';
+import { sendMessage } from '@/utils/chrome';
 import type { Clip } from '@/types/clip';
 
 declare global {
@@ -962,25 +964,3 @@ function createTextNodeWalker(): TreeWalker | null {
   });
 }
 
-function delay(milliseconds: number): Promise<void> {
-  return new Promise(resolve => {
-    setTimeout(resolve, milliseconds);
-  });
-}
-
-function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> {
-  return new Promise((resolve, reject) => {
-    try {
-      chrome.runtime.sendMessage(message, response => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-          return;
-        }
-
-        resolve(response as TResponse);
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
