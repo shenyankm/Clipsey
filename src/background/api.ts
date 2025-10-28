@@ -1,4 +1,5 @@
 import type { Clip } from '@/types/clip';
+import { IndexedDB } from './indexeddb';
 
 export interface SyncResponse {
   success: boolean;
@@ -13,4 +14,15 @@ export async function syncClips(_clips: Clip[]): Promise<SyncResponse> {
     success: true,
     syncedAt: new Date().toISOString()
   };
+}
+
+export async function getClips(): Promise<Clip[]> {
+  const db = await IndexedDB.create('clipsey', 1);
+  const clips = await db.getAllData('clips');
+  return clips as Clip[];
+}
+
+export async function deleteClipById(id: string): Promise<void> {
+  const db = await IndexedDB.create('clipsey', 1);
+  await db.deleteData('clips', id);
 }

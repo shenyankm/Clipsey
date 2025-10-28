@@ -3,131 +3,72 @@
     <n-message-provider>
       <div class="options">
         <n-grid :cols="6" :x-gap="24">
-          <n-gi v-if="!isMobile" :span="1" />
-          <n-gi :span="isMobile ? 6 : 4">
+          <n-gi :span="24">
             <n-card :bordered="false" size="small" :style="{ boxShadow: 'none' }" :content-style="{ padding: '0' }">
-              <template #header>
-                <n-space justify="space-between" align="center" style="width: 100%">
-                  <n-text strong style="font-size: 18px;">{{ t('title') }}</n-text>
-                  <n-button
-                    v-if="isMobile"
-                    quaternary
-                    size="medium"
-                    aria-label="打开设置项菜单"
-                    @click="drawerVisible = true"
-                    style="padding: 6px 10px;"
-                  >
-                    <n-icon>
-                      <svg width="18" height="18" viewBox="0 0 24 24">
-                        <line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                        <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                        <line x1="3" y1="18" x2="21" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                      </svg>
-                    </n-icon>
-                  </n-button>
-                </n-space>
-              </template>
-              <n-grid :cols="isMobile ? 1 : 4" :x-gap="16" class="settings-grid">
-                <n-gi v-if="!isMobile" :span="1">
-                  <n-card size="small" :bordered="false" class="settings-menu-card">
-                    <n-menu v-model:value="activeItem" :options="menuOptions" :root-indent="0" />
-                  </n-card>
-                </n-gi>
-                <n-gi v-if="!isMobile" :span="1" class="settings-divider-wrapper">
-                  <n-divider vertical class="settings-divider" />
-                </n-gi>
-                <n-gi :span="isMobile ? 1 : 2" class="settings-content">
-                  <template v-if="activeItem === 'basic'">
-                    <n-space vertical size="large">
-                      <n-card size="small">
-                        <template #header>
-                          <n-text strong>{{ t('general') }}</n-text>
-                        </template>
-                        <n-form :model="form" label-width="140">
-                          <n-form-item :label="t('displayLanguage')">
-                            <n-select v-model:value="form.language" :options="languageOptions" />
-                          </n-form-item>
-                          <n-form-item :label="t('theme')">
-                            <n-radio-group v-model:value="form.theme">
-                              <n-radio-button value="light">{{ t('light') }}</n-radio-button>
-                              <n-radio-button value="dark">{{ t('dark') }}</n-radio-button>
-                            </n-radio-group>
-                          </n-form-item>
-                        </n-form>
-                      </n-card>
+              <n-tabs v-model:value="activeItem" type="line" animated class="settings-tabs">
+                <n-tab-pane name="basic" :tab="t('menuBasic')">
+                  <n-space vertical size="large">
+                    <n-card size="small">
+                      <template #header>
+                        <n-text strong>{{ t('general') }}</n-text>
+                      </template>
+                      <n-form :model="form" label-width="140">
+                        <n-form-item :label="t('displayLanguage')">
+                          <n-select v-model:value="form.language" :options="languageOptions" />
+                        </n-form-item>
+                      </n-form>
+                    </n-card>
 
-                      <n-card size="small">
-                        <template #header>
-                          <n-text strong>{{ t('sync') }}</n-text>
-                        </template>
-                        <n-form :model="form" label-width="140">
-                          <n-form-item :label="t('enableSync')">
-                            <n-switch v-model:value="form.enableSync" />
-                          </n-form-item>
-                          <n-form-item :label="t('endpoint')">
-                            <n-input
-                              v-model:value="form.endpoint"
-                              :placeholder="t('endpointPlaceholder')"
-                              :disabled="!form.enableSync"
-                            />
-                          </n-form-item>
-                          <n-form-item :label="t('hotkey')">
-                            <n-input v-model:value="form.hotkey" :placeholder="t('hotkeyPlaceholder')" />
-                          </n-form-item>
-                        </n-form>
-                      </n-card>
+                    <n-card size="small">
+                      <template #header>
+                        <n-text strong>{{ t('sync') }}</n-text>
+                      </template>
+                      <n-form :model="form" label-width="140">
+                        <n-form-item :label="t('enableSync')">
+                          <n-switch v-model:value="form.enableSync" />
+                        </n-form-item>
+                        <n-form-item :label="t('endpoint')">
+                          <n-input
+                            v-model:value="form.endpoint"
+                            :placeholder="t('endpointPlaceholder')"
+                            :disabled="!form.enableSync"
+                          />
+                        </n-form-item>
+                        <n-form-item :label="t('hotkey')">
+                          <n-input v-model:value="form.hotkey" :placeholder="t('hotkeyPlaceholder')" />
+                        </n-form-item>
+                      </n-form>
+                    </n-card>
 
-                      <n-space justify="end">
-                        <n-button type="primary" :loading="saving" @click="handleSave">
-                          {{ t('save') }}
-                        </n-button>
+                    <n-space justify="end">
+                      <n-button type="primary" :loading="saving" @click="handleSave">
+                        {{ t('save') }}
+                      </n-button>
+                    </n-space>
+                  </n-space>
+                </n-tab-pane>
+                <n-tab-pane name="content" :tab="t('menuContent')">
+                  <ClipManager />
+                </n-tab-pane>
+                <n-tab-pane name="guide" :tab="t('menuGuide')">
+                  <n-space vertical size="large">
+                    <n-card size="small" :bordered="false">
+                      <n-space vertical size="medium">
+                        <n-text strong>{{ t('usageGuideTitle') }}</n-text>
+                        <n-text depth="3">{{ t('usageGuideIntro') }}</n-text>
+                        <n-space vertical size="small" class="guide-steps">
+                          <n-text>1. {{ t('usageGuideStepClip') }}</n-text>
+                          <n-text>2. {{ t('usageGuideStepManage') }}</n-text>
+                          <n-text>3. {{ t('usageGuideStepSync') }}</n-text>
+                        </n-space>
+                        <n-button type="primary" ghost>{{ t('usageGuideMore') }}</n-button>
                       </n-space>
-                    </n-space>
-                  </template>
-                  <template v-else-if="activeItem === 'content'">
-                    <n-space vertical size="large">
-                      <n-card size="small" :bordered="false">
-                        <n-space vertical size="small">
-                          <n-text strong>{{ t('contentManagerTitle') }}</n-text>
-                          <n-text depth="3">{{ t('contentManagerDescription') }}</n-text>
-                        </n-space>
-                      </n-card>
-                      <n-card size="small">
-                        <n-space vertical size="small">
-                          <n-text strong>{{ t('contentManagerSync') }}</n-text>
-                          <n-text depth="3">{{ t('contentManagerSyncDescription') }}</n-text>
-                        </n-space>
-                      </n-card>
-                      <n-alert type="info" :show-icon="false">{{ t('contentManagerTips') }}</n-alert>
-                    </n-space>
-                  </template>
-                  <template v-else>
-                    <n-space vertical size="large">
-                      <n-card size="small" :bordered="false">
-                        <n-space vertical size="medium">
-                          <n-text strong>{{ t('usageGuideTitle') }}</n-text>
-                          <n-text depth="3">{{ t('usageGuideIntro') }}</n-text>
-                          <n-space vertical size="small" class="guide-steps">
-                            <n-text>1. {{ t('usageGuideStepClip') }}</n-text>
-                            <n-text>2. {{ t('usageGuideStepManage') }}</n-text>
-                            <n-text>3. {{ t('usageGuideStepSync') }}</n-text>
-                          </n-space>
-                          <n-button type="primary" ghost>{{ t('usageGuideMore') }}</n-button>
-                        </n-space>
-                      </n-card>
-                    </n-space>
-                  </template>
-                </n-gi>
-              </n-grid>
-              <!-- 移动端抽屉菜单 -->
-              <n-drawer v-model:show="drawerVisible" placement="left" :width="260" :mask-closable="true">
-                <n-drawer-content title="设置项" closable>
-                  <n-menu v-model:value="activeItem" :options="menuOptions" :root-indent="0" />
-                </n-drawer-content>
-              </n-drawer>
+                    </n-card>
+                  </n-space>
+                </n-tab-pane>
+              </n-tabs>
             </n-card>
           </n-gi>
-          <n-gi v-if="!isMobile" :span="1" />
         </n-grid>
       </div>
     </n-message-provider>
@@ -141,12 +82,8 @@ import {
   NButton,
   NCard,
   NConfigProvider,
-  NDivider,
-  NDrawer,
-  NDrawerContent,
   NGi,
   NGrid,
-  NMenu,
   NMessageProvider,
   NForm,
   NFormItem,
@@ -157,12 +94,14 @@ import {
   NSpace,
   NSwitch,
   NText,
+  NTabs,
+  NTabPane,
   useMessage,
   darkTheme,
   zhCN,
   dateZhCN
 } from 'naive-ui';
-import type { MenuOption } from 'naive-ui';
+import ClipManager from './ClipManager.vue';
 import { isChromeExtensionEnv } from '@/utils/chrome';
 
 interface OptionsForm {
@@ -170,7 +109,6 @@ interface OptionsForm {
   endpoint: string;
   hotkey: string;
   language: 'zh-CN';
-  theme: 'light' | 'dark';
 }
 
 type StoredOptions = Omit<OptionsForm, 'language'> & { language?: string };
@@ -181,7 +119,6 @@ const DEFAULT_OPTIONS: OptionsForm = {
   endpoint: '',
   hotkey: '',
   language: 'zh-CN',
-  theme: 'light'
 };
 
 const form = reactive<OptionsForm>({ ...DEFAULT_OPTIONS });
@@ -191,22 +128,12 @@ const message = useMessage();
 const chromeEnv = isChromeExtensionEnv();
 
 const activeItem = ref<'basic' | 'content' | 'guide'>('basic');
-const drawerVisible = ref(false);
-
-const isMobile = ref(false);
-function updateIsMobile() {
-  try {
-    isMobile.value = window.innerWidth < 768;
-  } catch {
-    isMobile.value = false;
-  }
-}
 
 const languageOptions = [{ label: '简体中文', value: 'zh-CN' }];
 
 const naiveLocale = zhCN;
 const naiveDateLocale = dateZhCN;
-const themeObject = computed(() => (form.theme === 'dark' ? darkTheme : null));
+const themeObject = computed(() => null);
 
 const texts = {
   title: 'Clipsey 设置',
@@ -215,9 +142,6 @@ const texts = {
   menuGuide: '使用教程',
   general: '基础配置',
   displayLanguage: '显示语言',
-  theme: '主题',
-  light: '浅色',
-  dark: '深色',
   sync: '同步设置',
   enableSync: '启用同步',
   endpoint: '同步地址',
@@ -246,12 +170,6 @@ function t(key: TextKey) {
   return texts[key];
 }
 
-const menuOptions = computed<MenuOption[]>(() => [
-  { label: t('menuBasic'), key: 'basic' },
-  { label: t('menuContent'), key: 'content' },
-  { label: t('menuGuide'), key: 'guide' }
-]);
-
 function mergeStoredOptions(
   current: Partial<StoredOptions> = {},
   legacy: Partial<StoredOptions> = {}
@@ -261,19 +179,12 @@ function mergeStoredOptions(
     endpoint: current.endpoint ?? legacy.endpoint ?? DEFAULT_OPTIONS.endpoint,
     hotkey: current.hotkey ?? legacy.hotkey ?? DEFAULT_OPTIONS.hotkey,
     language: 'zh-CN',
-    theme: (current.theme ?? legacy.theme ?? DEFAULT_OPTIONS.theme) as OptionsForm['theme']
   };
 }
 
 onMounted(async () => {
   const stored = await getSettings();
   Object.assign(form, stored);
-  updateIsMobile();
-  window.addEventListener('resize', updateIsMobile);
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', updateIsMobile);
 });
 
 async function handleSave(): Promise<void> {
@@ -334,36 +245,14 @@ function loadSettingsFromLocal(): OptionsForm {
   background: #f7f8fa;
 }
 
-.settings-grid {
+.settings-tabs {
   min-height: 360px;
   padding: 8px 12px;
 }
 
-.settings-menu-card {
-  height: 100%;
-  padding: 12px 0;
-}
-
-.settings-divider-wrapper {
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  padding: 0 8px;
-}
-
-.settings-divider {
-  height: 100%;
-  border-color: #eaeaea !important;
-}
-
-.settings-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 4px 4px 12px;
-}
-
-.guide-steps {
-  line-height: 1.6;
+@media (max-width: 768px) {
+  .options {
+    padding: 16px;
+  }
 }
 </style>

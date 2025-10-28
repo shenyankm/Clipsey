@@ -1,6 +1,9 @@
 import type { Clip } from '@/types/clip';
+import { indexedDBManager } from './indexeddb';
+import { IndexedDBQuery } from './indexeddb-query';
+import { MigrationManager } from './migration';
+import { IndexedDBError } from '@/types/indexeddb';
 
-const STORAGE_KEY = 'clips';
 const MAX_CLIP_ENTRIES = 200;
 
 type ClipIndex = Map<string, Clip[]>;
@@ -8,67 +11,163 @@ type ClipIndex = Map<string, Clip[]>;
 let cachedClips: Clip[] | null = null;
 let clipIndex: ClipIndex = new Map();
 let inflightLoad: Promise<Clip[]> | null = null;
+let migrationChecked = false;
 
-function getStorage(): chrome.storage.StorageArea {
-  return chrome.storage.local;
+/**
+ * 检查并执行迁移
+ */
+async function ensureMigration(): Promise<void> {
+  if (migrationChecked) {
+    return;
+  }
+
+  try {
+    const status = await MigrationManager.getMigrationStatus();
+    
+    if (status === 'not_started' || status === 'failed') {
+      console.log('Starting data migration to IndexedDB...');
+      await MigrationManager.migrate();
+    } else if (status === 'in_progress') {
+      console.log('Migration in progress, waiting...');
+      // 等待迁移完成或超时
+      let attempts = 0;
+      while (attempts < 30) { // 最多等待30秒
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const currentStatus = await MigrationManager.getMigrationStatus();
+        if (currentStatus === 'completed') {
+          break;
+        }
+        attempts++;
+      }
+    }
+    
+    migrationChecked = true;
+  } catch (error) {
+    console.error('Migration check failed:', error);
+    migrationChecked = true; // 继续使用IndexedDB，即使迁移失败
+  }
 }
 
+/**
+ * 获取所有clips
+ */
 export async function getClips(): Promise<Clip[]> {
+  await ensureMigration();
   const clips = await getCachedClips();
   return cloneClips(clips);
 }
 
+/**
+ * 根据URL获取clips
+ */
 export async function getClipsForUrl(url: string): Promise<Clip[]> {
+  await ensureMigration();
   await getCachedClips();
   const matches = lookupClipsForUrl(url);
   return cloneClips(matches);
 }
 
+/**
+ * 保存clips
+ */
 export async function saveClips(clips: Clip[]): Promise<void> {
-  updateCache(clips);
-  const snapshot = cloneClips(cachedClips ?? []);
-  await getStorageSet({ [STORAGE_KEY]: snapshot });
+  await ensureMigration();
+  
+  try {
+    const normalizedClips = normalizeClips(clips);
+    
+    // 清空现有数据
+    await indexedDBManager.clear('clips');
+    
+    // 批量插入新数据
+    if (normalizedClips.length > 0) {
+      await IndexedDBQuery.bulkAdd('clips', normalizedClips, {
+        batchSize: 50
+      });
+    }
+    
+    // 更新缓存
+    updateCache(normalizedClips);
+    
+  } catch (error) {
+    throw new IndexedDBError(
+      'Failed to save clips',
+      'SAVE_ERROR',
+      error instanceof Error ? error : undefined
+    );
+  }
 }
 
+/**
+ * 添加单个clip
+ */
 export async function addClip(clip: Clip): Promise<void> {
+  await ensureMigration();
+  
   const normalizedClip = normalizeClips([clip])[0];
   if (!normalizedClip) {
     return;
   }
 
-  const existing = await getClips();
-  const filtered = normalizedClip.highlightId
-    ? existing.filter(
-        entry =>
-          !(
-            entry.highlightId &&
-            entry.highlightId === normalizedClip.highlightId &&
-            entry.sourceUrl === normalizedClip.sourceUrl
-          )
-      )
-    : existing;
+  try {
+    const existing = await getClips();
+    
+    // 如果有highlightId，移除重复的highlight
+    const filtered = normalizedClip.highlightId
+      ? existing.filter(
+          entry =>
+            !(
+              entry.highlightId &&
+              entry.highlightId === normalizedClip.highlightId &&
+              entry.sourceUrl === normalizedClip.sourceUrl
+            )
+        )
+      : existing;
 
-  filtered.unshift({ ...normalizedClip });
-  if (filtered.length > MAX_CLIP_ENTRIES) {
-    filtered.length = MAX_CLIP_ENTRIES;
+    // 添加新clip到开头
+    filtered.unshift({ ...normalizedClip });
+    
+    // 限制数量
+    if (filtered.length > MAX_CLIP_ENTRIES) {
+      filtered.length = MAX_CLIP_ENTRIES;
+    }
+    
+    await saveClips(filtered);
+    
+  } catch (error) {
+    throw new IndexedDBError(
+      'Failed to add clip',
+      'ADD_ERROR',
+      error instanceof Error ? error : undefined
+    );
   }
-  await saveClips(filtered);
 }
 
+/**
+ * 清空所有clips
+ */
 export async function clearClips(): Promise<void> {
+  await ensureMigration();
   await saveClips([]);
 }
 
+/**
+ * 更新缓存
+ */
 function updateCache(clips: Clip[]): void {
   const normalized = normalizeClips(clips);
   cachedClips = cloneClips(normalized);
   clipIndex = buildClipIndex(cachedClips);
 }
 
+/**
+ * 标准化clips数据
+ */
 function normalizeClips(clips: Clip[]): Clip[] {
   const limited = clips.slice(0, MAX_CLIP_ENTRIES);
   const normalized: Clip[] = [];
   const seen = new Set<string>();
+  
   for (const clip of limited) {
     if (!clip || typeof clip !== 'object') {
       continue;
@@ -103,14 +202,15 @@ function normalizeClips(clips: Clip[]): Clip[] {
           ? 'inline'
           : undefined;
 
+    const now = Date.now();
     normalized.push({
       id,
       sourceUrl: typeof clip.sourceUrl === 'string' ? clip.sourceUrl : '',
       title: typeof clip.title === 'string' ? clip.title : undefined,
       textContent,
       htmlContent: typeof clip.htmlContent === 'string' ? clip.htmlContent : undefined,
-      createdAt:
-        typeof clip.createdAt === 'string' ? clip.createdAt : new Date().toISOString(),
+      createdAt: typeof clip.createdAt === 'string' ? clip.createdAt : new Date().toISOString(),
+      updatedAt: new Date(now).toISOString(), // IndexedDB schema 新增字段
       highlightId,
       contextBefore,
       contextAfter,
@@ -124,10 +224,16 @@ function normalizeClips(clips: Clip[]): Clip[] {
   return normalized;
 }
 
+/**
+ * 克隆clips数组
+ */
 function cloneClips(clips: Clip[]): Clip[] {
   return clips.map(clip => ({ ...clip }));
 }
 
+/**
+ * 获取缓存的clips
+ */
 async function getCachedClips(): Promise<Clip[]> {
   if (cachedClips) {
     return cachedClips;
@@ -147,16 +253,30 @@ async function getCachedClips(): Promise<Clip[]> {
   return inflightLoad;
 }
 
+/**
+ * 从IndexedDB加载clips
+ */
 async function loadClipsFromStorage(): Promise<Clip[]> {
-  const result = await getStorageGet<{ clips?: Clip[] }>({ [STORAGE_KEY]: [] });
-  const clips = Array.isArray(result[STORAGE_KEY]) ? (result[STORAGE_KEY] as Clip[]) : [];
-  return normalizeClips(clips);
+  try {
+    const clips = await IndexedDBQuery.getAll('clips', {
+      direction: 'desc' // 按创建时间倒序
+    });
+    
+    return normalizeClips(clips);
+  } catch (error) {
+    console.error('Failed to load clips from IndexedDB:', error);
+    return [];
+  }
 }
 
+/**
+ * 根据URL查找clips
+ */
 function lookupClipsForUrl(url: string): Clip[] {
   if (!clipIndex.size) {
     return [];
   }
+  
   const keys = createIndexKeys(url);
   if (!keys.length) {
     return [];
@@ -185,6 +305,9 @@ function lookupClipsForUrl(url: string): Clip[] {
   return matches;
 }
 
+/**
+ * 构建clip索引
+ */
 function buildClipIndex(clips: Clip[]): ClipIndex {
   const index: ClipIndex = new Map();
 
@@ -211,6 +334,9 @@ function buildClipIndex(clips: Clip[]): ClipIndex {
   return index;
 }
 
+/**
+ * 创建索引键
+ */
 function createIndexKeys(url: string): string[] {
   let parsed: URL | null = null;
   try {
@@ -235,6 +361,9 @@ function createIndexKeys(url: string): string[] {
   return keys;
 }
 
+/**
+ * 标准化路径
+ */
 function normalizePath(pathname: string): string {
   if (!pathname || pathname === '/') {
     return '/';
@@ -244,6 +373,9 @@ function normalizePath(pathname: string): string {
   return trimmed || '/';
 }
 
+/**
+ * 标准化查询参数
+ */
 function normalizeSearch(search: string): string {
   if (!search || search === '?') {
     return '';
@@ -269,56 +401,16 @@ function normalizeSearch(search: string): string {
   return serialized ? `?${serialized}` : '';
 }
 
+/**
+ * 检查是否支持的协议
+ */
 function isSupportedProtocol(protocol: string): boolean {
   return protocol === 'http:' || protocol === 'https:';
 }
 
-async function getStorageGet<T>(query: Record<string, unknown>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    try {
-      getStorage().get(query, result => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-          return;
-        }
-
-        resolve(result as T);
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
-
-async function getStorageSet(value: Record<string, unknown>): Promise<void> {
-  return new Promise((resolve, reject) => {
-    try {
-      getStorage().set(value, () => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-          return;
-        }
-
-        resolve();
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
-
-if (chrome.storage?.onChanged) {
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== 'local' || !Object.prototype.hasOwnProperty.call(changes, STORAGE_KEY)) {
-      return;
-    }
-
-    const change = changes[STORAGE_KEY];
-    const newValue = Array.isArray(change?.newValue) ? (change?.newValue as Clip[]) : [];
-    updateCache(newValue);
-  });
-}
-
+/**
+ * 创建备用ID
+ */
 function createFallbackId(clip: Clip): string {
   if (clip.highlightId) {
     return clip.highlightId;
@@ -329,6 +421,9 @@ function createFallbackId(clip: Clip): string {
   return `clip-${Date.now()}`;
 }
 
+/**
+ * 字符串哈希
+ */
 function hashString(value: string): string {
   let hash = 0;
   for (let i = 0; i < value.length; i += 1) {
@@ -336,4 +431,81 @@ function hashString(value: string): string {
     hash |= 0;
   }
   return Math.abs(hash).toString(36);
+}
+
+/**
+ * 监听IndexedDB变化（模拟chrome.storage.onChanged）
+ */
+let changeListeners: Array<(changes: any, areaName: string) => void> = [];
+
+export const storage = {
+  onChanged: {
+    addListener: (callback: (changes: any, areaName: string) => void) => {
+      changeListeners.push(callback);
+    },
+    removeListener: (callback: (changes: any, areaName: string) => void) => {
+      const index = changeListeners.indexOf(callback);
+      if (index > -1) {
+        changeListeners.splice(index, 1);
+      }
+    }
+  }
+};
+
+/**
+ * 触发变化事件
+ */
+function notifyStorageChange(oldValue: Clip[], newValue: Clip[]): void {
+  const changes = {
+    clips: {
+      oldValue,
+      newValue
+    }
+  };
+  
+  changeListeners.forEach(listener => {
+    try {
+      listener(changes, 'local');
+    } catch (error) {
+      console.error('Storage change listener error:', error);
+    }
+  });
+}
+
+// 导出额外的IndexedDB特定功能
+export { IndexedDBQuery, MigrationManager };
+
+/**
+ * 获取存储统计信息
+ */
+export async function getStorageStats(): Promise<{
+  totalClips: number;
+  totalSize: number;
+  oldestClip?: string;
+  newestClip?: string;
+}> {
+  await ensureMigration();
+  
+  try {
+    const clips = await getCachedClips();
+    const totalClips = clips.length;
+    const totalSize = JSON.stringify(clips).length;
+    
+    const sortedByDate = clips
+      .filter(clip => clip.createdAt)
+      .sort((a, b) => new Date(a.createdAt!).getTime() - new Date(b.createdAt!).getTime());
+    
+    return {
+      totalClips,
+      totalSize,
+      oldestClip: sortedByDate[0]?.createdAt,
+      newestClip: sortedByDate[sortedByDate.length - 1]?.createdAt
+    };
+  } catch (error) {
+    throw new IndexedDBError(
+      'Failed to get storage stats',
+      'STATS_ERROR',
+      error instanceof Error ? error : undefined
+    );
+  }
 }
