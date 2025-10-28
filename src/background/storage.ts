@@ -31,12 +31,28 @@ export async function saveClips(clips: Clip[]): Promise<void> {
 }
 
 export async function addClip(clip: Clip): Promise<void> {
-  const existing = await getClips();
-  existing.unshift({ ...clip });
-  if (existing.length > MAX_CLIP_ENTRIES) {
-    existing.length = MAX_CLIP_ENTRIES;
+  const normalizedClip = normalizeClips([clip])[0];
+  if (!normalizedClip) {
+    return;
   }
-  await saveClips(existing);
+
+  const existing = await getClips();
+  const filtered = normalizedClip.highlightId
+    ? existing.filter(
+        entry =>
+          !(
+            entry.highlightId &&
+            entry.highlightId === normalizedClip.highlightId &&
+            entry.sourceUrl === normalizedClip.sourceUrl
+          )
+      )
+    : existing;
+
+  filtered.unshift({ ...normalizedClip });
+  if (filtered.length > MAX_CLIP_ENTRIES) {
+    filtered.length = MAX_CLIP_ENTRIES;
+  }
+  await saveClips(filtered);
 }
 
 export async function clearClips(): Promise<void> {
@@ -58,11 +74,7 @@ function normalizeClips(clips: Clip[]): Clip[] {
       continue;
     }
 
-    const id = typeof clip.id === 'string' ? clip.id : '';
-    if (!id) {
-      continue;
-    }
-
+    const id = typeof clip.id === 'string' && clip.id ? clip.id : createFallbackId(clip);
     if (seen.has(id)) {
       continue;
     }
@@ -72,6 +84,25 @@ function normalizeClips(clips: Clip[]): Clip[] {
       continue;
     }
 
+    const highlightId =
+      typeof clip.highlightId === 'string' && clip.highlightId ? clip.highlightId : undefined;
+    const contextBefore =
+      typeof clip.contextBefore === 'string' ? clip.contextBefore : undefined;
+    const contextAfter =
+      typeof clip.contextAfter === 'string' ? clip.contextAfter : undefined;
+    const anchorSelector =
+      typeof clip.anchorSelector === 'string' ? clip.anchorSelector : undefined;
+    const textOffset =
+      typeof clip.textOffset === 'number' && Number.isFinite(clip.textOffset)
+        ? clip.textOffset
+        : undefined;
+    const highlightStyle =
+      clip.highlightStyle === 'inline' || clip.highlightStyle === 'overlay'
+        ? clip.highlightStyle
+        : highlightId
+          ? 'inline'
+          : undefined;
+
     normalized.push({
       id,
       sourceUrl: typeof clip.sourceUrl === 'string' ? clip.sourceUrl : '',
@@ -79,7 +110,13 @@ function normalizeClips(clips: Clip[]): Clip[] {
       textContent,
       htmlContent: typeof clip.htmlContent === 'string' ? clip.htmlContent : undefined,
       createdAt:
-        typeof clip.createdAt === 'string' ? clip.createdAt : new Date().toISOString()
+        typeof clip.createdAt === 'string' ? clip.createdAt : new Date().toISOString(),
+      highlightId,
+      contextBefore,
+      contextAfter,
+      anchorSelector,
+      textOffset,
+      highlightStyle
     });
     seen.add(id);
   }
@@ -135,11 +172,12 @@ function lookupClipsForUrl(url: string): Clip[] {
     }
 
     for (const clip of bucket) {
-      if (!clip?.id || seen.has(clip.id)) {
+      const dedupeKey = clip?.highlightId || clip?.id;
+      if (!dedupeKey || seen.has(dedupeKey)) {
         continue;
       }
 
-      seen.add(clip.id);
+      seen.add(dedupeKey);
       matches.push(clip);
     }
   }
@@ -279,4 +317,23 @@ if (chrome.storage?.onChanged) {
     const newValue = Array.isArray(change?.newValue) ? (change?.newValue as Clip[]) : [];
     updateCache(newValue);
   });
+}
+
+function createFallbackId(clip: Clip): string {
+  if (clip.highlightId) {
+    return clip.highlightId;
+  }
+  if (clip.textContent) {
+    return `clip-${hashString(clip.textContent)}`;
+  }
+  return `clip-${Date.now()}`;
+}
+
+function hashString(value: string): string {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(36);
 }

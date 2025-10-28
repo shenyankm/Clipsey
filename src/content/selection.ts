@@ -38,46 +38,45 @@ declare global {
   }
 }
 
+type RemoteHighlight = {
+  id?: string;
+  highlightId?: string;
+  textContent?: string;
+  contextBefore?: string;
+  contextAfter?: string;
+  anchorSelector?: string;
+  textOffset?: number;
+  highlightStyle?: 'inline' | 'overlay';
+};
+
+type HighlightMetadata = {
+  highlightId: string;
+  contextBefore?: string;
+  contextAfter?: string;
+  anchorSelector?: string;
+  textOffset?: number;
+};
+
+const INLINE_HIGHLIGHT_CLASS = 'clipsey-inline-highlight';
+const INLINE_HIGHLIGHT_COLOR = 'rgba(251, 191, 36, 0.45)';
+const CONTEXT_RADIUS = 64;
+
 if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
   window.__PAGE_CLIPPER_CONTENT_INITIALIZED__ = true;
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     switch (message?.type) {
-      case 'REQUEST_SELECTION': {
-        const selection = window.getSelection();
-        const textContent = selection?.toString().trim();
-
-        if (!textContent) {
-          sendResponse({ success: false, error: '未选择任何内容' });
-          return;
-        }
-
-        const payload: Partial<Clip> = {
-          textContent,
-          htmlContent: extractSelectionHtml(selection),
-          sourceUrl: window.location.href,
-          title: document.title
-        };
-
-        underlineSelection(selection);
-
-        sendMessage({ type: 'SAVE_CLIP', payload })
-          .then(() => sendResponse({ success: true }))
-          .catch(error => sendResponse({ success: false, error: error?.message }));
-
-        return true;
-      }
+      case 'REQUEST_SELECTION':
+        return handleRequestSelection(sendResponse);
       case 'FOCUS_CLIP':
         focusClip(message?.payload)
           .then(success => sendResponse({ success }))
           .catch(error => sendResponse({ success: false, error: (error as Error).message }));
         return true;
       case 'ACTIVATE_HIGHLIGHTS': {
-        const texts: string[] = Array.isArray(message?.payload?.texts)
-          ? message.payload.texts.filter((t: unknown) => typeof t === 'string')
-          : [];
+        const remoteHighlights = normalizeIncomingHighlights(message?.payload);
 
-        void activateHighlights(texts)
+        void activateHighlights(remoteHighlights)
           .then(success => sendResponse({ success }))
           .catch(error => sendResponse({ success: false, error: (error as Error).message }));
         return true;
@@ -899,58 +898,69 @@ function clearUnderlines(): void {
 }
 
 
-async function activateHighlights(texts: string[]): Promise<boolean> {
-  if (!texts?.length) {
-    return false;
-  }
-
-  const uniqueTexts = Array.from(
-    new Set(
-      texts
-        .map(text => text?.trim())
-        .filter((text): text is string => Boolean(text))
-    )
-  );
-
-  if (!uniqueTexts.length) {
+async function activateHighlights(highlights: RemoteHighlight[]): Promise<boolean> {
+  if (!Array.isArray(highlights) || !highlights.length) {
     return false;
   }
 
   clearUnderlines();
 
-  const documentCharacters = collectDocumentCharacters();
-  let highlighted = 0;
+  let documentCharacters: CharacterPosition[] | null = null;
+  let charactersCollected = false;
+  let applied = 0;
 
-  for (const text of uniqueTexts) {
-    const range = findRangeForTextContent(text, documentCharacters);
-    if (range) {
-      underlineRange(range);
-      highlighted += 1;
+  for (const highlight of highlights) {
+    const text = highlight.textContent?.trim();
+    if (!text) {
       continue;
     }
 
-    const queries = buildFocusQueries(text);
-    const maxAttempts = 3;
-    let success = false;
-    for (let attempt = 0; attempt < maxAttempts && !success; attempt += 1) {
-      for (const query of queries) {
-        if (!query) continue;
-        if (focusWithDomSearch(query, documentCharacters)) {
-          success = true;
-          highlighted += 1;
-          break;
-        }
-        if (focusWithWindowFind(query)) {
-          success = true;
-          highlighted += 1;
-          break;
+    if (highlight.highlightId) {
+      const existing = findExistingHighlightElement(highlight.highlightId);
+      if (existing) {
+        applied += 1;
+        continue;
+      }
+    }
+
+    let range =
+      resolveRangeBySelector(highlight, text) ??
+      resolveRangeByOffset(highlight, text) ??
+      resolveRangeByContext(highlight, text);
+
+    if (!range) {
+      if (!charactersCollected) {
+        documentCharacters = collectDocumentCharacters();
+        charactersCollected = true;
+      }
+
+      if (documentCharacters) {
+        range = findRangeForTextContent(text, documentCharacters);
+        if (!range) {
+          const queries = buildFocusQueries(text);
+          for (const query of queries) {
+            if (!query) {
+              continue;
+            }
+            range = findRangeForTextContent(query, documentCharacters);
+            if (range) {
+              break;
+            }
+          }
         }
       }
-      await delay(250);
+    }
+
+    if (!range) {
+      continue;
+    }
+
+    if (applyInlineHighlight(range, highlight)) {
+      applied += 1;
     }
   }
 
-  return highlighted > 0;
+  return applied > 0;
 }
 
 
@@ -995,4 +1005,506 @@ function createTextNodeWalker(): TreeWalker | null {
     }
   });
 }
+
+function handleRequestSelection(
+  sendResponse: (response: { success: boolean; error?: string }) => void
+): boolean {
+  const selection = window.getSelection();
+  const textContent = selection?.toString().trim();
+
+  if (!textContent || !selection?.rangeCount) {
+    sendResponse({ success: false, error: 'δѡ���κ�����' });
+    return false;
+  }
+
+  const activeRange = selection.getRangeAt(0);
+  if (activeRange.collapsed) {
+    sendResponse({ success: false, error: 'δѡ���κ�����' });
+    return false;
+  }
+
+  const htmlContent = extractSelectionHtml(selection);
+  const metadataRange = activeRange.cloneRange();
+  const highlightId = generateHighlightId();
+  const highlightSpan = wrapRangeInHighlight(activeRange, highlightId);
+
+  if (!highlightSpan) {
+    sendResponse({ success: false, error: '�޷�Ϊѡ�������ָ���' });
+    return false;
+  }
+
+  selection.removeAllRanges();
+  clearUnderlines();
+
+  const metadata = captureHighlightMetadata(metadataRange, highlightSpan, highlightId);
+
+  const payload: Partial<Clip> = {
+    textContent,
+    htmlContent,
+    sourceUrl: window.location.href,
+    title: document.title,
+    highlightId,
+    contextBefore: metadata?.contextBefore,
+    contextAfter: metadata?.contextAfter,
+    anchorSelector: metadata?.anchorSelector,
+    textOffset: metadata?.textOffset,
+    highlightStyle: 'inline'
+  };
+
+  sendMessage({ type: 'SAVE_CLIP', payload })
+    .then(() => sendResponse({ success: true }))
+    .catch(error => sendResponse({ success: false, error: error?.message }));
+
+  return true;
+}
+
+function generateHighlightId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  return 'highlight-' + Math.random().toString(36).slice(2, 11);
+}
+
+function wrapRangeInHighlight(range: Range | null, highlightId: string): HTMLSpanElement | null {
+  if (!range || range.collapsed) {
+    return null;
+  }
+
+  const span = document.createElement('span');
+  span.className = INLINE_HIGHLIGHT_CLASS;
+  span.dataset.clipseyId = highlightId;
+  span.dataset.clipsey = 'true';
+  span.style.backgroundColor = INLINE_HIGHLIGHT_COLOR;
+  span.style.borderRadius = '3px';
+  span.style.padding = '0';
+
+  try {
+    range.surroundContents(span);
+  } catch {
+    try {
+      const fragment = range.extractContents();
+      span.appendChild(fragment);
+      range.insertNode(span);
+    } catch {
+      return null;
+    }
+  }
+
+  return span;
+}
+
+function captureHighlightMetadata(
+  range: Range | null,
+  span: HTMLSpanElement | null,
+  highlightId: string
+): HighlightMetadata | null {
+  if (!range) {
+    return null;
+  }
+
+  const documentData = computeDocumentTextData(range);
+  const selectionText = range.toString();
+  let contextBefore: string | undefined;
+  let contextAfter: string | undefined;
+  let textOffset: number | undefined;
+
+  if (documentData) {
+    textOffset = documentData.offset;
+    const beforeStart = Math.max(0, documentData.offset - CONTEXT_RADIUS);
+    const afterStart = documentData.offset + selectionText.length;
+    contextBefore = documentData.text.slice(beforeStart, documentData.offset);
+    contextAfter = documentData.text.slice(afterStart, afterStart + CONTEXT_RADIUS);
+  }
+
+  const anchorSelector = buildCssPath(span?.parentElement ?? span ?? undefined);
+
+  return {
+    highlightId,
+    contextBefore,
+    contextAfter,
+    anchorSelector,
+    textOffset
+  };
+}
+
+function computeDocumentTextData(range: Range | null): { offset: number; text: string } | null {
+  if (!range || !document.body) {
+    return null;
+  }
+
+  const walker = createTextNodeWalker();
+  if (!walker) {
+    return null;
+  }
+
+  let node = walker.nextNode();
+  const textParts: string[] = [];
+  let aggregateOffset = 0;
+  let startOffset: number | null = null;
+
+  while (node) {
+    const textNode = node as Text;
+    const content = textNode.textContent ?? '';
+    if (textNode === range.startContainer) {
+      startOffset = aggregateOffset + Math.min(range.startOffset, content.length);
+    }
+    textParts.push(content);
+    aggregateOffset += content.length;
+    node = walker.nextNode();
+  }
+
+  if (startOffset == null) {
+    return null;
+  }
+
+  return {
+    offset: startOffset,
+    text: textParts.join('')
+  };
+}
+
+function buildCssPath(element: Element | undefined): string | undefined {
+  if (!element || element.nodeType !== Node.ELEMENT_NODE) {
+    return undefined;
+  }
+
+  const segments: string[] = [];
+  let current: Element | null = element;
+
+  while (current && current.nodeType === Node.ELEMENT_NODE) {
+    const elementForSegment = current as Element;
+    const tagName = elementForSegment.tagName.toLowerCase();
+
+    if (!elementForSegment.parentElement || elementForSegment === document.body) {
+      segments.unshift(tagName);
+      break;
+    }
+
+    if (elementForSegment.id) {
+      segments.unshift(tagName + '#' + elementForSegment.id);
+      break;
+    }
+
+    const parent = elementForSegment.parentElement;
+    if (!parent) {
+      break;
+    }
+
+    const siblings = Array.from(parent.children) as Element[];
+    let count = 0;
+    let index = 0;
+    for (let i = 0; i < siblings.length; i += 1) {
+      const sibling = siblings[i];
+      if (sibling.tagName === elementForSegment.tagName) {
+        count += 1;
+        if (sibling === elementForSegment) {
+          index = count;
+        }
+      }
+    }
+
+    if (count > 1) {
+      segments.unshift(tagName + ':nth-of-type(' + index + ')');
+    } else {
+      segments.unshift(tagName);
+    }
+
+    current = parent;
+  }
+
+  return segments.join(' > ');
+}
+
+function cssEscape(value: string): string {
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+    return CSS.escape(value);
+  }
+
+  return value.replace(/[^a-zA-Z0-9_-]/g, match => '\\\\' + match);
+}
+
+function normalizeIncomingHighlights(payload: unknown): RemoteHighlight[] {
+  let raw: unknown[] = [];
+
+  if (payload && typeof payload === 'object') {
+    const container = payload as { highlights?: unknown; texts?: unknown };
+    if (Array.isArray(container.highlights)) {
+      raw = container.highlights as unknown[];
+    } else if (Array.isArray(container.texts)) {
+      raw = container.texts as unknown[];
+    }
+  } else if (Array.isArray(payload)) {
+    raw = payload as unknown[];
+  }
+
+  const normalized: RemoteHighlight[] = [];
+
+  for (const item of raw) {
+    if (typeof item === 'string') {
+      const text = item.trim();
+      if (text) {
+        normalized.push({ textContent: text });
+      }
+      continue;
+    }
+
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+
+    const entry = item as Record<string, unknown>;
+    const text = typeof entry.textContent === 'string' ? entry.textContent.trim() : '';
+    if (!text) {
+      continue;
+    }
+
+    normalized.push({
+      id: typeof entry.id === 'string' ? entry.id : undefined,
+      highlightId: typeof entry.highlightId === 'string' ? entry.highlightId : undefined,
+      textContent: text,
+      contextBefore: typeof entry.contextBefore === 'string' ? entry.contextBefore : undefined,
+      contextAfter: typeof entry.contextAfter === 'string' ? entry.contextAfter : undefined,
+      anchorSelector: typeof entry.anchorSelector === 'string' ? entry.anchorSelector : undefined,
+      textOffset:
+        typeof entry.textOffset === 'number' && Number.isFinite(entry.textOffset)
+          ? entry.textOffset
+          : undefined,
+      highlightStyle:
+        entry.highlightStyle === 'inline' || entry.highlightStyle === 'overlay'
+          ? (entry.highlightStyle as 'inline' | 'overlay')
+          : undefined
+    });
+  }
+
+  return normalized;
+}
+
+function findExistingHighlightElement(highlightId: string): HTMLElement | null {
+  if (!highlightId) {
+    return null;
+  }
+
+  const selector = '[data-clipsey-id=\"' + cssEscape(highlightId) + '\"]';
+  return document.querySelector(selector) as HTMLElement | null;
+}
+
+function safeQuerySelector(selector: string): Element | null {
+  try {
+    return document.querySelector(selector);
+  } catch {
+    return null;
+  }
+}
+
+function resolveRangeBySelector(highlight: RemoteHighlight, text: string): Range | null {
+  if (!highlight.anchorSelector) {
+    return null;
+  }
+
+  const anchor = safeQuerySelector(highlight.anchorSelector);
+  if (!anchor) {
+    return null;
+  }
+
+  return findTextRangeInNode(anchor, text);
+}
+
+function resolveRangeByOffset(highlight: RemoteHighlight, text: string): Range | null {
+  if (typeof highlight.textOffset !== 'number' || !Number.isFinite(highlight.textOffset)) {
+    return null;
+  }
+
+  return createRangeFromDocumentOffset(highlight.textOffset, text.length);
+}
+
+function resolveRangeByContext(_highlight: RemoteHighlight, _text: string): Range | null {
+  return null;
+}
+
+function createRangeFromDocumentOffset(offset: number, length: number): Range | null {
+  if (!document.body || offset < 0 || length <= 0) {
+    return null;
+  }
+
+  const walker = createTextNodeWalker();
+  if (!walker) {
+    return null;
+  }
+
+  let remaining = offset;
+  let node: Node | null;
+  let startNode: Text | null = null;
+  let startOffset = 0;
+
+  while ((node = walker.nextNode())) {
+    const textNode = node as Text;
+    const contentLength = textNode.textContent?.length ?? 0;
+    if (remaining <= contentLength) {
+      startNode = textNode;
+      startOffset = Math.min(remaining, contentLength);
+      break;
+    }
+    remaining -= contentLength;
+  }
+
+  if (!startNode) {
+    return null;
+  }
+
+  const range = document.createRange();
+  range.setStart(startNode, startOffset);
+
+  let remainingLength = length;
+  let endNode: Text = startNode;
+  let endOffset = Math.min(startOffset + remainingLength, startNode.textContent?.length ?? 0);
+  remainingLength -= endOffset - startOffset;
+
+  while (remainingLength > 0) {
+    const nextNode = walker.nextNode() as Text | null;
+    if (!nextNode) {
+      break;
+    }
+
+    const textLength = nextNode.textContent?.length ?? 0;
+    if (textLength === 0) {
+      continue;
+    }
+
+    if (remainingLength <= textLength) {
+      endNode = nextNode;
+      endOffset = remainingLength;
+      remainingLength = 0;
+      break;
+    }
+
+    remainingLength -= textLength;
+    endNode = nextNode;
+    endOffset = textLength;
+  }
+
+  range.setEnd(endNode, endOffset);
+  return range;
+}
+
+function findTextRangeInNode(root: Node, text: string): Range | null {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node?.parentElement) {
+        return NodeFilter.FILTER_SKIP;
+      }
+      if (node.parentElement.closest('script, style, noscript, svg, canvas')) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      const content = node.textContent;
+      if (!content || !content.trim()) {
+        return NodeFilter.FILTER_SKIP;
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+
+  const textNodes: Text[] = [];
+  const buffer: string[] = [];
+  let node: Node | null;
+
+  while ((node = walker.nextNode())) {
+    const textNode = node as Text;
+    textNodes.push(textNode);
+    buffer.push(textNode.textContent ?? '');
+  }
+
+  if (!textNodes.length) {
+    return null;
+  }
+
+  const combined = buffer.join('');
+  const index = combined.toLowerCase().indexOf(text.toLowerCase());
+  if (index === -1) {
+    return null;
+  }
+
+  let remaining = index;
+  let startNode: Text | null = null;
+  let startOffset = 0;
+
+  for (const textNode of textNodes) {
+    const contentLength = textNode.textContent?.length ?? 0;
+    if (remaining <= contentLength) {
+      startNode = textNode;
+      startOffset = remaining;
+      break;
+    }
+    remaining -= contentLength;
+  }
+
+  if (!startNode) {
+    return null;
+  }
+
+  const range = document.createRange();
+  range.setStart(startNode, startOffset);
+
+  let remainingLength = text.length;
+  let currentIndex = textNodes.indexOf(startNode);
+  let endNode = startNode;
+  let endOffset = Math.min(startOffset + remainingLength, startNode.textContent?.length ?? 0);
+  remainingLength -= endOffset - startOffset;
+
+  while (remainingLength > 0 && currentIndex + 1 < textNodes.length) {
+    currentIndex += 1;
+    const nextNode = textNodes[currentIndex];
+    const contentLength = nextNode.textContent?.length ?? 0;
+    if (contentLength === 0) {
+      continue;
+    }
+    if (remainingLength <= contentLength) {
+      endNode = nextNode;
+      endOffset = remainingLength;
+      remainingLength = 0;
+      break;
+    }
+    remainingLength -= contentLength;
+    endNode = nextNode;
+    endOffset = contentLength;
+  }
+
+  range.setEnd(endNode, endOffset);
+  return range;
+}
+
+function applyInlineHighlight(range: Range, highlight: RemoteHighlight): boolean {
+  const targetId = highlight.highlightId || highlight.id || generateHighlightId();
+  if (highlight.highlightId) {
+    const existing = findExistingHighlightElement(highlight.highlightId);
+    if (existing) {
+      return true;
+    }
+  }
+
+  const span = document.createElement('span');
+  span.className = INLINE_HIGHLIGHT_CLASS;
+  span.dataset.clipseyId = targetId;
+  span.dataset.clipsey = 'true';
+  span.style.backgroundColor = INLINE_HIGHLIGHT_COLOR;
+  span.style.borderRadius = '3px';
+  span.style.padding = '0';
+
+  try {
+    range.surroundContents(span);
+  } catch {
+    try {
+      const fragment = range.extractContents();
+      span.appendChild(fragment);
+      range.insertNode(span);
+    } catch {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+
+
 

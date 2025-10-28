@@ -5,4 +5,10 @@ export interface Clip {
   textContent: string;
   htmlContent?: string;
   createdAt: string;
+  highlightId?: string;
+  contextBefore?: string;
+  contextAfter?: string;
+  anchorSelector?: string;
+  textOffset?: number;
+  highlightStyle?: 'inline' | 'overlay';
 }

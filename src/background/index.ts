@@ -20,6 +20,17 @@ type MessageResponse<T = unknown> = {
   error?: string;
 };
 
+type HighlightPayload = {
+  id: string;
+  highlightId?: string;
+  textContent: string;
+  contextBefore?: string;
+  contextAfter?: string;
+  anchorSelector?: string;
+  textOffset?: number;
+  highlightStyle?: 'inline' | 'overlay';
+};
+
 chrome.runtime.onInstalled.addListener(() => {
   // 清理旧版本遗留的上下文菜单标识
   chrome.contextMenus.remove('page-clipper-context-menu', () => {
@@ -122,21 +133,12 @@ async function activatePageHighlights(tabId: number, url: string): Promise<void>
   if (!clips.length) {
     return;
   }
-
-  const matchingTexts = Array.from(
-    new Set(
-      clips
-        .map(clip => clip.textContent?.trim())
-        .filter((text): text is string => Boolean(text))
-    )
-  );
-
-  if (!matchingTexts.length) {
+  const highlights = collectHighlightPayloads(clips);
+  if (!highlights.length) {
     return;
   }
-
   for (let attempt = 0; attempt < HIGHLIGHT_MAX_ATTEMPTS; attempt += 1) {
-    const success = await attemptActivateHighlights(tabId, matchingTexts);
+    const success = await attemptActivateHighlights(tabId, highlights);
     if (success) {
       return;
     }
@@ -145,11 +147,14 @@ async function activatePageHighlights(tabId: number, url: string): Promise<void>
   }
 }
 
-async function attemptActivateHighlights(tabId: number, texts: string[]): Promise<boolean> {
+async function attemptActivateHighlights(
+  tabId: number,
+  highlights: HighlightPayload[]
+): Promise<boolean> {
   const sendHighlightRequest = async (): Promise<boolean> => {
     const response = await sendMessageToTab(tabId, {
       type: 'ACTIVATE_HIGHLIGHTS',
-      payload: { texts }
+      payload: { highlights }
     });
 
     return Boolean((response as { success?: boolean })?.success);
@@ -194,13 +199,32 @@ async function handleSaveClip(payload: Partial<Clip> & { textContent?: string })
     return;
   }
 
+  const sourceUrl = payload.sourceUrl ?? '';
+  const highlightId =
+    typeof payload.highlightId === 'string' && payload.highlightId ? payload.highlightId : undefined;
+  const existingForUrl = highlightId ? await getClipsForUrl(sourceUrl) : [];
+  const existingClip = highlightId
+    ? existingForUrl.find(
+        clip => clip.highlightId === highlightId && clip.sourceUrl === sourceUrl
+      )
+    : undefined;
+
   const clip: Clip = {
     id: createId(),
-    sourceUrl: payload.sourceUrl ?? '',
+    sourceUrl,
     title: payload.title,
     textContent: payload.textContent,
     htmlContent: payload.htmlContent,
-    createdAt: new Date().toISOString()
+    createdAt: existingClip?.createdAt ?? new Date().toISOString(),
+    highlightId,
+    contextBefore: payload.contextBefore,
+    contextAfter: payload.contextAfter,
+    anchorSelector: payload.anchorSelector,
+    textOffset:
+      typeof payload.textOffset === 'number' && Number.isFinite(payload.textOffset)
+        ? payload.textOffset
+        : existingClip?.textOffset,
+    highlightStyle: payload.highlightStyle ?? existingClip?.highlightStyle ?? 'inline'
   };
 
   await addClip(clip);
@@ -541,6 +565,37 @@ async function showNotification(title: string, message: string): Promise<void> {
   } catch (error) {
     console.warn('无法显示通知', error);
   }
+}
+
+function collectHighlightPayloads(clips: Clip[]): HighlightPayload[] {
+  const seen = new Set<string>();
+  const highlights: HighlightPayload[] = [];
+
+  for (const clip of clips) {
+    const text = clip.textContent?.trim();
+    if (!text) {
+      continue;
+    }
+
+    const key = clip.highlightId ?? `${clip.sourceUrl}:${text}`;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    highlights.push({
+      id: clip.highlightId ?? clip.id,
+      highlightId: clip.highlightId,
+      textContent: text,
+      contextBefore: clip.contextBefore,
+      contextAfter: clip.contextAfter,
+      anchorSelector: clip.anchorSelector,
+      textOffset: clip.textOffset,
+      highlightStyle: clip.highlightStyle
+    });
+  }
+
+  return highlights;
 }
 
 
