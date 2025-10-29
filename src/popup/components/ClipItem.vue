@@ -30,14 +30,12 @@
       </template>
       <n-space vertical size="small">
         <div class="clip-item__summary-wrap clip-item__hoverable" @click="toggleSummary">
-          <n-ellipsis v-if="hasSummary && !expandedSummary" :line-clamp="2" :tooltip="false">
-            <n-text class="clip-item__summary" style="display: block; white-space: pre-line;">
-              {{ summaryText }}
-            </n-text>
-          </n-ellipsis>
-          <n-text v-else-if="hasSummary" class="clip-item__summary" style="display: block; white-space: pre-line;">
-            {{ summaryText }}
-          </n-text>
+          <div
+            v-if="hasSummary"
+            class="clip-item__summary clip-item__summary-html"
+            :class="{ 'clip-item__summary--collapsed': !expandedSummary }"
+            v-html="summaryHtml"
+          />
           <n-text v-else depth="3">{{ missingSummaryLabel }}</n-text>
           <n-icon class="clip-item__hover-icon clip-item__summary-icon" @click.stop="toggleSummary">
             <svg width="16" height="16" viewBox="0 0 24 24">
@@ -60,10 +58,11 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
-import { NButton, NCard, NEllipsis, NTag, NSpace, NText, NIcon, NTooltip, useMessage } from 'naive-ui';
+import { NButton, NCard, NTag, NSpace, NText, NIcon, NTooltip, useMessage } from 'naive-ui';
 import type { Clip } from '@/types/clip';
 import { formatDate } from '@/utils/helpers';
 import { sendMessage } from '@/utils/chrome';
+import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
 
 const MULTI_PART_TLDS = new Set(['co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'com.cn', 'net.cn', 'org.cn', 'gov.cn']);
 
@@ -71,8 +70,8 @@ const props = defineProps<{ clip: Clip }>();
 
 const formattedDate = computed(() => formatDate(props.clip.createdAt));
 const titleText = computed(() => props.clip.title?.trim() || '未命名剪辑');
-const summaryText = computed(() => props.clip.textContent?.trim() ?? '');
-const hasSummary = computed(() => summaryText.value.length > 0);
+const summaryHtml = computed(() => getClipHtmlContent(props.clip));
+const hasSummary = computed(() => hasClipRichContent(props.clip));
 const missingSummaryLabel = '暂无摘要';
 const message = useMessage();
 const opening = ref(false);
@@ -191,6 +190,22 @@ async function handleOpen(): Promise<void> {
 
 .clip-item__summary {
   line-height: 1.6;
+}
+
+.clip-item__summary-html {
+  width: 100%;
+  color: inherit;
+}
+
+.clip-item__summary--collapsed {
+  max-height: 72px;
+  overflow: hidden;
+}
+
+.clip-item__summary-html :deep(.clipsey-inline-highlight) {
+  background-color: rgba(251, 191, 36, 0.45);
+  border-radius: 3px;
+  padding: 0 2px;
 }
 
 .clip-item__summary-icon {

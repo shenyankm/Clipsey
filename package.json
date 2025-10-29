@@ -10,6 +10,7 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "dompurify": "^3.3.0",
     "naive-ui": "^2.38.2",
     "vue": "^3.4.21"
   },
@@ -18,7 +19,9 @@
     "@types/node": "^24.9.1",
     "@vitejs/plugin-vue": "^5.0.4",
     "typescript": "^5.4.5",
+    "vfonts": "^0.0.3",
     "vite": "^5.2.9",
-    "vue-tsc": "^2.0.13"
+    "vue-tsc": "^2.0.13",
+    "@types/dompurify": "^3.0.5"
   }
 }

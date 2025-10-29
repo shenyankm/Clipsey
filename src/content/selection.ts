@@ -1066,11 +1066,7 @@ function generateHighlightId(): string {
   return 'highlight-' + Math.random().toString(36).slice(2, 11);
 }
 
-function wrapRangeInHighlight(range: Range | null, highlightId: string): HTMLSpanElement | null {
-  if (!range || range.collapsed) {
-    return null;
-  }
-
+function createHighlightSpanElement(highlightId: string): HTMLSpanElement {
   const span = document.createElement('span');
   span.className = INLINE_HIGHLIGHT_CLASS;
   span.dataset.clipseyId = highlightId;
@@ -1078,20 +1074,122 @@ function wrapRangeInHighlight(range: Range | null, highlightId: string): HTMLSpa
   span.style.backgroundColor = INLINE_HIGHLIGHT_COLOR;
   span.style.borderRadius = '3px';
   span.style.padding = '0';
+  return span;
+}
+
+type HighlightSegment = {
+  node: Text;
+  start: number;
+  end: number;
+};
+
+function collectHighlightSegments(range: Range): HighlightSegment[] {
+  const segments: HighlightSegment[] = [];
+  const root = range.commonAncestorContainer;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+
+  let current: Node | null = walker.nextNode();
+  while (current) {
+    const textNode = current as Text;
+    if (!range.intersectsNode(textNode)) {
+      current = walker.nextNode();
+      continue;
+    }
+
+    if (textNode.parentElement?.closest('[data-clipsey-id]')) {
+      current = walker.nextNode();
+      continue;
+    }
+
+    const content = textNode.textContent ?? '';
+    if (!content.trim()) {
+      current = walker.nextNode();
+      continue;
+    }
+
+    const length = content.length;
+    let start = 0;
+    let end = length;
+
+    if (textNode === range.startContainer) {
+      start = Math.max(0, Math.min(length, range.startOffset));
+    }
+
+    if (textNode === range.endContainer) {
+      end = Math.max(0, Math.min(length, range.endOffset));
+    }
+
+    if (start >= end) {
+      current = walker.nextNode();
+      continue;
+    }
+
+    segments.push({ node: textNode, start, end });
+    current = walker.nextNode();
+  }
+
+  return segments;
+}
+
+function applyHighlightSegments(range: Range, highlightId: string): HTMLSpanElement[] {
+  const segments = collectHighlightSegments(range);
+  const created: HTMLSpanElement[] = [];
+
+  for (const { node, start, end } of segments) {
+    if (!node.isConnected) {
+      continue;
+    }
+
+    const segmentRange = document.createRange();
+    segmentRange.setStart(node, start);
+    segmentRange.setEnd(node, end);
+
+    const span = createHighlightSpanElement(highlightId);
+    try {
+      segmentRange.surroundContents(span);
+    } catch {
+      try {
+        const fragment = segmentRange.extractContents();
+        span.appendChild(fragment);
+        segmentRange.insertNode(span);
+      } catch {
+        span.remove();
+        continue;
+      }
+    }
+
+    created.push(span);
+  }
+
+  return created;
+}
+
+function wrapRangeInHighlight(range: Range | null, highlightId: string): HTMLSpanElement | null {
+  if (!range || range.collapsed) {
+    return null;
+  }
+
+  const spans = applyHighlightSegments(range, highlightId);
+  if (spans.length > 0) {
+    return spans[0];
+  }
+
+  const span = createHighlightSpanElement(highlightId);
 
   try {
     range.surroundContents(span);
+    return span;
   } catch {
     try {
       const fragment = range.extractContents();
       span.appendChild(fragment);
       range.insertNode(span);
+      return span;
     } catch {
+      span.remove();
       return null;
     }
   }
-
-  return span;
 }
 
 function captureHighlightMetadata(
@@ -1482,27 +1580,28 @@ function applyInlineHighlight(range: Range, highlight: RemoteHighlight): boolean
     }
   }
 
-  const span = document.createElement('span');
-  span.className = INLINE_HIGHLIGHT_CLASS;
-  span.dataset.clipseyId = targetId;
-  span.dataset.clipsey = 'true';
-  span.style.backgroundColor = INLINE_HIGHLIGHT_COLOR;
-  span.style.borderRadius = '3px';
-  span.style.padding = '0';
+  const spans = applyHighlightSegments(range, targetId);
+  if (spans.length > 0) {
+    return true;
+  }
+
+  const span = createHighlightSpanElement(targetId);
 
   try {
     range.surroundContents(span);
+    return true;
   } catch {
     try {
       const fragment = range.extractContents();
       span.appendChild(fragment);
       range.insertNode(span);
+      return true;
     } catch {
+      span.remove();
       return false;
     }
   }
 
-  return true;
 }
 
 

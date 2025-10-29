@@ -56,8 +56,13 @@
                     {{ clip.sourceUrl }}
                   </n-tag>
                 </template>
-                <div class="clip-content">
-                  {{ clip.textContent }}
+                <div
+                  v-if="clipHasRichContent(clip)"
+                  class="clip-content"
+                  v-html="resolveClipHtml(clip)"
+                />
+                <div v-else class="clip-content clip-content--empty">
+                  暂无内容
                 </div>
                 <template #action>
                   <n-button quaternary type="error" size="small" @click="deleteClip(clip.id)">
@@ -99,6 +104,7 @@ import {
 import ContentSidebar from './ContentSidebar.vue';
 import { getClips, deleteClipById } from '@/background/api';
 import type { Clip } from '@/types/clip';
+import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
 
 type SearchType = 'all' | 'title' | 'url' | 'content';
 type SidebarType = 'all' | 'custom';
@@ -118,6 +124,15 @@ const searchTypeOptions = [
   { label: '网址', value: 'url' as const },
   { label: '内容', value: 'content' as const },
 ];
+
+function resolveClipHtml(clip: Clip): string {
+  return getClipHtmlContent(clip);
+}
+
+function clipHasRichContent(clip: Clip): boolean {
+  return hasClipRichContent(clip);
+}
+
 
 const filteredClips = computed(() => {
   if (activeSidebar.value !== 'all') {
@@ -247,12 +262,23 @@ onMounted(() => {
 }
 
 .clip-content {
-  white-space: pre-wrap;
+  line-height: 1.6;
   word-break: break-word;
   max-height: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   margin-top: 8px;
+  color: var(--n-text-color);
+}
+
+.clip-content--empty {
+  color: var(--n-text-color-3);
+}
+
+.clip-content :deep(.clipsey-inline-highlight) {
+  background-color: rgba(251, 191, 36, 0.45);
+  border-radius: 3px;
+  padding: 0 2px;
 }
 
 @media (max-width: 960px) {
@@ -275,3 +301,6 @@ onMounted(() => {
   }
 }
 </style>
+
+
+

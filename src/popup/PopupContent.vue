@@ -42,65 +42,25 @@
         </n-tooltip>
       </n-space>
     </template>
-    <n-space vertical size="large">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <n-select
-          v-model:value="searchType"
-          :options="searchTypeOptions"
-          size="small"
-          style="width: fit-content; min-width: 96px;"
-        />
-        <n-input
-          v-model:value="query"
-          placeholder="搜索标题、内容或来源"
-          clearable
-          size="small"
-          style="flex: 1;"
-        />
-      </div>
-      <n-spin :show="loading">
-        <n-scrollbar style="max-height: 480px; min-height: 400px;">
-          <clip-list :clips="filteredClips" />
-        </n-scrollbar>
-      </n-spin>
-    </n-space>
+    <n-spin :show="loading">
+      <n-scrollbar style="max-height: 480px; min-height: 400px;">
+        <clip-list :clips="clips" />
+      </n-scrollbar>
+    </n-spin>
   </n-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { NButton, NCard, NInput, NSpace, NSpin, NText, NScrollbar, NIcon, NTooltip, NSelect, useMessage } from 'naive-ui';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { NButton, NCard, NSpace, NSpin, NText, NScrollbar, NIcon, NTooltip, useMessage } from 'naive-ui';
 import type { Clip } from '@/types/clip';
 import ClipList from './components/ClipList.vue';
 import { sendMessage, isChromeExtensionEnv } from '@/utils/chrome';
 
 const clips = ref<Clip[]>([]);
 const loading = ref(false);
-const query = ref('');
-const searchType = ref<'all' | 'title' | 'url' | 'summary'>('all');
-const searchTypeOptions = [
-  { label: '全部', value: 'all' },
-  { label: '标题', value: 'title' },
-  { label: '链接', value: 'url' },
-  { label: '摘要', value: 'summary' }
-];
 const message = useMessage();
 const chromeEnv = isChromeExtensionEnv();
-
-const filteredClips = computed(() => {
-  const q = query.value.trim().toLowerCase();
-  if (!q) return clips.value;
-  const type = searchType.value;
-  return clips.value.filter((clip) => {
-    const title = clip.title?.toLowerCase() ?? '';
-    const text = clip.textContent?.toLowerCase() ?? '';
-    const url = clip.sourceUrl?.toLowerCase() ?? '';
-    if (type === 'title') return title.includes(q);
-    if (type === 'url') return url.includes(q);
-    if (type === 'summary') return text.includes(q);
-    return title.includes(q) || text.includes(q) || url.includes(q);
-  });
-});
 
 async function refreshClips(): Promise<void> {
   await loadClips(true);
@@ -183,3 +143,9 @@ function handleStorageChange(
   void loadClips(false);
 }
 </script>
+
+
+
+
+
+
