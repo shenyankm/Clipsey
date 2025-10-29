@@ -12,7 +12,6 @@
     "src/**/*.vue",
     "src/**/*.tsx",
     "src/**/*.jsx",
-    "vite.config.ts",
-    "tests/**/*.ts"
+    "vite.config.ts"
   ]
 }

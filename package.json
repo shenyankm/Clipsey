@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "vue-tsc --noEmit -p tsconfig.app.json && vite build",
     "preview": "vite preview",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
+    "test": "vitest run --coverage"
   },
   "dependencies": {
     "dompurify": "^3.3.0",
@@ -16,12 +17,15 @@
   },
   "devDependencies": {
     "@types/chrome": "^0.0.249",
+    "@types/dompurify": "^3.0.5",
     "@types/node": "^24.9.1",
     "@vitejs/plugin-vue": "^5.0.4",
+    "@vitest/coverage-v8": "^2.1.9",
+    "jsdom": "^24.0.0",
     "typescript": "^5.4.5",
     "vfonts": "^0.0.3",
     "vite": "^5.2.9",
-    "vue-tsc": "^2.0.13",
-    "@types/dompurify": "^3.0.5"
+    "vitest": "^2.1.1",
+    "vue-tsc": "^2.0.13"
   }
 }

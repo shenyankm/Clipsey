@@ -1,4 +1,5 @@
 import type { Clip } from '@/types/clip';
+import { HighlightEngine } from '@/content/highlight-engine';
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise(resolve => {
@@ -61,6 +62,8 @@ const INLINE_HIGHLIGHT_CLASS = 'clipsey-inline-highlight';
 const INLINE_HIGHLIGHT_COLOR = 'rgba(251, 191, 36, 0.45)';
 const CONTEXT_RADIUS = 64;
 
+const __engine = new HighlightEngine();
+
 if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
   window.__PAGE_CLIPPER_CONTENT_INITIALIZED__ = true;
 
@@ -69,14 +72,15 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
       case 'REQUEST_SELECTION':
         return handleRequestSelection(sendResponse);
       case 'FOCUS_CLIP':
-        focusClip(message?.payload)
+        __engine
+          .focusClip(message?.payload)
           .then(success => sendResponse({ success }))
           .catch(error => sendResponse({ success: false, error: (error as Error).message }));
         return true;
       case 'ACTIVATE_HIGHLIGHTS': {
         const remoteHighlights = normalizeIncomingHighlights(message?.payload);
-
-        void activateHighlights(remoteHighlights)
+        void __engine
+          .activateHighlights(remoteHighlights)
           .then(success => sendResponse({ success }))
           .catch(error => sendResponse({ success: false, error: (error as Error).message }));
         return true;

@@ -1,13 +1,13 @@
-import { addClip, clearClips, getClips, getClipsForUrl } from './storage';
-import { createId, delay } from '@/utils/helpers';
+import { getClipsForUrl } from './storage';
+import { delay } from '@/utils/helpers';
 import type { Clip } from '@/types/clip';
 import { indexedDBManager } from './indexeddb';
 import { DevTools } from './dev-tools';
+import { registerMessageRouter } from '@/background/handlers/message-router';
+import { contentScriptService } from '@/background/services/content-script-service';
 
 const CONTEXT_MENU_ID = 'clipsey-context-menu';
-const CONTENT_SCRIPT_ID = 'clipsey-selection';
 const CONTENT_SCRIPT_FILE = 'scripts/content.js';
-const CONTENT_MATCHES = ['https://*/*', 'http://*/*'];
 const FOCUS_MAX_ATTEMPTS = 5;
 const FOCUS_RETRY_DELAY_MS = 400;
 const HIGHLIGHT_MAX_ATTEMPTS = 5;
@@ -64,7 +64,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     }
   );
 
-  registerContentScript().catch(error => {
+  contentScriptService.registerContentScript().catch(error => {
     console.error('注册内容脚本失败', error);
   });
 });
@@ -80,7 +80,7 @@ chrome.runtime.onStartup.addListener(async () => {
     console.error('Failed to initialize IndexedDB on startup:', error);
   }
   
-  registerContentScript().catch(error => {
+  contentScriptService.registerContentScript().catch(error => {
     console.error('启动时注册内容脚本失败', error);
   });
 });
@@ -100,34 +100,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   });
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  switch (message?.type) {
-    case 'SAVE_CLIP':
-      handleSaveClip(message.payload)
-        .then(() => sendResponse({ success: true }))
-        .catch(error => sendResponse({ success: false, error: error?.message }));
-      return true;
-    case 'REQUEST_CLIPS':
-      getClips()
-        .then(clips => sendResponse({ success: true, data: clips }))
-        .catch(error => sendResponse({ success: false, error: error?.message }));
-      return true;
-    case 'CLEAR_CLIPS':
-      clearClips()
-        .then(() => sendResponse({ success: true }))
-        .catch(error => sendResponse({ success: false, error: error?.message }));
-      return true;
-    case 'OPEN_CLIP':
-      handleOpenClip(message?.payload?.id)
-        .then(() => sendResponse({ success: true }))
-        .catch(error => sendResponse({ success: false, error: error?.message }));
-      return true;
-    default:
-      break;
-  }
-
-  return false;
-});
+// 使用消息路由处理所有 runtime 消息
+registerMessageRouter();
 
 // 在用户访问匹配网址时自动激活页面中的相关摘要高亮
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -172,11 +146,10 @@ async function attemptActivateHighlights(
   highlights: HighlightPayload[]
 ): Promise<boolean> {
   const sendHighlightRequest = async (): Promise<boolean> => {
-    const response = await sendMessageToTab(tabId, {
+    const response = await contentScriptService.sendMessageToTab(tabId, {
       type: 'ACTIVATE_HIGHLIGHTS',
       payload: { highlights }
     });
-
     return Boolean((response as { success?: boolean })?.success);
   };
 
@@ -186,19 +159,19 @@ async function attemptActivateHighlights(
       return true;
     }
 
-    const injected = await injectContentScript(tabId);
+    const injected = await contentScriptService.injectContentScript(tabId);
     if (!injected) {
       return false;
     }
 
     return await sendHighlightRequest();
   } catch (error) {
-    if (!isMissingReceiverError(error)) {
+    if (!contentScriptService.isMissingReceiverError(error)) {
       console.warn('Failed to apply highlights', error);
       return false;
     }
 
-    const injected = await injectContentScript(tabId);
+    const injected = await contentScriptService.injectContentScript(tabId);
     if (!injected) {
       return false;
     }
@@ -206,110 +179,12 @@ async function attemptActivateHighlights(
     try {
       return await sendHighlightRequest();
     } catch (retryError) {
-      if (!isMissingReceiverError(retryError)) {
+      if (!contentScriptService.isMissingReceiverError(retryError)) {
         console.warn('Failed to apply highlights', retryError);
       }
       return false;
     }
   }
-}
-
-async function handleSaveClip(payload: Partial<Clip> & { textContent?: string }): Promise<void> {
-  if (!payload?.textContent) {
-    return;
-  }
-
-  const sourceUrl = payload.sourceUrl ?? '';
-  const highlightId =
-    typeof payload.highlightId === 'string' && payload.highlightId ? payload.highlightId : undefined;
-  const existingForUrl = highlightId ? await getClipsForUrl(sourceUrl) : [];
-  const existingClip = highlightId
-    ? existingForUrl.find(
-        clip => clip.highlightId === highlightId && clip.sourceUrl === sourceUrl
-      )
-    : undefined;
-
-  const clip: Clip = {
-    id: createId(),
-    sourceUrl,
-    title: payload.title,
-    textContent: payload.textContent,
-    htmlContent: payload.htmlContent,
-    createdAt: existingClip?.createdAt ?? new Date().toISOString(),
-    highlightId,
-    contextBefore: payload.contextBefore,
-    contextAfter: payload.contextAfter,
-    anchorSelector: payload.anchorSelector,
-    textOffset:
-      typeof payload.textOffset === 'number' && Number.isFinite(payload.textOffset)
-        ? payload.textOffset
-        : existingClip?.textOffset,
-    highlightStyle: payload.highlightStyle ?? existingClip?.highlightStyle ?? 'inline'
-  };
-
-  await addClip(clip);
-}
-
-async function handleOpenClip(clipId?: string): Promise<void> {
-  if (!clipId) {
-    throw new Error('缺少剪辑 ID');
-  }
-
-  const clips = await getClips();
-  const clip = clips.find(entry => entry.id === clipId);
-  if (!clip) {
-    throw new Error('未找到剪辑');
-  }
-
-  if (!clip.sourceUrl) {
-    throw new Error('该剪辑没有来源链接');
-  }
-
-  if (!isSupportedHttpUrl(clip.sourceUrl)) {
-    throw new Error('剪辑包含不受支持的链接');
-  }
-
-  const tab = await chrome.tabs.create({ url: clip.sourceUrl });
-  if (!tab?.id) {
-    throw new Error('无法打开剪辑页面');
-  }
-
-  const tabId = tab.id;
-  const scheduleFocus = () => {
-    if (!clip.textContent) {
-      return;
-    }
-
-    void attemptFocusClip(tabId, clip);
-  };
-
-  if (tab.status === 'complete') {
-    setTimeout(scheduleFocus, 300);
-    return;
-  }
-
-  const listener: Parameters<typeof chrome.tabs.onUpdated.addListener>[0] = (
-    updatedTabId,
-    changeInfo
-  ) => {
-    if (updatedTabId !== tabId) {
-      return;
-    }
-
-    if (changeInfo.status === 'complete') {
-      chrome.tabs.onUpdated.removeListener(listener);
-      setTimeout(scheduleFocus, 300);
-    }
-  };
-
-  chrome.tabs.onUpdated.addListener(listener);
-
-  setTimeout(() => {
-    if (chrome.tabs.onUpdated.hasListener(listener)) {
-      chrome.tabs.onUpdated.removeListener(listener);
-      setTimeout(scheduleFocus, 500);
-    }
-  }, 15000);
 }
 
 async function requestSelection(tabId: number, attempt = 0): Promise<void> {
@@ -325,35 +200,35 @@ async function requestSelection(tabId: number, attempt = 0): Promise<void> {
     // 如果查询标签页失败，继续执行并交由后续错误处理
   }
   try {
-    const response = (await sendMessageToTab(tabId, {
+    const response = (await contentScriptService.sendMessageToTab(tabId, {
       type: 'REQUEST_SELECTION'
     })) as MessageResponse;
 
     handleSelectionResponse(response);
   } catch (error) {
-    if (isFrameRemovedError(error) && attempt < REQUEST_SELECTION_MAX_ATTEMPTS - 1) {
+    if (contentScriptService.isFrameRemovedError(error) && attempt < REQUEST_SELECTION_MAX_ATTEMPTS - 1) {
       await delay(REQUEST_SELECTION_RETRY_DELAY_MS * (attempt + 1));
       await requestSelection(tabId, attempt + 1);
       return;
     }
 
-    if (!isMissingReceiverError(error)) {
+    if (!contentScriptService.isMissingReceiverError(error)) {
       void showNotification('保存失败', getErrorMessage(error));
       throw error;
     }
 
-    const injected = await injectContentScript(tabId);
+    const injected = await contentScriptService.injectContentScript(tabId);
     if (!injected) {
       return;
     }
 
     try {
-      const response = (await sendMessageToTab(tabId, {
+      const response = (await contentScriptService.sendMessageToTab(tabId, {
         type: 'REQUEST_SELECTION'
       })) as MessageResponse;
       handleSelectionResponse(response);
     } catch (retryError) {
-      if (isMissingReceiverError(retryError)) {
+      if (contentScriptService.isMissingReceiverError(retryError)) {
         void showNotification(
           '保存失败',
           '此页面无法使用辅助脚本。'
@@ -367,123 +242,6 @@ async function requestSelection(tabId: number, attempt = 0): Promise<void> {
   }
 }
 
-async function sendMessageToTab(tabId: number, message: unknown): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    try {
-      chrome.tabs.sendMessage(tabId, message, response => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-          return;
-        }
-
-        resolve(response);
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
-
-async function injectContentScript(tabId: number): Promise<boolean> {
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: [CONTENT_SCRIPT_FILE]
-    });
-    return true;
-  } catch (error) {
-    const message = getErrorMessage(error);
-    if (
-      message.includes('Cannot access contents of url') ||
-      message.includes('Cannot access a chrome:// URL')
-    ) {
-      void showNotification('无法访问页面', '此页面不允许扩展脚本运行。');
-      return false;
-    }
-
-    throw error;
-  }
-}
-
-async function registerContentScript(): Promise<void> {
-  try {
-    await chrome.scripting.unregisterContentScripts({ ids: [CONTENT_SCRIPT_ID, 'page-clipper-selection'] });
-  } catch (error) {
-    if (!isNoSuchContentScriptError(error)) {
-      throw error;
-    }
-  }
-
-  try {
-    await chrome.scripting.registerContentScripts([
-      {
-        id: CONTENT_SCRIPT_ID,
-        matches: CONTENT_MATCHES,
-        js: [CONTENT_SCRIPT_FILE],
-        runAt: 'document_idle',
-        persistAcrossSessions: true
-      }
-    ]);
-  } catch (error) {
-    if (isDuplicateScriptIdError(error)) {
-      return;
-    }
-
-    throw error;
-  }
-}
-
-function isMissingReceiverError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-
-  const message = (error as { message?: string }).message;
-  if (!message) {
-    return false;
-  }
-
-  return message.includes('Receiving end does not exist') || isFrameRemovedError(error);
-}
-
-function isNoSuchContentScriptError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-
-  const message = (error as { message?: string }).message;
-  if (!message) {
-    return false;
-  }
-
-  return message.includes('No such content script') || message.includes('Nonexistent script ID');
-}
-
-function isDuplicateScriptIdError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-
-  const message = (error as { message?: string }).message?.toLowerCase();
-  if (!message) {
-    return false;
-  }
-
-  return message.includes('duplicate script id');
-}
-
-function isFrameRemovedError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-
-  const message = (error as { message?: string }).message?.toLowerCase();
-  if (!message) {
-    return false;
-  }
-
-  return message.includes('frame with id') && message.includes('removed');
-}
 
 async function attemptFocusClip(tabId: number, clip: Clip): Promise<void> {
   if (!clip.textContent) {
@@ -494,7 +252,7 @@ async function attemptFocusClip(tabId: number, clip: Clip): Promise<void> {
 
   for (let attempt = 0; attempt < FOCUS_MAX_ATTEMPTS; attempt += 1) {
     try {
-      const response = await sendMessageToTab(tabId, {
+      const response = await contentScriptService.sendMessageToTab(tabId, {
         type: 'FOCUS_CLIP',
         payload: {
           id: clip.id,
@@ -506,11 +264,11 @@ async function attemptFocusClip(tabId: number, clip: Clip): Promise<void> {
         return;
       }
     } catch (error) {
-      if (isMissingReceiverError(error)) {
+      if (contentScriptService.isMissingReceiverError(error)) {
         if (!attemptedManualInjection) {
           attemptedManualInjection = true;
           try {
-            const injected = await injectContentScript(tabId);
+            const injected = await contentScriptService.injectContentScript(tabId);
             if (!injected) {
               return;
             }
@@ -617,6 +375,8 @@ function collectHighlightPayloads(clips: Clip[]): HighlightPayload[] {
 
   return highlights;
 }
+
+// 初始化调度：注册消息处理器（已在顶部调用一次）
 
 
 
