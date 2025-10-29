@@ -88,8 +88,6 @@ import {
   NForm,
   NFormItem,
   NInput,
-  NRadioButton,
-  NRadioGroup,
   NSelect,
   NSpace,
   NSwitch,
@@ -102,7 +100,7 @@ import {
   dateZhCN
 } from 'naive-ui';
 import ClipManager from './ClipManager.vue';
-import { isChromeExtensionEnv } from '@/utils/chrome';
+import { readSettingsValue, writeSettingsValue } from '@/background/settings-store';
 
 interface OptionsForm {
   enableSync: boolean;
@@ -113,7 +111,6 @@ interface OptionsForm {
 
 type StoredOptions = Omit<OptionsForm, 'language'> & { language?: string };
 
-const STORAGE_KEY = 'clipsey-options';
 const DEFAULT_OPTIONS: OptionsForm = {
   enableSync: false,
   endpoint: '',
@@ -125,7 +122,6 @@ const form = reactive<OptionsForm>({ ...DEFAULT_OPTIONS });
 
 const saving = ref(false);
 const message = useMessage();
-const chromeEnv = isChromeExtensionEnv();
 
 const activeItem = ref<'basic' | 'content' | 'guide'>('basic');
 
@@ -190,11 +186,7 @@ onMounted(async () => {
 async function handleSave(): Promise<void> {
   saving.value = true;
   try {
-    if (chromeEnv && chrome.storage?.sync) {
-      await chrome.storage.sync.set({ [STORAGE_KEY]: { ...form } });
-    } else {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...form }));
-    }
+    await writeSettingsValue<OptionsForm>({ ...form });
     message.success(t('saved'));
   } catch (error) {
     message.error(`${t('saveError')}${(error as Error).message}`);
@@ -204,35 +196,11 @@ async function handleSave(): Promise<void> {
 }
 
 async function getSettings(): Promise<OptionsForm> {
-  if (chromeEnv && chrome.storage?.sync) {
-    return new Promise((resolve, reject) => {
-      try {
-        chrome.storage.sync.get([STORAGE_KEY, 'page-clipper-options'], result => {
-          if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
-            return;
-          }
-          const legacy = (result['page-clipper-options'] ?? {}) as Partial<StoredOptions>;
-          const current = (result[STORAGE_KEY] ?? {}) as Partial<StoredOptions>;
-          resolve(mergeStoredOptions(current, legacy));
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
-
-  return loadSettingsFromLocal();
-}
-
-function loadSettingsFromLocal(): OptionsForm {
   try {
-    const rawCurrent = localStorage.getItem(STORAGE_KEY);
-    const rawLegacy = localStorage.getItem('page-clipper-options');
-    const legacy = (rawLegacy ? JSON.parse(rawLegacy) : {}) as Partial<StoredOptions>;
-    const current = (rawCurrent ? JSON.parse(rawCurrent) : {}) as Partial<StoredOptions>;
-    return mergeStoredOptions(current, legacy);
-  } catch {
+    const stored = await readSettingsValue<Partial<StoredOptions>>();
+    return mergeStoredOptions(stored ?? {});
+  } catch (error) {
+    console.warn('Failed to load settings from IndexedDB:', error);
     return { ...DEFAULT_OPTIONS };
   }
 }

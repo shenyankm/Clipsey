@@ -1,6 +1,5 @@
 import { indexedDBManager } from './indexeddb';
 import { IndexedDBQuery } from './indexeddb-query';
-import { MigrationManager } from './migration';
 import { getStorageStats } from './storage';
 import type { Clip } from '@/types/clip';
 
@@ -25,14 +24,6 @@ export class DevTools {
           reset: () => DevTools.resetAllData()
         },
         
-        // 迁移操作
-        migration: {
-          status: () => MigrationManager.getMigrationStatus(),
-          migrate: () => MigrationManager.migrate(),
-          rollback: () => MigrationManager.rollback(),
-          cleanup: () => MigrationManager.cleanup()
-        },
-        
         // 数据生成
         generate: {
           testClips: (count: number) => this.generateTestClips(count),
@@ -50,7 +41,6 @@ export class DevTools {
       console.log('🛠️ Clipsey Dev Tools loaded! Use ClipseyDevTools in console.');
       console.log('Available commands:');
       console.log('  ClipseyDevTools.db.* - Database operations');
-      console.log('  ClipseyDevTools.migration.* - Migration operations');
       console.log('  ClipseyDevTools.generate.* - Data generation');
       console.log('  ClipseyDevTools.debug.* - Debug information');
     }
@@ -102,22 +92,16 @@ export class DevTools {
 
   /**
    * 获取调试信息
-   */
+  */
   static async getDebugInfo(): Promise<object> {
     try {
-      const [stats, migrationStatus] = await Promise.all([
-        getStorageStats(),
-        MigrationManager.getMigrationStatus()
-      ]);
+      const stats = await getStorageStats();
       
       return {
         timestamp: new Date().toISOString(),
         indexedDB: {
           initialized: indexedDBManager.isInitialized(),
           stats
-        },
-        migration: {
-          status: migrationStatus
         },
         browser: {
           userAgent: navigator.userAgent,
@@ -240,7 +224,6 @@ export class DevTools {
       await indexedDBManager.clear('clips');
       await indexedDBManager.clear('settings');
       await indexedDBManager.clear('metadata');
-      await MigrationManager.cleanup();
       
       console.log('✅ All data reset successfully');
     } catch (error) {

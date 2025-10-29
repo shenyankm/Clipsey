@@ -2,7 +2,6 @@ import { addClip, clearClips, getClips, getClipsForUrl } from './storage';
 import { createId, delay } from '@/utils/helpers';
 import type { Clip } from '@/types/clip';
 import { indexedDBManager } from './indexeddb';
-import { MigrationManager } from './migration';
 import { DevTools } from './dev-tools';
 
 const CONTEXT_MENU_ID = 'clipsey-context-menu';
@@ -39,16 +38,8 @@ chrome.runtime.onInstalled.addListener(async () => {
   try {
     await indexedDBManager.init();
     console.log('IndexedDB initialized successfully');
-    
-    // 检查并执行数据迁移
-    const migrationStatus = await MigrationManager.getMigrationStatus();
-    if (migrationStatus === 'pending') {
-      console.log('Starting data migration from Chrome Storage to IndexedDB...');
-      await MigrationManager.migrate();
-      console.log('Data migration completed successfully');
-    }
   } catch (error) {
-    console.error('Failed to initialize IndexedDB or migrate data:', error);
+    console.error('Failed to initialize IndexedDB:', error);
   }
 
   // 清理旧版本遗留的上下文菜单标识

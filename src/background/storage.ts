@@ -1,7 +1,6 @@
 import type { Clip } from '@/types/clip';
 import { indexedDBManager } from './indexeddb';
 import { IndexedDBQuery } from './indexeddb-query';
-import { MigrationManager } from './migration';
 import { IndexedDBError } from '@/types/indexeddb';
 
 const MAX_CLIP_ENTRIES = 200;
@@ -11,48 +10,28 @@ type ClipIndex = Map<string, Clip[]>;
 let cachedClips: Clip[] | null = null;
 let clipIndex: ClipIndex = new Map();
 let inflightLoad: Promise<Clip[]> | null = null;
-let migrationChecked = false;
+let initAttempt: Promise<void> | null = null;
 
-/**
- * 检查并执行迁移
- */
-async function ensureMigration(): Promise<void> {
-  if (migrationChecked) {
+async function ensureInitialized(): Promise<void> {
+  if (indexedDBManager.isInitialized()) {
     return;
   }
 
-  try {
-    const status = await MigrationManager.getMigrationStatus();
-    
-    if (status === 'not_started' || status === 'failed') {
-      console.log('Starting data migration to IndexedDB...');
-      await MigrationManager.migrate();
-    } else if (status === 'in_progress') {
-      console.log('Migration in progress, waiting...');
-      // 等待迁移完成或超时
-      let attempts = 0;
-      while (attempts < 30) { // 最多等待30秒
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const currentStatus = await MigrationManager.getMigrationStatus();
-        if (currentStatus === 'completed') {
-          break;
-        }
-        attempts++;
-      }
-    }
-    
-    migrationChecked = true;
-  } catch (error) {
-    console.error('Migration check failed:', error);
-    migrationChecked = true; // 继续使用IndexedDB，即使迁移失败
+  if (!initAttempt) {
+    initAttempt = indexedDBManager.init().catch(error => {
+      initAttempt = null;
+      throw error;
+    });
   }
+
+  await initAttempt;
 }
 
 /**
  * 获取所有clips
  */
 export async function getClips(): Promise<Clip[]> {
-  await ensureMigration();
+  await ensureInitialized();
   const clips = await getCachedClips();
   return cloneClips(clips);
 }
@@ -61,7 +40,7 @@ export async function getClips(): Promise<Clip[]> {
  * 根据URL获取clips
  */
 export async function getClipsForUrl(url: string): Promise<Clip[]> {
-  await ensureMigration();
+  await ensureInitialized();
   await getCachedClips();
   const matches = lookupClipsForUrl(url);
   return cloneClips(matches);
@@ -71,7 +50,7 @@ export async function getClipsForUrl(url: string): Promise<Clip[]> {
  * 保存clips
  */
 export async function saveClips(clips: Clip[]): Promise<void> {
-  await ensureMigration();
+  await ensureInitialized();
   
   try {
     const normalizedClips = normalizeClips(clips);
@@ -102,7 +81,7 @@ export async function saveClips(clips: Clip[]): Promise<void> {
  * 添加单个clip
  */
 export async function addClip(clip: Clip): Promise<void> {
-  await ensureMigration();
+  await ensureInitialized();
   
   const normalizedClip = normalizeClips([clip])[0];
   if (!normalizedClip) {
@@ -147,7 +126,7 @@ export async function addClip(clip: Clip): Promise<void> {
  * 清空所有clips
  */
 export async function clearClips(): Promise<void> {
-  await ensureMigration();
+  await ensureInitialized();
   await saveClips([]);
 }
 
@@ -473,7 +452,7 @@ function notifyStorageChange(oldValue: Clip[], newValue: Clip[]): void {
 }
 
 // 导出额外的IndexedDB特定功能
-export { IndexedDBQuery, MigrationManager };
+export { IndexedDBQuery };
 
 /**
  * 获取存储统计信息
@@ -484,7 +463,7 @@ export async function getStorageStats(): Promise<{
   oldestClip?: string;
   newestClip?: string;
 }> {
-  await ensureMigration();
+  await ensureInitialized();
   
   try {
     const clips = await getCachedClips();
