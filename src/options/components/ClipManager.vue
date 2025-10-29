@@ -1,63 +1,180 @@
 <template>
-  <n-space vertical>
-    <n-input v-model:value="searchQuery" placeholder="搜索摘抄内容..." clearable />
-    <n-card v-if="filteredClips.length === 0" size="small">
-      <n-empty description="暂无摘抄内容">
-        <template #extra>
-          <n-button size="small" @click="refreshClips">
+  <div class="clip-manager">
+    <content-sidebar v-model="activeSidebar" class="clip-manager__sidebar" />
+    <div class="clip-manager__main">
+      <n-space vertical size="large">
+        <div class="clip-manager__filters">
+          <n-select
+            v-model:value="searchType"
+            :options="searchTypeOptions"
+            size="small"
+            class="clip-manager__filters-select"
+          />
+          <n-input
+            v-model:value="searchQuery"
+            placeholder="搜索摘抄..."
+            clearable
+            class="clip-manager__filters-input"
+          />
+          <n-button tertiary size="small" @click="refreshClips">
             刷新
           </n-button>
+        </div>
+
+        <template v-if="activeSidebar === 'custom'">
+          <n-card size="small" class="clip-manager__empty-card">
+            <n-empty description="暂未创建自定义分组">
+              <template #extra>
+                <n-button size="small" type="primary" disabled>敬请期待</n-button>
+              </template>
+            </n-empty>
+          </n-card>
         </template>
-      </n-empty>
-    </n-card>
-    <n-list v-else bordered>
-      <n-list-item v-for="clip in filteredClips" :key="clip.id">
-          <n-thing :title="clip.title || '无标题'">
-            <template #description>
-              <n-tag type="info" size="small">{{ clip.sourceUrl }}</n-tag>
-            </template>
-            <div class="clip-content">{{ clip.textContent }}</div>
-            <template #action>
-              <n-button quaternary type="error" size="small" @click="deleteClip(clip.id)">删除</n-button>
-            </template>
-          </n-thing>
-        </n-list-item>
-    </n-list>
-  </n-space>
+
+        <template v-else>
+          <n-card v-if="filteredClips.length === 0" size="small" class="clip-manager__empty-card">
+            <n-empty description="暂无摘抄记录">
+              <template #extra>
+                <n-button size="small" @click="refreshClips">
+                  刷新
+                </n-button>
+              </template>
+            </n-empty>
+          </n-card>
+
+          <div v-else class="clip-grid">
+            <n-card
+              v-for="clip in paginatedClips"
+              :key="clip.id"
+              size="small"
+              class="clip-card"
+              bordered
+            >
+              <n-thing :title="clip.title || '无标题'">
+                <template #description>
+                  <n-tag v-if="clip.sourceUrl" type="info" size="small">
+                    {{ clip.sourceUrl }}
+                  </n-tag>
+                </template>
+                <div class="clip-content">
+                  {{ clip.textContent }}
+                </div>
+                <template #action>
+                  <n-button quaternary type="error" size="small" @click="deleteClip(clip.id)">
+                    删除
+                  </n-button>
+                </template>
+              </n-thing>
+            </n-card>
+          </div>
+
+          <n-space v-if="pageCount > 1" justify="end">
+            <n-pagination
+              v-model:page="currentPage"
+              :page-count="pageCount"
+              :page-size="pageSize"
+              size="small"
+            />
+          </n-space>
+        </template>
+      </n-space>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import {
   NSpace,
   NInput,
   NCard,
   NEmpty,
   NButton,
-  NList,
-  NListItem,
   NThing,
   NTag,
+  NSelect,
+  NPagination,
   useMessage
 } from 'naive-ui';
-import { getClips, deleteClipById } from '@/background/api'; // 假设存在获取和删除clip的API
-import type { Clip } from '@/types/clip'; // 假设存在Clip类型定义
+import ContentSidebar from './ContentSidebar.vue';
+import { getClips, deleteClipById } from '@/background/api';
+import type { Clip } from '@/types/clip';
+
+type SearchType = 'all' | 'title' | 'url' | 'content';
+type SidebarType = 'all' | 'custom';
+
+const PAGE_SIZE = 20;
 
 const message = useMessage();
 const searchQuery = ref('');
+const searchType = ref<SearchType>('all');
+const activeSidebar = ref<SidebarType>('all');
+const currentPage = ref(1);
 const clips = ref<Clip[]>([]);
 
+const searchTypeOptions = [
+  { label: '全部', value: 'all' as const },
+  { label: '标题', value: 'title' as const },
+  { label: '网址', value: 'url' as const },
+  { label: '内容', value: 'content' as const },
+];
+
 const filteredClips = computed(() => {
-  if (!searchQuery.value) {
+  if (activeSidebar.value !== 'all') {
+    return [];
+  }
+
+  const query = searchQuery.value.trim().toLowerCase();
+
+  if (!query) {
     return clips.value;
   }
-  const query = searchQuery.value.toLowerCase();
-  return clips.value.filter(
-    clip =>
-        clip.title?.toLowerCase().includes(query) ||
-        clip.textContent.toLowerCase().includes(query) ||
-        clip.sourceUrl.toLowerCase().includes(query)
-  );
+
+  return clips.value.filter(clip => {
+    const title = (clip.title ?? '').toLowerCase();
+    const content = clip.textContent.toLowerCase();
+    const url = (clip.sourceUrl ?? '').toLowerCase();
+
+    switch (searchType.value) {
+      case 'title':
+        return title.includes(query);
+      case 'url':
+        return url.includes(query);
+      case 'content':
+        return content.includes(query);
+      default:
+        return (
+          title.includes(query) ||
+          url.includes(query) ||
+          content.includes(query)
+        );
+    }
+  });
+});
+
+const paginatedClips = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE;
+  return filteredClips.value.slice(start, start + PAGE_SIZE);
+});
+
+const pageCount = computed(() => {
+  if (filteredClips.value.length === 0) {
+    return 1;
+  }
+  return Math.ceil(filteredClips.value.length / PAGE_SIZE);
+});
+
+const pageSize = PAGE_SIZE;
+
+watch([searchQuery, searchType, activeSidebar], () => {
+  currentPage.value = 1;
+});
+
+watch(filteredClips, clipsList => {
+  const maxPage = Math.max(1, Math.ceil(clipsList.length / PAGE_SIZE));
+  if (currentPage.value > maxPage) {
+    currentPage.value = maxPage;
+  }
 });
 
 async function fetchClips() {
@@ -65,7 +182,7 @@ async function fetchClips() {
     const fetchedClips = await getClips();
     clips.value = fetchedClips;
   } catch (error) {
-    message.error(`加载摘抄内容失败: ${(error as Error).message}`);
+    message.error(`加载摘抄列表失败: ${(error as Error).message}`);
   }
 }
 
@@ -73,7 +190,7 @@ async function deleteClip(id: string) {
   try {
     await deleteClipById(id);
     message.success('摘抄已删除');
-    await fetchClips(); // 重新加载列表
+    await fetchClips();
   } catch (error) {
     message.error(`删除摘抄失败: ${(error as Error).message}`);
   }
@@ -89,11 +206,72 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.clip-manager {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 24px;
+}
+
+.clip-manager__main {
+  min-width: 0;
+}
+
+.clip-manager__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.clip-manager__filters-select {
+  width: 120px;
+}
+
+.clip-manager__filters-input {
+  flex: 1;
+  min-width: 220px;
+}
+
+.clip-manager__empty-card {
+  text-align: center;
+}
+
+.clip-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.clip-card {
+  height: 100%;
+}
+
 .clip-content {
   white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 100px;
+  word-break: break-word;
+  max-height: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-top: 8px;
+}
+
+@media (max-width: 960px) {
+  .clip-manager {
+    grid-template-columns: 1fr;
+  }
+
+  .clip-manager__sidebar {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .clip-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .clip-manager__filters-input {
+    width: 100%;
+  }
 }
 </style>
