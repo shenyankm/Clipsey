@@ -97,6 +97,7 @@ import { getClips, deleteClipById } from '@/background/api';
 import type { Clip } from '@/types/clip';
 import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
 import { sendMessage } from '@/utils/chrome';
+import { formatDateForTable } from '@/utils/helpers';
 
 type SearchType = 'all' | 'title' | 'url' | 'content';
 
@@ -116,7 +117,7 @@ const columns = computed<DataTableColumn<Clip>[]>(() => [
   {
     title: '标题',
     key: 'title',
-    width: 200,
+    width: 180,
     ellipsis: { tooltip: true }, // 新增：文本省略
     render(row: Clip) {
       return row.title || '无标题';
@@ -125,7 +126,7 @@ const columns = computed<DataTableColumn<Clip>[]>(() => [
   {
     title: '网址',
     key: 'sourceUrl',
-    width: 250,
+    width: 200,
     render(row: Clip) {
       return row.sourceUrl ? h(NTag, { type: 'info', size: 'small' }, { default: () => getDomainFromUrl(row.sourceUrl) }) : '无网址';
     }
@@ -136,6 +137,14 @@ const columns = computed<DataTableColumn<Clip>[]>(() => [
     ellipsis: { tooltip: true }, // 新增：文本省略
     render(row: Clip) {
       return row.textContent || '暂无内容';
+    }
+  },
+  {
+    title: '创建时间',
+    key: 'createdAt',
+    width: 150,
+    render(row: Clip) {
+      return formatDateForTable(row.createdAt);
     }
   },
   {
