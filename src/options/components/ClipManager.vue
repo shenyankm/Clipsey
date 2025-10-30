@@ -85,6 +85,7 @@ import {
   useMessage,
   NModal,
   NText,
+  NPopconfirm,
   NDataTable,
   DataTableColumn,
   NMention,
@@ -153,7 +154,8 @@ const columns = computed<DataTableColumn<Clip>[]>(() => [
     sortOrder: sortColumn.value === 'createdAt' ? (sortOrder.value === 'asc' ? 'ascend' : 'descend') : false,
     sorter: true,
     render(row: Clip) {
-      return formatDateForTable(row.createdAt);
+      // 统一为与其他列一致的文本颜色（Naive UI 默认文本颜色），避免出现偏灰的视觉不一致
+      return h(NText, { depth: 1 }, { default: () => formatDateForTable(row.createdAt) });
     }
   },
   {
@@ -181,10 +183,21 @@ const columns = computed<DataTableColumn<Clip>[]>(() => [
             },
             { default: () => '打开' }
           ),
+          // 为删除按钮添加二次确认，防止误删
           h(
-            NButton,
-            { size: 'small', type: 'error', onClick: () => deleteClip(row.id) },
-            { default: () => '删除' }
+            NPopconfirm,
+            {
+              onPositiveClick: () => deleteClip(row.id)
+            },
+            {
+              trigger: () =>
+                h(
+                  NButton,
+                  { size: 'small', type: 'error' },
+                  { default: () => '删除' }
+                ),
+              default: () => '确认删除该摘抄？此操作不可恢复。'
+            }
           )
         ]
       );
