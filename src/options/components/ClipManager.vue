@@ -3,18 +3,15 @@
 
     <div class="clip-manager__main">
       <n-space vertical size="large">
-        <div class="clip-manager__filters">
-          <n-select
-            v-model:value="searchType"
-            :options="searchTypeOptions"
-            size="small"
-            class="clip-manager__filters-select"
-          />
-          <n-input
+        <div class="clip-manager__search">
+          <n-mention
             v-model:value="searchQuery"
-            placeholder="搜索摘抄..."
+            :options="mentionOptions"
+            placeholder="输入 @title、@website、@content 进行精确搜索，或直接输入关键词进行全文搜索..."
             clearable
-            class="clip-manager__filters-input"
+            size="medium"
+            class="clip-manager__search-input"
+            :render-label="renderMentionLabel"
           />
           <n-button tertiary size="small" @click="refreshClips">
             刷新
@@ -78,19 +75,19 @@
 import { ref, computed, onMounted, watch, h } from 'vue';
 import {
   NSpace,
-  NInput,
   NCard,
   NEmpty,
   NButton,
   NThing,
   NTag,
-  NSelect,
   NPagination,
   useMessage,
   NModal,
   NText,
   NDataTable,
-  DataTableColumn
+  DataTableColumn,
+  NMention,
+  MentionOption
 } from 'naive-ui';
 
 import { getClips, deleteClipById } from '@/background/api';
@@ -99,13 +96,10 @@ import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
 import { sendMessage } from '@/utils/chrome';
 import { formatDateForTable } from '@/utils/helpers';
 
-type SearchType = 'all' | 'title' | 'url' | 'content';
-
 const PAGE_SIZE = 20;
 
 const message = useMessage();
 const searchQuery = ref('');
-const searchType = ref<SearchType>('all');
 
 const currentPage = ref(1);
 const clips = ref<Clip[]>([]);
@@ -183,12 +177,68 @@ const columns = computed<DataTableColumn<Clip>[]>(() => [
   }
 ]);
 
-const searchTypeOptions = [
-  { label: '全部', value: 'all' as const },
-  { label: '标题', value: 'title' as const },
-  { label: '网址', value: 'url' as const },
-  { label: '内容', value: 'content' as const },
+// Mention 组件的选项配置
+const mentionOptions: MentionOption[] = [
+  {
+    label: 'title - 搜索标题',
+    value: 'title'
+  },
+  {
+    label: 'website - 搜索网站',
+    value: 'website'
+  },
+  {
+    label: 'content - 搜索内容',
+    value: 'content'
+  }
 ];
+
+// Mention 标签的渲染函数
+function renderMentionLabel(option: MentionOption): string {
+  return `@${option.value}`;
+}
+
+// 搜索查询解析接口
+interface ParsedSearchQuery {
+  type: 'all' | 'title' | 'website' | 'content';
+  keyword: string;
+}
+
+// 解析搜索查询的函数
+function parseSearchQuery(query: string): ParsedSearchQuery {
+  const trimmedQuery = query.trim();
+  
+  if (!trimmedQuery) {
+    return { type: 'all', keyword: '' };
+  }
+  
+  // 检查是否以 @ 开头
+  if (trimmedQuery.startsWith('@')) {
+    const parts = trimmedQuery.split(' ');
+    const typePrefix = parts[0].substring(1); // 移除 @
+    const keyword = parts.slice(1).join(' ').trim();
+    
+    // 验证类型是否有效
+    if (['title', 'website', 'content'].includes(typePrefix)) {
+      // 只有当有具体关键词时才返回特定类型搜索
+      if (keyword) {
+        return {
+          type: typePrefix as 'title' | 'website' | 'content',
+          keyword
+        };
+      } else {
+        // 仅有前缀没有关键词时，返回空搜索（不触发筛选）
+        return {
+          type: 'all',
+          keyword: ''
+        };
+      }
+    }
+  }
+  
+  // 默认全文搜索
+  return { type: 'all', keyword: trimmedQuery };
+}
 
 function resolveClipHtml(clip: Clip): string {
   return getClipHtmlContent(clip);
@@ -214,30 +264,32 @@ function getDomainFromUrl(url: string | undefined): string {
 }
 
 const filteredClips = computed(() => {
-
-  const query = searchQuery.value.trim().toLowerCase();
-
-  if (!query) {
+  const parsedQuery = parseSearchQuery(searchQuery.value);
+  
+  if (!parsedQuery.keyword) {
     return clips.value;
   }
+
+  const keyword = parsedQuery.keyword.toLowerCase();
 
   return clips.value.filter(clip => {
     const title = (clip.title ?? '').toLowerCase();
     const content = clip.textContent.toLowerCase();
     const url = (clip.sourceUrl ?? '').toLowerCase();
 
-    switch (searchType.value) {
+    switch (parsedQuery.type) {
       case 'title':
-        return title.includes(query);
-      case 'url':
-        return url.includes(query);
+        return title.includes(keyword);
+      case 'website':
+        return url.includes(keyword);
       case 'content':
-        return content.includes(query);
+        return content.includes(keyword);
       default:
+        // 全文搜索：搜索标题、内容和网址
         return (
-          title.includes(query) ||
-          url.includes(query) ||
-          content.includes(query)
+          title.includes(keyword) ||
+          url.includes(keyword) ||
+          content.includes(keyword)
         );
     }
   });
@@ -257,7 +309,7 @@ const pageCount = computed(() => {
 
 const pageSize = PAGE_SIZE;
 
-watch([searchQuery, searchType], () => {
+watch(searchQuery, () => {
   currentPage.value = 1;
 });
 
@@ -327,21 +379,15 @@ onMounted(() => {
   min-width: 0;
 }
 
-.clip-manager__filters {
+.clip-manager__search {
   display: flex;
-  flex-wrap: wrap;
   gap: 12px;
   align-items: center;
-  justify-content: space-between; /* 新增：在主轴上均匀分布项目 */
 }
 
-.clip-manager__filters-select {
-  width: 120px;
-}
-
-.clip-manager__filters-input {
-  flex: 1; /* 允许输入框填充可用空间 */
-  min-width: 200px; /* 最小宽度，防止过小 */
+.clip-manager__search-input {
+  flex: 1; /* 允许搜索框填充可用空间 */
+  min-width: 300px; /* 增加最小宽度以容纳更长的提示文本 */
 }
 
 .clip-manager__empty-card {
@@ -407,17 +453,14 @@ onMounted(() => {
       grid-template-columns: 1fr;
     }
 
-    .clip-manager__filters {
+    .clip-manager__search {
       flex-direction: column;
       align-items: stretch;
     }
 
-    .clip-manager__filters-select {
+    .clip-manager__search-input {
       width: 100%;
-    }
-
-    .clip-manager__filters-input {
-      width: 100%;
+      min-width: unset;
     }
   }
 */

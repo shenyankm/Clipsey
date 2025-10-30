@@ -13,6 +13,8 @@ html,
 body,
 #app {
   height: auto;
+  /* 防止出现默认滚动条 */
+  overflow: hidden;
 }
 
 body {
@@ -20,11 +22,18 @@ body {
   padding: 0;
   min-width: 320px;
   background-color: #f7f7f9;
-  overflow-x: hidden;
+  /* 完全禁用浏览器滚动条 */
+  overflow: hidden;
+  /* 确保内容不会超出视口 */
+  max-height: 100vh;
 }
 
 #app {
+  /* 确保应用容器不产生滚动条 */
+  overflow: hidden;
+  /* 设置合适的尺寸 */
   width: 100%;
+  height: auto;
 }
 
 /* 统一控制 Naive UI Tooltip 的换行表现，防止长链接溢出 */
