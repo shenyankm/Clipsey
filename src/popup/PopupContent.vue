@@ -44,7 +44,7 @@
     </template>
     <n-spin :show="loading">
       <div class="popup-content">
-        <n-scrollbar style="max-height: 480px;">
+        <n-scrollbar>
           <clip-list :clips="clips" />
         </n-scrollbar>
       </div>
@@ -148,8 +148,8 @@ function handleStorageChange(
 
 <style scoped>
 .popup-content {
-  /* 确保内容区域不会产生额外的滚动条 */
-  overflow: hidden;
+  /* 允许内容区域根据需要滚动或溢出显示 */
+  overflow: visible;
   /* 设置最小高度以保持一致的视觉体验 */
   min-height: 400px;
   /* 确保内容能够正确填充 */

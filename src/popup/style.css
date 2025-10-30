@@ -13,27 +13,30 @@ html,
 body,
 #app {
   height: auto;
-  /* 防止出现默认滚动条 */
-  overflow: hidden;
+  /* 设置最小高度，避免初次渲染或内容为空时弹窗高度过小 */
+  min-height: 420px;
+  /* 允许出现纵向滚动条，确保内容可滚动 */
+  overflow-y: auto;
 }
 
 body {
   margin: 0;
   padding: 0;
   min-width: 320px;
+  /* 保障初始弹窗高度 */
+  min-height: 420px;
   background-color: #f7f7f9;
-  /* 完全禁用浏览器滚动条 */
-  overflow: hidden;
-  /* 确保内容不会超出视口 */
-  max-height: 100vh;
+  /* 允许纵向滚动条出现以便内容滚动 */
+  overflow-y: auto;
 }
 
 #app {
-  /* 确保应用容器不产生滚动条 */
-  overflow: hidden;
+  /* 允许应用容器根据内容滚动 */
+  overflow-y: auto;
   /* 设置合适的尺寸 */
   width: 100%;
   height: auto;
+  min-height: 420px;
 }
 
 /* 统一控制 Naive UI Tooltip 的换行表现，防止长链接溢出 */
