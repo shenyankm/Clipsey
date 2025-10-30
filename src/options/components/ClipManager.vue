@@ -1,6 +1,6 @@
 <template>
   <div class="clip-manager">
-    <content-sidebar v-model="activeSidebar" class="clip-manager__sidebar" />
+
     <div class="clip-manager__main">
       <n-space vertical size="large">
         <div class="clip-manager__filters">
@@ -21,17 +21,7 @@
           </n-button>
         </div>
 
-        <template v-if="activeSidebar === 'custom'">
-          <n-card size="small" class="clip-manager__empty-card">
-            <n-empty description="暂未创建自定义分组">
-              <template #extra>
-                <n-button size="small" type="primary" disabled>敬请期待</n-button>
-              </template>
-            </n-empty>
-          </n-card>
-        </template>
-
-        <template v-else>
+        <div>
           <n-card v-if="filteredClips.length === 0" size="small" class="clip-manager__empty-card">
             <n-empty description="暂无摘抄记录">
               <template #extra>
@@ -60,7 +50,7 @@
               size="small"
             />
           </n-space>
-        </template>
+        </div>
       </n-space>
     </div>
 
@@ -100,22 +90,22 @@ import {
   NModal,
   NText,
   NDataTable,
-  DataTableColumn // 新增：导入 DataTableColumn 类型
+  DataTableColumn
 } from 'naive-ui';
-import ContentSidebar from './ContentSidebar.vue';
+
 import { getClips, deleteClipById } from '@/background/api';
 import type { Clip } from '@/types/clip';
 import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
+import { sendMessage } from '@/utils/chrome';
 
 type SearchType = 'all' | 'title' | 'url' | 'content';
-type SidebarType = 'all' | 'custom';
 
 const PAGE_SIZE = 20;
 
 const message = useMessage();
 const searchQuery = ref('');
 const searchType = ref<SearchType>('all');
-const activeSidebar = ref<SidebarType>('all');
+
 const currentPage = ref(1);
 const clips = ref<Clip[]>([]);
 const showModal = ref(false);
@@ -151,7 +141,7 @@ const columns = computed<DataTableColumn<Clip>[]>(() => [
   {
     title: '操作',
     key: 'actions',
-    width: 150,
+    width: 200,
     align: 'center',
     render(row: Clip) {
       return h(
@@ -162,6 +152,16 @@ const columns = computed<DataTableColumn<Clip>[]>(() => [
             NButton,
             { size: 'small', onClick: () => openClipDetail(row) },
             { default: () => '查看' }
+          ),
+          h(
+            NButton,
+            { 
+              size: 'small', 
+              type: 'primary',
+              disabled: !row.sourceUrl,
+              onClick: () => openClip(row.id)
+            },
+            { default: () => '打开' }
           ),
           h(
             NButton,
@@ -205,9 +205,6 @@ function getDomainFromUrl(url: string | undefined): string {
 }
 
 const filteredClips = computed(() => {
-  if (activeSidebar.value !== 'all') {
-    return [];
-  }
 
   const query = searchQuery.value.trim().toLowerCase();
 
@@ -251,7 +248,7 @@ const pageCount = computed(() => {
 
 const pageSize = PAGE_SIZE;
 
-watch([searchQuery, searchType, activeSidebar], () => {
+watch([searchQuery, searchType], () => {
   currentPage.value = 1;
 });
 
@@ -290,6 +287,21 @@ function refreshClips() {
   fetchClips();
 }
 
+async function openClip(clipId: string): Promise<void> {
+  try {
+    const response = await sendMessage<{ success: boolean; error?: string }>({
+      type: 'OPEN_CLIP',
+      payload: { id: clipId }
+    });
+    if (!response?.success) {
+      throw new Error(response?.error ?? '无法打开摘抄');
+    }
+    message.success('正在打开摘抄...');
+  } catch (error) {
+    message.error((error as Error).message || '无法打开摘抄');
+  }
+}
+
 onMounted(() => {
   fetchClips();
 });
@@ -298,7 +310,7 @@ onMounted(() => {
 <style scoped>
 .clip-manager {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 1fr;
   gap: 24px;
 }
 
@@ -374,9 +386,7 @@ onMounted(() => {
       grid-template-columns: 1fr;
     }
 
-    .clip-manager__sidebar {
-      position: static;
-    }
+    
 
     .clip-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
