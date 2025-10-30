@@ -36,6 +36,7 @@
               :pagination="false"
               :bordered="false"
               :single-line="false"
+              @update:sorter="handleSorterChange"
             />
           </div>
 
@@ -106,6 +107,18 @@ const clips = ref<Clip[]>([]);
 const showModal = ref(false);
 const selectedClip = ref<Clip | null>(null);
 
+// 排序状态管理
+const sortColumn = ref<string>('createdAt');
+const sortOrder = ref<'asc' | 'desc'>('desc'); // 默认按最新时间排序
+
+// 排序处理函数
+function handleSorterChange(sorter: any) {
+  if (sorter && sorter.columnKey) {
+    sortColumn.value = sorter.columnKey;
+    sortOrder.value = sorter.order === 'ascend' ? 'asc' : 'desc';
+  }
+}
+
 // 新增：定义表格列
 const columns = computed<DataTableColumn<Clip>[]>(() => [
   {
@@ -136,7 +149,9 @@ const columns = computed<DataTableColumn<Clip>[]>(() => [
   {
     title: '创建时间',
     key: 'createdAt',
-    width: 150,
+    width: 180,
+    sortOrder: sortColumn.value === 'createdAt' ? (sortOrder.value === 'asc' ? 'ascend' : 'descend') : false,
+    sorter: true,
     render(row: Clip) {
       return formatDateForTable(row.createdAt);
     }
@@ -266,31 +281,65 @@ function getDomainFromUrl(url: string | undefined): string {
 const filteredClips = computed(() => {
   const parsedQuery = parseSearchQuery(searchQuery.value);
   
-  if (!parsedQuery.keyword) {
-    return clips.value;
+  let result = clips.value;
+
+  // 应用搜索过滤
+  if (parsedQuery.keyword) {
+    const keyword = parsedQuery.keyword.toLowerCase();
+
+    result = result.filter(clip => {
+      const title = (clip.title ?? '').toLowerCase();
+      const content = clip.textContent.toLowerCase();
+      const url = (clip.sourceUrl ?? '').toLowerCase();
+
+      switch (parsedQuery.type) {
+        case 'title':
+          return title.includes(keyword);
+        case 'website':
+          return url.includes(keyword);
+        case 'content':
+          return content.includes(keyword);
+        default:
+          // 全文搜索：搜索标题、内容和网址
+          return (
+            title.includes(keyword) ||
+            url.includes(keyword) ||
+            content.includes(keyword)
+          );
+      }
+    });
   }
 
-  const keyword = parsedQuery.keyword.toLowerCase();
+  // 应用排序
+  return result.sort((a, b) => {
+    let aValue: any, bValue: any;
 
-  return clips.value.filter(clip => {
-    const title = (clip.title ?? '').toLowerCase();
-    const content = clip.textContent.toLowerCase();
-    const url = (clip.sourceUrl ?? '').toLowerCase();
-
-    switch (parsedQuery.type) {
+    switch (sortColumn.value) {
+      case 'createdAt':
+        aValue = new Date(a.createdAt).getTime();
+        bValue = new Date(b.createdAt).getTime();
+        break;
       case 'title':
-        return title.includes(keyword);
-      case 'website':
-        return url.includes(keyword);
-      case 'content':
-        return content.includes(keyword);
+        aValue = (a.title ?? '').toLowerCase();
+        bValue = (b.title ?? '').toLowerCase();
+        break;
+      case 'sourceUrl':
+        aValue = (a.sourceUrl ?? '').toLowerCase();
+        bValue = (b.sourceUrl ?? '').toLowerCase();
+        break;
+      case 'textContent':
+        aValue = a.textContent.toLowerCase();
+        bValue = b.textContent.toLowerCase();
+        break;
       default:
-        // 全文搜索：搜索标题、内容和网址
-        return (
-          title.includes(keyword) ||
-          url.includes(keyword) ||
-          content.includes(keyword)
-        );
+        aValue = new Date(a.createdAt).getTime();
+        bValue = new Date(b.createdAt).getTime();
+    }
+
+    if (sortOrder.value === 'asc') {
+      return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+    } else {
+      return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
     }
   });
 });
@@ -310,6 +359,10 @@ const pageCount = computed(() => {
 const pageSize = PAGE_SIZE;
 
 watch(searchQuery, () => {
+  currentPage.value = 1;
+});
+
+watch([sortColumn, sortOrder], () => {
   currentPage.value = 1;
 });
 
