@@ -9,10 +9,8 @@
                 <n-tab-pane name="basic" :tab="t('menuBasic')">
                   <n-space vertical size="large">
                     <n-card size="small">
-                      <template #header>
-                        <n-text strong>{{ t('general') }}</n-text>
-                      </template>
-                      <n-form :model="form" label-width="140">
+
+                      <n-form :model="form">
                         <n-form-item :label="t('displayLanguage')">
                           <n-select v-model:value="form.language" :options="languageOptions" />
                         </n-form-item>
@@ -21,51 +19,22 @@
 
                     <n-card size="small">
                       <template #header>
-                        <n-text strong>{{ t('sync') }}</n-text>
+                        {{ t('highlightColor') }}
                       </template>
-                      <n-form :model="form" label-width="140">
-                        <n-form-item :label="t('enableSync')">
-                          <n-switch v-model:value="form.enableSync" />
-                        </n-form-item>
-                        <n-form-item :label="t('endpoint')">
-                          <n-input
-                            v-model:value="form.endpoint"
-                            :placeholder="t('endpointPlaceholder')"
-                            :disabled="!form.enableSync"
-                          />
-                        </n-form-item>
-                        <n-form-item :label="t('hotkey')">
-                          <n-input v-model:value="form.hotkey" :placeholder="t('hotkeyPlaceholder')" />
-                        </n-form-item>
-                      </n-form>
+                      <n-color-picker v-model:value="form.highlightColor" :show-alpha="false" />
+                      <n-form-item :label="t('autoHighlightPageSummary')">
+                        <n-switch v-model:value="form.autoHighlightPageSummary" />
+                      </n-form-item>
+                      <n-form-item :label="t('autoLocateFirstSummary')">
+                        <n-switch v-model:value="form.autoLocateFirstSummary" />
+                      </n-form-item>
                     </n-card>
-
-                    <n-space justify="end">
-                      <n-button type="primary" :loading="saving" @click="handleSave">
-                        {{ t('save') }}
-                      </n-button>
-                    </n-space>
                   </n-space>
                 </n-tab-pane>
                 <n-tab-pane name="content" :tab="t('menuContent')">
                   <ClipManager />
                 </n-tab-pane>
-                <n-tab-pane name="guide" :tab="t('menuGuide')">
-                  <n-space vertical size="large">
-                    <n-card size="small" :bordered="false">
-                      <n-space vertical size="medium">
-                        <n-text strong>{{ t('usageGuideTitle') }}</n-text>
-                        <n-text depth="3">{{ t('usageGuideIntro') }}</n-text>
-                        <n-space vertical size="small" class="guide-steps">
-                          <n-text>1. {{ t('usageGuideStepClip') }}</n-text>
-                          <n-text>2. {{ t('usageGuideStepManage') }}</n-text>
-                          <n-text>3. {{ t('usageGuideStepSync') }}</n-text>
-                        </n-space>
-                        <n-button type="primary" ghost>{{ t('usageGuideMore') }}</n-button>
-                      </n-space>
-                    </n-card>
-                  </n-space>
-                </n-tab-pane>
+
               </n-tabs>
             </n-card>
           </n-gi>
@@ -94,70 +63,89 @@ import {
   NText,
   NTabs,
   NTabPane,
+  NColorPicker,
   useMessage,
   darkTheme,
   zhCN,
-  dateZhCN
+  dateZhCN,
+  enUS,
+  dateEnUS
 } from 'naive-ui';
 import ClipManager from './ClipManager.vue';
 import { readSettingsValue, writeSettingsValue } from '@/background/settings-store';
 
 interface OptionsForm {
-  enableSync: boolean;
-  endpoint: string;
-  hotkey: string;
-  language: 'zh-CN';
+
+  language: 'zh-CN' | 'zh-TW' | 'en-US';
+  highlightColor: string;
+  autoHighlightPageSummary: boolean;
+  autoLocateFirstSummary: boolean;
 }
 
 type StoredOptions = Omit<OptionsForm, 'language'> & { language?: string };
 
 const DEFAULT_OPTIONS: OptionsForm = {
-  enableSync: false,
-  endpoint: '',
-  hotkey: '',
+
   language: 'zh-CN',
+  highlightColor: '#f00',
+  autoHighlightPageSummary: true,
+  autoLocateFirstSummary: true,
 };
 
 const form = reactive<OptionsForm>({ ...DEFAULT_OPTIONS });
 
-const saving = ref(false);
+
 const message = useMessage();
 
-const activeItem = ref<'basic' | 'content' | 'guide'>('basic');
+const activeItem = ref<'basic' | 'content'>('basic');
 
-const languageOptions = [{ label: '简体中文', value: 'zh-CN' }];
+const languageOptions = [
+  { label: '简体中文', value: 'zh-CN' },
+  { label: '繁體中文', value: 'zh-TW' },
+  { label: 'English', value: 'en-US' },
+];
 
-const naiveLocale = zhCN;
-const naiveDateLocale = dateZhCN;
+const naiveLocale = computed(() => {
+  if (form.language === 'zh-CN' || form.language === 'zh-TW') {
+    return zhCN;
+  } else if (form.language === 'en-US') {
+    return enUS;
+  }
+  return zhCN; // Default to zhCN
+});
+
+const naiveDateLocale = computed(() => {
+  if (form.language === 'zh-CN' || form.language === 'zh-TW') {
+    return dateZhCN;
+  } else if (form.language === 'en-US') {
+    return dateEnUS;
+  }
+  return dateZhCN; // Default to dateZhCN
+});
 const themeObject = computed(() => null);
 
 const texts = {
   title: 'Clipsey 设置',
   menuBasic: '基础设置',
   menuContent: '内容管理',
-  menuGuide: '使用教程',
-  general: '基础配置',
+
   displayLanguage: '显示语言',
-  sync: '同步设置',
-  enableSync: '启用同步',
-  endpoint: '同步地址',
-  endpointPlaceholder: '请输入同步接口地址',
-  hotkey: '快捷键',
-  hotkeyPlaceholder: '例如：Ctrl+Shift+Y',
-  save: '保存',
-  saved: '设置已保存',
-  saveError: '保存失败：',
+  languageZhCN: '简体中文',
+  languageZhTW: '繁體中文',
+  languageEnUS: 'English',
+  highlightColor: '内容高亮',
+  highlightColorDescription: '设置内容高亮颜色',
+    autoHighlightPageSummary: '页面摘要自动高亮',
+    autoHighlightPageSummaryDescription: '自动高亮页面中的摘要内容',
+    autoLocateFirstSummary: '自动定位首个摘要位置',
+    autoLocateFirstSummaryDescription: '页面加载后自动滚动到第一个摘要位置',
+
+  
   contentManagerTitle: '内容管理',
   contentManagerDescription: '管理剪辑内容的保存策略和存储空间。',
   contentManagerSync: '同步与备份',
   contentManagerSyncDescription: '开启同步后，可在多端统一管理收藏内容，并保持收藏记录一致。',
   contentManagerTips: '更多内容管理功能正在规划中，敬请期待。',
-  usageGuideTitle: '使用教程',
-  usageGuideIntro: '快速上手 Clipsey 的三步指南：',
-  usageGuideStepClip: '使用快捷键或右键菜单保存网页内容。',
-  usageGuideStepManage: '在“内容管理”中快速检索、整理已保存的素材。',
-  usageGuideStepSync: '开启同步，在多设备之间保持剪辑内容一致。',
-  usageGuideMore: '查看详细教程'
 } as const;
 
 type TextKey = keyof typeof texts;
@@ -170,12 +158,22 @@ function mergeStoredOptions(
   current: Partial<StoredOptions> = {},
   legacy: Partial<StoredOptions> = {}
 ): OptionsForm {
-  return {
-    enableSync: current.enableSync ?? legacy.enableSync ?? DEFAULT_OPTIONS.enableSync,
-    endpoint: current.endpoint ?? legacy.endpoint ?? DEFAULT_OPTIONS.endpoint,
-    hotkey: current.hotkey ?? legacy.hotkey ?? DEFAULT_OPTIONS.hotkey,
-    language: 'zh-CN',
-  };
+  const mergedOptions: OptionsForm = { ...DEFAULT_OPTIONS };
+
+  if (current.language !== undefined) {
+    mergedOptions.language = current.language as OptionsForm['language'];
+  }
+  if (current.highlightColor !== undefined) {
+    mergedOptions.highlightColor = current.highlightColor;
+  }
+  if (current.autoHighlightPageSummary !== undefined) {
+    mergedOptions.autoHighlightPageSummary = current.autoHighlightPageSummary;
+  }
+  if (current.autoLocateFirstSummary !== undefined) {
+    mergedOptions.autoLocateFirstSummary = current.autoLocateFirstSummary;
+  }
+
+  return mergedOptions;
 }
 
 onMounted(async () => {
@@ -183,17 +181,7 @@ onMounted(async () => {
   Object.assign(form, stored);
 });
 
-async function handleSave(): Promise<void> {
-  saving.value = true;
-  try {
-    await writeSettingsValue<OptionsForm>({ ...form });
-    message.success(t('saved'));
-  } catch (error) {
-    message.error(`${t('saveError')}${(error as Error).message}`);
-  } finally {
-    saving.value = false;
-  }
-}
+
 
 async function getSettings(): Promise<OptionsForm> {
   try {
