@@ -42,35 +42,14 @@
             </n-empty>
           </n-card>
 
-          <div v-else class="clip-grid">
-            <n-card
-              v-for="clip in paginatedClips"
-              :key="clip.id"
-              size="small"
-              class="clip-card"
-              bordered
-            >
-              <n-thing :title="clip.title || '无标题'">
-                <template #description>
-                  <n-tag v-if="clip.sourceUrl" type="info" size="small">
-                    {{ clip.sourceUrl }}
-                  </n-tag>
-                </template>
-                <div
-                  v-if="clipHasRichContent(clip)"
-                  class="clip-content"
-                  v-html="resolveClipHtml(clip)"
-                />
-                <div v-else class="clip-content clip-content--empty">
-                  暂无内容
-                </div>
-                <template #action>
-                  <n-button quaternary type="error" size="small" @click="deleteClip(clip.id)">
-                    删除
-                  </n-button>
-                </template>
-              </n-thing>
-            </n-card>
+          <div v-else>
+            <n-data-table
+              :columns="columns"
+              :data="paginatedClips"
+              :pagination="false"
+              :bordered="false"
+              :single-line="false"
+            />
           </div>
 
           <n-space v-if="pageCount > 1" justify="end">
@@ -84,11 +63,29 @@
         </template>
       </n-space>
     </div>
+
+    <n-modal v-model:show="showModal" preset="dialog" title="摘抄详情" :mask-closable="true">
+      <template #default>
+        <n-space vertical>
+          <n-text strong>标题:</n-text>
+          <n-text>{{ selectedClip?.title || '无标题' }}</n-text>
+          <n-text strong>URL:</n-text>
+          <n-text>{{ selectedClip?.sourceUrl || '无URL' }}</n-text>
+          <n-text strong>内容:</n-text>
+          <div v-if="selectedClip && clipHasRichContent(selectedClip)" v-html="resolveClipHtml(selectedClip)"></div>
+          <n-text v-else-if="selectedClip">{{ selectedClip.textContent || '暂无内容' }}</n-text>
+          <n-text v-else>暂无内容</n-text>
+        </n-space>
+      </template>
+      <template #action>
+        <n-button @click="showModal = false">关闭</n-button>
+      </template>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, h } from 'vue';
 import {
   NSpace,
   NInput,
@@ -99,7 +96,11 @@ import {
   NTag,
   NSelect,
   NPagination,
-  useMessage
+  useMessage,
+  NModal,
+  NText,
+  NDataTable,
+  DataTableColumn // 新增：导入 DataTableColumn 类型
 } from 'naive-ui';
 import ContentSidebar from './ContentSidebar.vue';
 import { getClips, deleteClipById } from '@/background/api';
@@ -117,6 +118,61 @@ const searchType = ref<SearchType>('all');
 const activeSidebar = ref<SidebarType>('all');
 const currentPage = ref(1);
 const clips = ref<Clip[]>([]);
+const showModal = ref(false);
+const selectedClip = ref<Clip | null>(null);
+
+// 新增：定义表格列
+const columns = computed<DataTableColumn<Clip>[]>(() => [
+  {
+    title: '标题',
+    key: 'title',
+    width: 200,
+    ellipsis: { tooltip: true }, // 新增：文本省略
+    render(row: Clip) {
+      return row.title || '无标题';
+    }
+  },
+  {
+    title: '网址',
+    key: 'sourceUrl',
+    width: 250,
+    render(row: Clip) {
+      return row.sourceUrl ? h(NTag, { type: 'info', size: 'small' }, { default: () => getDomainFromUrl(row.sourceUrl) }) : '无网址';
+    }
+  },
+  {
+    title: '内容',
+    key: 'textContent',
+    ellipsis: { tooltip: true }, // 新增：文本省略
+    render(row: Clip) {
+      return row.textContent || '暂无内容';
+    }
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 150,
+    align: 'center',
+    render(row: Clip) {
+      return h(
+        'div',
+        { style: { display: 'flex', justifyContent: 'center', gap: '8px' } },
+        [
+          h(
+            NButton,
+            { size: 'small', onClick: () => openClipDetail(row) },
+            { default: () => '查看' }
+          ),
+          h(
+            NButton,
+            { size: 'small', type: 'error', onClick: () => deleteClip(row.id) },
+            { default: () => '删除' }
+          )
+        ]
+      );
+    }
+  }
+]);
 
 const searchTypeOptions = [
   { label: '全部', value: 'all' as const },
@@ -133,6 +189,20 @@ function clipHasRichContent(clip: Clip): boolean {
   return hasClipRichContent(clip);
 }
 
+
+function getDomainFromUrl(url: string | undefined): string {
+  if (!url) {
+    return '';
+  }
+  try {
+    const hostname = new URL(url).hostname;
+    // 移除 'www.' 前缀（如果存在）
+    return hostname.startsWith('www.') ? hostname.substring(4) : hostname;
+  } catch (error) {
+    console.error('无效的URL:', url, error);
+    return url; // 解析失败时返回原始URL
+  }
+}
 
 const filteredClips = computed(() => {
   if (activeSidebar.value !== 'all') {
@@ -211,6 +281,11 @@ async function deleteClip(id: string) {
   }
 }
 
+function openClipDetail(clip: Clip) {
+  selectedClip.value = clip;
+  showModal.value = true;
+}
+
 function refreshClips() {
   fetchClips();
 }
@@ -236,6 +311,7 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
+  justify-content: space-between; /* 新增：在主轴上均匀分布项目 */
 }
 
 .clip-manager__filters-select {
@@ -243,19 +319,21 @@ onMounted(() => {
 }
 
 .clip-manager__filters-input {
-  flex: 1;
-  min-width: 220px;
+  flex: 1; /* 允许输入框填充可用空间 */
+  min-width: 200px; /* 最小宽度，防止过小 */
 }
 
 .clip-manager__empty-card {
   text-align: center;
 }
 
+/* 以下为表格展示后不再需要的样式 */
+/*
 .clip-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+  }
 
 .clip-card {
   height: 100%;
@@ -269,6 +347,10 @@ onMounted(() => {
   text-overflow: ellipsis;
   margin-top: 8px;
   color: var(--n-text-color);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  line-clamp: 3;
 }
 
 .clip-content--empty {
@@ -281,24 +363,49 @@ onMounted(() => {
   padding: 0 2px;
 }
 
-@media (max-width: 960px) {
-  .clip-manager {
-    grid-template-columns: 1fr;
+@media (max-width: 1200px) {
+    .clip-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
   }
 
-  .clip-manager__sidebar {
-    position: static;
-  }
-}
+  @media (max-width: 960px) {
+    .clip-manager {
+      grid-template-columns: 1fr;
+    }
 
-@media (max-width: 640px) {
-  .clip-grid {
-    grid-template-columns: 1fr;
+    .clip-manager__sidebar {
+      position: static;
+    }
+
+    .clip-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
-  .clip-manager__filters-input {
-    width: 100%;
+  @media (max-width: 640px) {
+    .clip-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .clip-manager__filters {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .clip-manager__filters-select {
+      width: 100%;
+    }
+
+    .clip-manager__filters-input {
+      width: 100%;
+    }
   }
+*/
+.clip-card-title :deep(.n-thing-header__title) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
 
