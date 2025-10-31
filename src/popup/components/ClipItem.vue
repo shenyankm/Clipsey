@@ -3,12 +3,24 @@
     <n-card size="small" hoverable>
       <template #header>
         <n-space align="center" justify="space-between" wrap>
-          <div class="clip-item__title-row clip-item__hoverable" @click="toggleTitle">
-            <n-ellipsis v-if="!expandedTitle" :line-clamp="1" :tooltip="false">
-              <n-text class="clip-item__title" strong>{{ titleText }}</n-text>
-            </n-ellipsis>
-            <n-text v-else class="clip-item__title" strong>{{ titleText }}</n-text>
-            <n-icon class="clip-item__hover-icon" @click.stop="toggleTitle">
+          <div
+            class="clip-item__title-row clip-item__hoverable"
+            @click="toggleTitle"
+            :aria-expanded="expandedTitle ? 'true' : 'false'"
+          >
+            <n-text class="clip-item__title" strong>
+              <span
+                class="clip-item__title-text"
+                :class="{ 'clip-item__title-text--collapsed': !expandedTitle }"
+              >
+                {{ titleText }}
+              </span>
+            </n-text>
+            <n-icon
+              class="clip-item__hover-icon"
+              :class="{ 'is-expanded': expandedTitle }"
+              @click.stop="toggleTitle"
+            >
               <svg width="16" height="16" viewBox="0 0 24 24">
                 <path :d="titleChevronD" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
@@ -29,15 +41,26 @@
         </n-space>
       </template>
       <n-space vertical size="small">
-        <div class="clip-item__summary-wrap clip-item__hoverable" @click="toggleSummary">
+        <div
+          class="clip-item__summary-wrap clip-item__hoverable"
+          @click="toggleSummary"
+          :aria-expanded="expandedSummary ? 'true' : 'false'"
+        >
           <div
             v-if="hasSummary"
             class="clip-item__summary clip-item__summary-html"
-            :class="{ 'clip-item__summary--collapsed': !expandedSummary }"
+            :class="{
+              'clip-item__summary--collapsed': !expandedSummary,
+              'clip-item__summary--expanded': expandedSummary
+            }"
             v-html="summaryHtml"
           />
           <n-text v-else depth="3">{{ missingSummaryLabel }}</n-text>
-          <n-icon class="clip-item__hover-icon clip-item__summary-icon" @click.stop="toggleSummary">
+          <n-icon
+            class="clip-item__hover-icon clip-item__summary-icon"
+            :class="{ 'is-expanded': expandedSummary }"
+            @click.stop="toggleSummary"
+          >
             <svg width="16" height="16" viewBox="0 0 24 24">
               <path :d="summaryChevronD" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
@@ -168,15 +191,31 @@ async function handleOpen(): Promise<void> {
 
 .clip-item__title-row {
   gap: 8px;
+  width: 100%;
+  padding: 6px 0;
+  cursor: pointer;
 }
 
 .clip-item__title {
   font-size: 16px;
 }
 
+.clip-item__title-text {
+  display: inline-block;
+  /* 展开状态下允许正常换行 */
+  white-space: normal;
+}
+
+.clip-item__title-text--collapsed {
+  /* 收起状态：单行省略 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .clip-item__hover-icon {
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease;
   cursor: pointer;
 }
 
@@ -184,12 +223,20 @@ async function handleOpen(): Promise<void> {
   opacity: 1;
 }
 
+.clip-item__hover-icon.is-expanded {
+  transform: rotate(180deg);
+}
+
 .clip-item__summary-wrap {
   position: relative;
+  width: 100%;
+  padding: 6px 0;
 }
 
 .clip-item__summary {
   line-height: 1.6;
+  transition: max-height 0.25s ease;
+  will-change: max-height;
 }
 
 .clip-item__summary-html {
@@ -198,8 +245,14 @@ async function handleOpen(): Promise<void> {
 }
 
 .clip-item__summary--collapsed {
-  max-height: 72px;
+  /* 3 行的高度：3 * 1.6em = 4.8em */
+  max-height: 4.8em;
   overflow: hidden;
+}
+
+.clip-item__summary--expanded {
+  /* 使用一个较大的 max-height 以实现过渡动画 */
+  max-height: 9999px;
 }
 
 .clip-item__summary-html :deep(.clipsey-inline-highlight) {
