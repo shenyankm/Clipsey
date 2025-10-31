@@ -452,84 +452,14 @@ onMounted(() => {
 }
 
 .clip-manager__search-input {
-  flex: 1; /* 允许搜索框填充可用空间 */
-  min-width: 300px; /* 增加最小宽度以容纳更长的提示文本 */
+  flex: 1;
+  min-width: 300px;
 }
 
 .clip-manager__empty-card {
   text-align: center;
 }
 
-/* 以下为表格展示后不再需要的样式 */
-/*
-.clip-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 16px;
-  }
-
-.clip-card {
-  height: 100%;
-}
-
-.clip-content {
-  line-height: 1.6;
-  word-break: break-word;
-  max-height: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 8px;
-  color: var(--n-text-color);
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  line-clamp: 3;
-}
-
-.clip-content--empty {
-  color: var(--n-text-color-3);
-}
-
-.clip-content :deep(.clipsey-inline-highlight) {
-  background-color: rgba(251, 191, 36, 0.45);
-  border-radius: 3px;
-  padding: 0 2px;
-}
-
-@media (max-width: 1200px) {
-    .clip-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-  }
-
-  @media (max-width: 960px) {
-    .clip-manager {
-      grid-template-columns: 1fr;
-    }
-
-    
-
-    .clip-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  @media (max-width: 640px) {
-    .clip-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .clip-manager__search {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .clip-manager__search-input {
-      width: 100%;
-      min-width: unset;
-    }
-  }
-*/
 .clip-card-title :deep(.n-thing-header__title) {
   white-space: nowrap;
   overflow: hidden;

@@ -148,22 +148,17 @@ function handleStorageChange(
 
 <style scoped>
 .popup-content {
-  /* 允许内容区域根据需要滚动或溢出显示 */
   overflow: visible;
-  /* 设置最小高度以保持一致的视觉体验 */
   min-height: 400px;
-  /* 确保内容能够正确填充 */
   display: flex;
   flex-direction: column;
 }
 
 .popup-content :deep(.n-scrollbar) {
-  /* 确保滚动条样式一致 */
   flex: 1;
 }
 
 .popup-content :deep(.n-scrollbar-content) {
-  /* 确保内容正确填充滚动区域 */
   min-height: 100%;
 }
 </style>

@@ -8,14 +8,11 @@
   box-sizing: border-box;
 }
 
-/* 让整体高度随内容自适应，避免固定高度造成额外留白 */
 html,
 body,
 #app {
   height: auto;
-  /* 设置最小高度，避免初次渲染或内容为空时弹窗高度过小 */
   min-height: 420px;
-  /* 允许出现纵向滚动条，确保内容可滚动 */
   overflow-y: auto;
 }
 
@@ -23,25 +20,19 @@ body {
   margin: 0;
   padding: 0;
   min-width: 320px;
-  /* 保障初始弹窗高度 */
   min-height: 420px;
   background-color: #f7f7f9;
-  /* 允许纵向滚动条出现以便内容滚动 */
   overflow-y: auto;
 }
 
 #app {
-  /* 允许应用容器根据内容滚动 */
   overflow-y: auto;
-  /* 设置合适的尺寸 */
   width: 100%;
   height: auto;
   min-height: 420px;
 }
 
-/* 统一控制 Naive UI Tooltip 的换行表现，防止长链接溢出 */
 .clipsey-tooltip-overlay {
-  /* 配合 overlay-style 的动态宽度，确保文本可读 */
   word-break: break-word;
   overflow-wrap: anywhere;
 }

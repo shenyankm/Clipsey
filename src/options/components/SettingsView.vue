@@ -282,7 +282,6 @@ function persistActiveTabToStorage(tab: 'basic' | 'content'): void {
   padding: 8px 12px;
 }
 
-/* 基础设置并排布局（50% 宽度） */
 .basic-settings-grid {
   display: flex;
   flex-wrap: wrap;
@@ -292,7 +291,7 @@ function persistActiveTabToStorage(tab: 'basic' | 'content'): void {
 
 .basic-card {
   flex: 1 1 calc(50% - 12px);
-  min-width: 280px; /* 保证控件可操作性 */
+  min-width: 280px;
 }
 
 .basic-form {

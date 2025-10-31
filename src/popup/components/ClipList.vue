@@ -23,25 +23,19 @@ defineProps<{
 
 <style scoped>
 .clip-list-container {
-  /* 确保列表容器不产生滚动条 */
   overflow: visible;
-  /* 确保内容正确填充 */
   width: 100%;
-  /* 添加适当的内边距 */
   padding: 8px 0;
 }
 
 .empty-state {
-  /* 为空状态设置合适的高度，但不强制最小高度 */
   display: flex;
   align-items: center;
   justify-content: center;
   height: 300px;
-  /* 确保不产生滚动条 */
   overflow: hidden;
 }
 
-/* 确保 n-space 组件不产生额外的滚动行为 */
 .clip-list-container :deep(.n-space) {
   width: 100%;
 }
