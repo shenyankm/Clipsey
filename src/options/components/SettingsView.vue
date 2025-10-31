@@ -7,29 +7,48 @@
             <n-card :bordered="false" size="small" :style="{ boxShadow: 'none' }" :content-style="{ padding: '0' }">
               <n-tabs v-model:value="activeItem" type="line" animated class="settings-tabs">
                 <n-tab-pane name="basic" :tab="t('menuBasic')">
-                  <n-space vertical size="large">
-                    <n-card size="small">
-
-                      <n-form :model="form">
-                        <n-form-item :label="t('displayLanguage')">
-                          <n-select v-model:value="form.language" :options="languageOptions" />
+                  <div class="basic-settings-grid">
+                    <!-- 显示语言：50% 宽度卡片，标签与选择框同一行 -->
+                    <n-card size="small" class="basic-card">
+                      <n-form :model="form" label-placement="left" class="basic-form">
+                        <n-form-item
+                          :label="t('displayLanguage')"
+                          :label-style="{ width: '96px' }"
+                          class="inline-form-item"
+                        >
+                          <n-select
+                            v-model:value="form.language"
+                            :options="languageOptions"
+                            class="inline-select"
+                          />
                         </n-form-item>
                       </n-form>
                     </n-card>
 
-                    <n-card size="small">
-                      <template #header>
-                        {{ t('highlightColor') }}
-                      </template>
-                      <n-color-picker v-model:value="form.highlightColor" :show-alpha="false" />
-                      <n-form-item :label="t('autoHighlightPageSummary')">
-                        <n-switch v-model:value="form.autoHighlightPageSummary" />
-                      </n-form-item>
-                      <n-form-item :label="t('autoLocateFirstSummary')">
-                        <n-switch v-model:value="form.autoLocateFirstSummary" />
-                      </n-form-item>
+                    <!-- 内容高亮：50% 宽度卡片，标签与颜色选择器同一行 -->
+                    <n-card size="small" class="basic-card">
+                      <n-form :model="form" label-placement="left" class="basic-form">
+                        <n-form-item
+                          :label="t('highlightColor')"
+                          :label-style="{ width: '96px' }"
+                          class="inline-form-item"
+                        >
+                          <n-color-picker
+                            v-model:value="form.highlightColor"
+                            :show-alpha="false"
+                            class="inline-color-picker"
+                          />
+                        </n-form-item>
+
+                        <n-form-item :label="t('autoHighlightPageSummary')" :label-style="{ width: '96px' }">
+                          <n-switch v-model:value="form.autoHighlightPageSummary" />
+                        </n-form-item>
+                        <n-form-item :label="t('autoLocateFirstSummary')" :label-style="{ width: '96px' }">
+                          <n-switch v-model:value="form.autoLocateFirstSummary" />
+                        </n-form-item>
+                      </n-form>
                     </n-card>
-                  </n-space>
+                  </div>
                 </n-tab-pane>
                 <n-tab-pane name="content" :tab="t('menuContent')">
                   <ClipManager />
@@ -45,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, reactive, ref, computed } from 'vue';
+import { onMounted, onBeforeUnmount, reactive, ref, computed, watch } from 'vue';
 import {
   NAlert,
   NButton,
@@ -177,6 +196,16 @@ function mergeStoredOptions(
 }
 
 onMounted(async () => {
+  // 优先从 URL 或本地存储恢复上次访问的标签页，确保刷新后仍停留在“内容管理”等当前页面
+  const initial = restoreActiveTabFromUrl() ?? restoreActiveTabFromStorage() ?? 'basic';
+  activeItem.value = initial;
+
+  // 监听标签页变化，同步到 URL 与本地存储，保证刷新后定位当前页面
+  watch(activeItem, (val) => {
+    persistActiveTabToUrl(val);
+    persistActiveTabToStorage(val);
+  }, { immediate: true });
+
   const stored = await getSettings();
   Object.assign(form, stored);
 });
@@ -192,6 +221,53 @@ async function getSettings(): Promise<OptionsForm> {
     return { ...DEFAULT_OPTIONS };
   }
 }
+
+// ---------------- 路由状态保持：刷新后仍停留在当前标签页 ----------------
+const TAB_PARAM = 'tab';
+const ACTIVE_TAB_KEY = 'options.activeTab';
+
+function isValidTab(tab: string | null | undefined): tab is 'basic' | 'content' {
+  return tab === 'basic' || tab === 'content';
+}
+
+function restoreActiveTabFromUrl(): 'basic' | 'content' | null {
+  try {
+    const url = new URL(window.location.href);
+    const fromQuery = url.searchParams.get(TAB_PARAM);
+    if (isValidTab(fromQuery)) return fromQuery;
+    // 兼容 hash 方式：#tab=content
+    if (url.hash) {
+      const hash = url.hash.replace(/^#/, '');
+      const params = new URLSearchParams(hash);
+      const fromHash = params.get(TAB_PARAM);
+      if (isValidTab(fromHash)) return fromHash;
+    }
+  } catch {}
+  return null;
+}
+
+function persistActiveTabToUrl(tab: 'basic' | 'content'): void {
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set(TAB_PARAM, tab);
+    // 使用 replaceState 避免污染历史栈，刷新时浏览器会保留当前 URL
+    window.history.replaceState(null, '', url.toString());
+  } catch {}
+}
+
+function restoreActiveTabFromStorage(): 'basic' | 'content' | null {
+  try {
+    const saved = localStorage.getItem(ACTIVE_TAB_KEY);
+    if (isValidTab(saved)) return saved;
+  } catch {}
+  return null;
+}
+
+function persistActiveTabToStorage(tab: 'basic' | 'content'): void {
+  try {
+    localStorage.setItem(ACTIVE_TAB_KEY, tab);
+  } catch {}
+}
 </script>
 
 <style scoped>
@@ -206,9 +282,43 @@ async function getSettings(): Promise<OptionsForm> {
   padding: 8px 12px;
 }
 
+/* 基础设置并排布局（50% 宽度） */
+.basic-settings-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.basic-card {
+  flex: 1 1 calc(50% - 12px);
+  min-width: 280px; /* 保证控件可操作性 */
+}
+
+.basic-form {
+  width: 100%;
+}
+
+.inline-form-item {
+  display: flex;
+  align-items: center;
+}
+
+.inline-select {
+  width: 200px;
+}
+
+.inline-color-picker {
+  width: 200px;
+}
+
 @media (max-width: 768px) {
   .options {
     padding: 16px;
+  }
+
+  .basic-card {
+    flex: 1 1 100%;
   }
 }
 </style>
