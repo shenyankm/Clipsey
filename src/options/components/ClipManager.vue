@@ -19,7 +19,7 @@
         </div>
 
         <div>
-          <n-card v-if="filteredClips.length === 0" size="small" class="clip-manager__empty-card">
+          <n-card v-if="searchTotal === 0" size="small" class="clip-manager__empty-card">
             <n-empty description="暂无摘抄记录">
               <template #extra>
                 <n-button size="small" @click="refreshClips">
@@ -92,7 +92,7 @@ import {
   MentionOption
 } from 'naive-ui';
 
-import { getClips, deleteClipById } from '@/background/api';
+import { getClips, deleteClipById, searchClips } from '@/background/api';
 import type { Clip } from '@/types/clip';
 import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
 import { sendMessage } from '@/utils/chrome';
@@ -105,6 +105,8 @@ const searchQuery = ref('');
 
 const currentPage = ref(1);
 const clips = ref<Clip[]>([]);
+const paginatedClips = ref<Clip[]>([]);
+const searchTotal = ref(0);
 const showModal = ref(false);
 const selectedClip = ref<Clip | null>(null);
 
@@ -291,105 +293,45 @@ function getDomainFromUrl(url: string | undefined): string {
   }
 }
 
-const filteredClips = computed(() => {
-  const parsedQuery = parseSearchQuery(searchQuery.value);
-  
-  let result = clips.value;
-
-  // 应用搜索过滤
-  if (parsedQuery.keyword) {
-    const keyword = parsedQuery.keyword.toLowerCase();
-
-    result = result.filter(clip => {
-      const title = (clip.title ?? '').toLowerCase();
-      const content = clip.textContent.toLowerCase();
-      const url = (clip.sourceUrl ?? '').toLowerCase();
-
-      switch (parsedQuery.type) {
-        case 'title':
-          return title.includes(keyword);
-        case 'website':
-          return url.includes(keyword);
-        case 'content':
-          return content.includes(keyword);
-        default:
-          // 全文搜索：搜索标题、内容和网址
-          return (
-            title.includes(keyword) ||
-            url.includes(keyword) ||
-            content.includes(keyword)
-          );
-      }
-    });
-  }
-
-  // 应用排序
-  return result.sort((a, b) => {
-    let aValue: any, bValue: any;
-
-    switch (sortColumn.value) {
-      case 'createdAt':
-        aValue = new Date(a.createdAt).getTime();
-        bValue = new Date(b.createdAt).getTime();
-        break;
-      case 'title':
-        aValue = (a.title ?? '').toLowerCase();
-        bValue = (b.title ?? '').toLowerCase();
-        break;
-      case 'sourceUrl':
-        aValue = (a.sourceUrl ?? '').toLowerCase();
-        bValue = (b.sourceUrl ?? '').toLowerCase();
-        break;
-      case 'textContent':
-        aValue = a.textContent.toLowerCase();
-        bValue = b.textContent.toLowerCase();
-        break;
-      default:
-        aValue = new Date(a.createdAt).getTime();
-        bValue = new Date(b.createdAt).getTime();
-    }
-
-    if (sortOrder.value === 'asc') {
-      return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-    } else {
-      return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
-    }
-  });
-});
-
-const paginatedClips = computed(() => {
-  const start = (currentPage.value - 1) * PAGE_SIZE;
-  return filteredClips.value.slice(start, start + PAGE_SIZE);
-});
-
 const pageCount = computed(() => {
-  if (filteredClips.value.length === 0) {
-    return 1;
-  }
-  return Math.ceil(filteredClips.value.length / PAGE_SIZE);
+  if (searchTotal.value <= 0) return 1;
+  return Math.ceil(searchTotal.value / PAGE_SIZE);
 });
 
 const pageSize = PAGE_SIZE;
 
 watch(searchQuery, () => {
   currentPage.value = 1;
+  void fetchClips();
 });
 
 watch([sortColumn, sortOrder], () => {
   currentPage.value = 1;
+  void fetchClips();
 });
 
-watch(filteredClips, clipsList => {
-  const maxPage = Math.max(1, Math.ceil(clipsList.length / PAGE_SIZE));
-  if (currentPage.value > maxPage) {
-    currentPage.value = maxPage;
-  }
+watch(currentPage, () => {
+  void fetchClips();
 });
 
 async function fetchClips() {
   try {
-    const fetchedClips = await getClips();
-    clips.value = fetchedClips;
+    // 基于查询与排序的后台分页搜索
+    const parsedQuery = parseSearchQuery(searchQuery.value);
+    const { items, total } = await searchClips({
+      type: parsedQuery.type,
+      keyword: parsedQuery.keyword,
+      page: currentPage.value,
+      pageSize: PAGE_SIZE,
+      sortBy: sortColumn.value as any,
+      sortOrder: sortOrder.value
+    });
+    paginatedClips.value = items;
+    searchTotal.value = total;
+    // 维持原始全量剪辑缓存（可选）
+    if (!parsedQuery.keyword && currentPage.value === 1) {
+      clips.value = items;
+    }
   } catch (error) {
     message.error(`加载摘抄列表失败: ${(error as Error).message}`);
   }

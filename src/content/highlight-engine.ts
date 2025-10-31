@@ -11,6 +11,8 @@ type RemoteHighlight = {
 
 const INLINE_CLASS = 'clipsey-inline-highlight';
 const INLINE_COLOR = 'rgba(251, 191, 36, 0.45)';
+const OVERLAY_CLASS = 'clipsey-overlay-highlight';
+const OVERLAY_COLOR = 'rgba(251, 191, 36, 0.30)';
 
 function createTextNodeWalker(root: Node = document.body): TreeWalker | null {
   if (!root) return null;
@@ -65,6 +67,28 @@ function applyInline(range: Range): HTMLElement[] {
   span.style.padding = '0 1px';
   range.surroundContents(span);
   return [span];
+}
+
+function applyOverlay(range: Range): HTMLElement[] {
+  const rects = Array.from(range.getClientRects() || []);
+  if (!rects.length) return [];
+  const overlays: HTMLElement[] = [];
+  for (const rect of rects) {
+    const div = document.createElement('div');
+    div.className = OVERLAY_CLASS;
+    div.style.position = 'absolute';
+    div.style.left = `${rect.left + window.scrollX}px`;
+    div.style.top = `${rect.top + window.scrollY}px`;
+    div.style.width = `${rect.width}px`;
+    div.style.height = `${Math.max(1, rect.height)}px`;
+    div.style.backgroundColor = OVERLAY_COLOR;
+    div.style.borderRadius = '2px';
+    div.style.pointerEvents = 'none';
+    div.style.zIndex = '2147483647';
+    document.body.appendChild(div);
+    overlays.push(div);
+  }
+  return overlays;
 }
 
 function scrollRangeIntoView(range: Range): void {
@@ -144,11 +168,22 @@ export class HighlightEngine {
       if (signal.aborted) return false;
       const text = h.textContent?.trim();
       if (!text) return false;
+      const root: Node = (() => {
+        if (h.anchorSelector) {
+          try {
+            const el = document.querySelector(h.anchorSelector);
+            if (el) return el;
+          } catch {
+            // ignore selector errors
+          }
+        }
+        return document.body;
+      })();
       const range = h.textOffset && typeof h.textOffset === 'number'
         ? this.createRangeFromDocumentOffset(h.textOffset, text.length)
-        : findTextRangeInNode(document.body, text);
+        : findTextRangeInNode(root, text);
       if (!range) return false;
-      const spans = applyInline(range);
+      const spans = (h.highlightStyle === 'overlay') ? applyOverlay(range) : applyInline(range);
       const id = h.highlightId ?? h.id ?? text;
       this.activeSpans.set(id, spans);
       await this.sleep(this.throttled);
