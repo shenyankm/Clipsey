@@ -1,5 +1,6 @@
 import type { Clip } from '@/types/clip';
 import { HighlightEngine } from '@/content/highlight-engine';
+import { ensureHighlightColorsReady, HIGHLIGHT_INLINE_CLASS } from '@/content/color-manager';
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise(resolve => {
@@ -58,14 +59,15 @@ type HighlightMetadata = {
   textOffset?: number;
 };
 
-const INLINE_HIGHLIGHT_CLASS = 'clipsey-inline-highlight';
-const INLINE_HIGHLIGHT_COLOR = 'rgba(251, 191, 36, 0.45)';
+const INLINE_HIGHLIGHT_CLASS = HIGHLIGHT_INLINE_CLASS;
 const CONTEXT_RADIUS = 64;
 
 const __engine = new HighlightEngine();
 
 if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
   window.__PAGE_CLIPPER_CONTENT_INITIALIZED__ = true;
+  // 初始化时确保颜色已注入
+  void ensureHighlightColorsReady();
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     switch (message?.type) {
@@ -1075,7 +1077,6 @@ function createHighlightSpanElement(highlightId: string): HTMLSpanElement {
   span.className = INLINE_HIGHLIGHT_CLASS;
   span.dataset.clipseyId = highlightId;
   span.dataset.clipsey = 'true';
-  span.style.backgroundColor = INLINE_HIGHLIGHT_COLOR;
   span.style.borderRadius = '3px';
   span.style.padding = '0';
   return span;

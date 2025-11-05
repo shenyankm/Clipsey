@@ -6,7 +6,11 @@
       addListener: () => {},
       removeListener: () => {}
     },
-    lastError: undefined
+    lastError: undefined,
+    sendMessage: (_message: unknown, callback: (response: unknown) => void) => {
+      // 默认返回空设置，避免测试失败
+      callback({ success: true, data: {} });
+    }
   },
   tabs: {
     sendMessage: (_tabId: number, _message: unknown, callback: (response: unknown) => void) => {

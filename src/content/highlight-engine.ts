@@ -8,11 +8,11 @@ type RemoteHighlight = {
   textOffset?: number;
   highlightStyle?: 'inline' | 'overlay';
 };
-
-const INLINE_CLASS = 'clipsey-inline-highlight';
-const INLINE_COLOR = 'rgba(251, 191, 36, 0.45)';
-const OVERLAY_CLASS = 'clipsey-overlay-highlight';
-const OVERLAY_COLOR = 'rgba(251, 191, 36, 0.30)';
+import {
+  ensureHighlightColorsReady,
+  HIGHLIGHT_INLINE_CLASS as INLINE_CLASS,
+  HIGHLIGHT_OVERLAY_CLASS as OVERLAY_CLASS
+} from '@/content/color-manager';
 
 function createTextNodeWalker(root: Node = document.body): TreeWalker | null {
   if (!root) return null;
@@ -62,7 +62,6 @@ function applyInline(range: Range): HTMLElement[] {
   if (!text) return [];
   const span = document.createElement('span');
   span.className = INLINE_CLASS;
-  span.style.backgroundColor = INLINE_COLOR;
   span.style.borderRadius = '2px';
   span.style.padding = '0 1px';
   range.surroundContents(span);
@@ -81,7 +80,6 @@ function applyOverlay(range: Range): HTMLElement[] {
     div.style.top = `${rect.top + window.scrollY}px`;
     div.style.width = `${rect.width}px`;
     div.style.height = `${Math.max(1, rect.height)}px`;
-    div.style.backgroundColor = OVERLAY_COLOR;
     div.style.borderRadius = '2px';
     div.style.pointerEvents = 'none';
     div.style.zIndex = '2147483647';
@@ -106,6 +104,7 @@ export class HighlightEngine {
   private activeSpans: Map<string, HTMLElement[]> = new Map();
   private throttled = 16; // ms
   private abortController: AbortController | null = null;
+  private lastPerf: { durationMs: number; appliedCount: number } | null = null;
 
   setThrottle(ms: number): void {
     this.throttled = Math.max(0, ms | 0);
@@ -160,9 +159,14 @@ export class HighlightEngine {
 
   async activateHighlights(highlights: RemoteHighlight[]): Promise<boolean> {
     if (!Array.isArray(highlights) || highlights.length === 0) return false;
+    // 确保高亮颜色已准备好（动态从设置读取并注入CSS变量）
+    await ensureHighlightColorsReady().catch(() => {});
     this.abort();
     this.abortController = new AbortController();
     const signal = this.abortController.signal;
+    const start = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+      ? performance.now()
+      : Date.now();
 
     const tasks = highlights.map(async (h) => {
       if (signal.aborted) return false;
@@ -191,6 +195,10 @@ export class HighlightEngine {
     });
 
     const results = await Promise.all(tasks);
+    const end = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+      ? performance.now()
+      : Date.now();
+    this.lastPerf = { durationMs: Math.max(0, end - start), appliedCount: results.filter(Boolean).length };
     return results.some(Boolean);
   }
 
@@ -224,5 +232,9 @@ export class HighlightEngine {
     } catch {
       return null;
     }
+  }
+
+  getLastPerfStats(): { durationMs: number; appliedCount: number } | null {
+    return this.lastPerf;
   }
 }

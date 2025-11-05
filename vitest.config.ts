@@ -13,7 +13,8 @@ export default defineConfig({
       include: [
         'src/background/handlers/**/*.ts',
         'src/background/services/**/*.ts',
-        'src/content/highlight-engine.ts'
+        'src/content/highlight-engine.ts',
+        'src/content/color-manager.ts'
       ],
       exclude: [
         'src/options/**',
