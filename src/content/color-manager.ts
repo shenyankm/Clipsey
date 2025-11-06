@@ -32,7 +32,7 @@ function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> 
         resolve(response as TResponse);
       });
     } catch (error) {
-      reject(error as any);
+      reject(error);
     }
   });
 }
@@ -54,15 +54,7 @@ function hexToRgba(hex: string, alpha = 0.45): string {
 }
 
 async function readOptions(): Promise<OptionsRecord> {
-  // 在内容脚本环境下通过统一封装的消息读取设置，避免直接依赖后台实现
-  try {
-    const response = await sendMessage<{ success?: boolean; data?: OptionsRecord }>({ type: 'REQUEST_SETTINGS' });
-    if (response?.success && response.data) {
-      return response.data;
-    }
-  } catch {
-    // 读取失败时走默认值
-  }
+  // 已废弃 - 现在使用默认颜色，不再从配置中读取
   return {};
 }
 
@@ -97,13 +89,10 @@ function ensureStyleInjected(inlineColor: string, overlayColor: string): void {
 }
 
 export async function ensureHighlightColorsReady(): Promise<void> {
-  // 懒加载并缓存配置
-  if (!cachedOptions) {
-    cachedOptions = await readOptions();
-  }
-  const hex = cachedOptions?.highlightColor;
-  const inline = hex ? hexToRgba(hex, 0.45) : DEFAULT_INLINE_RGBA;
-  const overlay = hex ? hexToRgba(hex, 0.30) : DEFAULT_OVERLAY_RGBA;
+  // 使用默认高亮颜色，不再从配置中读取
+  const hex = '#ff0000';
+  const inline = hexToRgba(hex, 0.45);
+  const overlay = hexToRgba(hex, 0.30);
   ensureStyleInjected(inline, overlay);
 }
 

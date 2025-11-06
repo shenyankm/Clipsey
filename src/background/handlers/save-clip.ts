@@ -1,14 +1,18 @@
 import type { Clip } from '@/types/clip';
 import { clipService } from '@/background/services/clip-service';
 import { createId } from '@/utils/helpers';
+import type { SaveClipPayload } from '@/types/message';
 
-export async function handleSaveClip(payload: Partial<Clip> & { textContent?: string }): Promise<void> {
+export async function handleSaveClip(payload: SaveClipPayload): Promise<void> {
   if (!payload?.textContent) {
-    return;
+    throw new Error('缺少必需的 textContent 字段');
   }
 
   const sourceUrl = payload.sourceUrl ?? '';
-  const highlightId = typeof payload.highlightId === 'string' && payload.highlightId ? payload.highlightId : undefined;
+  const highlightId = typeof payload.highlightId === 'string' && payload.highlightId 
+    ? payload.highlightId 
+    : undefined;
+  
   const existingForUrl = highlightId ? await clipService.listByUrl(sourceUrl) : [];
   const existingClip = highlightId
     ? existingForUrl.find(clip => clip.highlightId === highlightId)

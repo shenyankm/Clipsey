@@ -3,34 +3,39 @@
     <a-card :bordered="false" size="small">
       <a-tabs v-model:activeKey="activeItem">
         <a-tab-pane key="basic" :tab="t('menuBasic')">
-          <a-row :gutter="[16, 16]">
-            <a-col :xs="24" :md="12">
-              <a-card size="small">
-                <a-form layout="horizontal" :labelCol="{ span: 8 }" :wrapperCol="{ span: 16 }">
-                  <a-form-item :label="t('displayLanguage')">
-                    <a-select v-model:value="form.language" :options="languageOptions" />
-                  </a-form-item>
-                </a-form>
-              </a-card>
-            </a-col>
-
-            <a-col :xs="24" :md="12">
-              <a-card size="small">
-                <a-form layout="horizontal" :labelCol="{ span: 8 }" :wrapperCol="{ span: 16 }">
-                  <a-form-item :label="t('highlightColor')">
-                    <!-- Ant Design Vue 暂无内置颜色选择器，改用输入框维护十六进制颜色值，保持功能一致 -->
-                    <a-input v-model:value="form.highlightColor" placeholder="#ff0000" />
-                  </a-form-item>
-                  <a-form-item :label="t('autoHighlightPageSummary')">
+          <a-card size="small" title="基础设置">
+            <a-form layout="vertical">
+              <a-form-item :label="t('displayLanguage')">
+                <a-select 
+                  v-model:value="form.language" 
+                  :options="languageOptions" 
+                  style="width: 280px;"
+                />
+              </a-form-item>
+              
+              <a-divider />
+              
+              <a-form-item>
+                <a-space direction="vertical" size="middle" style="width: 100%;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <div style="font-weight: 500;">{{ t('autoHighlightPageSummary') }}</div>
+                      <div style="color: #8c8c8c; font-size: 12px; margin-top: 4px;">{{ t('autoHighlightPageSummaryDescription') }}</div>
+                    </div>
                     <a-switch v-model:checked="form.autoHighlightPageSummary" />
-                  </a-form-item>
-                  <a-form-item :label="t('autoLocateFirstSummary')">
+                  </div>
+                  
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <div style="font-weight: 500;">{{ t('autoLocateFirstSummary') }}</div>
+                      <div style="color: #8c8c8c; font-size: 12px; margin-top: 4px;">{{ t('autoLocateFirstSummaryDescription') }}</div>
+                    </div>
                     <a-switch v-model:checked="form.autoLocateFirstSummary" />
-                  </a-form-item>
-                </a-form>
-              </a-card>
-            </a-col>
-          </a-row>
+                  </div>
+                </a-space>
+              </a-form-item>
+            </a-form>
+          </a-card>
         </a-tab-pane>
 
         <a-tab-pane key="content" :tab="t('menuContent')">
@@ -42,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, computed, watch } from 'vue';
+import { onMounted, reactive, ref, watch } from 'vue';
 import ClipManager from './ClipManager.vue';
 import { readSettingsValue, writeSettingsValue } from '@/background/settings-store';
 // Ant Design Vue 组件通过全局注册使用，无需逐一导入
@@ -50,7 +55,6 @@ import { readSettingsValue, writeSettingsValue } from '@/background/settings-sto
 interface OptionsForm {
 
   language: 'zh-CN' | 'zh-TW' | 'en-US';
-  highlightColor: string;
   autoHighlightPageSummary: boolean;
   autoLocateFirstSummary: boolean;
 }
@@ -60,7 +64,6 @@ type StoredOptions = Omit<OptionsForm, 'language'> & { language?: string };
 const DEFAULT_OPTIONS: OptionsForm = {
 
   language: 'zh-CN',
-  highlightColor: '#f00',
   autoHighlightPageSummary: true,
   autoLocateFirstSummary: true,
 };
@@ -89,8 +92,7 @@ const texts = {
   languageZhCN: '简体中文',
   languageZhTW: '繁體中文',
   languageEnUS: 'English',
-  highlightColor: '内容高亮',
-  highlightColorDescription: '设置内容高亮颜色',
+
     autoHighlightPageSummary: '页面摘要自动高亮',
     autoHighlightPageSummaryDescription: '自动高亮页面中的摘要内容',
     autoLocateFirstSummary: '自动定位首个摘要位置',
@@ -111,16 +113,12 @@ function t(key: TextKey) {
 }
 
 function mergeStoredOptions(
-  current: Partial<StoredOptions> = {},
-  legacy: Partial<StoredOptions> = {}
+  current: Partial<StoredOptions> = {}
 ): OptionsForm {
   const mergedOptions: OptionsForm = { ...DEFAULT_OPTIONS };
 
   if (current.language !== undefined) {
     mergedOptions.language = current.language as OptionsForm['language'];
-  }
-  if (current.highlightColor !== undefined) {
-    mergedOptions.highlightColor = current.highlightColor;
   }
   if (current.autoHighlightPageSummary !== undefined) {
     mergedOptions.autoHighlightPageSummary = current.autoHighlightPageSummary;
@@ -205,4 +203,31 @@ function persistActiveTabToStorage(tab: 'basic' | 'content'): void {
     localStorage.setItem(ACTIVE_TAB_KEY, tab);
   } catch {}
 }
+
+// Watch form changes and auto-save
+watch(
+  () => [form.language, form.autoHighlightPageSummary, form.autoLocateFirstSummary],
+  async () => {
+    try {
+      await writeSettingsValue({
+        language: form.language,
+        autoHighlightPageSummary: form.autoHighlightPageSummary,
+        autoLocateFirstSummary: form.autoLocateFirstSummary,
+      });
+    } catch (error) {
+      console.warn('Failed to save settings:', error);
+    }
+  },
+  { deep: true }
+);
 </script>
+
+<style scoped>
+.ant-card {
+  transition: all 0.3s ease;
+}
+
+.ant-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+}
+</style>

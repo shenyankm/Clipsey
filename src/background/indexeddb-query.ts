@@ -371,7 +371,7 @@ export class IndexedDBQuery {
   static async search<K extends keyof DBSchema>(
     storeName: K,
     searchTerm: string,
-    searchFields: string[],
+    searchFields: (keyof DBSchema[K]['value'])[],
     options: QueryOptions = {}
   ): Promise<DBSchema[K]['value'][]> {
     const allRecords = await this.getAll(storeName, options);
@@ -379,7 +379,7 @@ export class IndexedDBQuery {
 
     return allRecords.filter(record => {
       return searchFields.some(field => {
-        const value = (record as any)[field];
+        const value = record[field];
         if (typeof value === 'string') {
           return value.toLowerCase().includes(searchTermLower);
         }
@@ -393,14 +393,14 @@ export class IndexedDBQuery {
    */
   static async getDistinct<K extends keyof DBSchema>(
     storeName: K,
-    field: string,
+    field: keyof DBSchema[K]['value'],
     options: QueryOptions = {}
-  ): Promise<any[]> {
+  ): Promise<unknown[]> {
     const allRecords = await this.getAll(storeName, options);
-    const uniqueValues = new Set();
+    const uniqueValues = new Set<unknown>();
 
     allRecords.forEach(record => {
-      const value = (record as any)[field];
+      const value = record[field];
       if (value !== undefined && value !== null) {
         uniqueValues.add(value);
       }

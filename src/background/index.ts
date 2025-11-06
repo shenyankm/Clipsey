@@ -5,6 +5,8 @@ import { indexedDBManager } from './indexeddb';
 import { DevTools } from './dev-tools';
 import { registerMessageRouter } from '@/background/handlers/message-router';
 import { contentScriptService } from '@/background/services/content-script-service';
+import { ErrorHandler } from '@/utils/error-handler';
+import type { MessageResponse, HighlightPayload, FocusClipPayload } from '@/types/message';
 
 const CONTEXT_MENU_ID = 'clipsey-context-menu';
 const CONTENT_SCRIPT_FILE = 'scripts/content.js';
@@ -16,22 +18,29 @@ const REQUEST_SELECTION_MAX_ATTEMPTS = 3;
 const REQUEST_SELECTION_RETRY_DELAY_MS = 200;
 const NOTIFICATION_ICON = chrome.runtime.getURL('assets/icon128.png');
 
-type MessageResponse<T = unknown> = {
-  success: boolean;
-  data?: T;
-  error?: string;
-};
+/**
+ * 清理监听器的管理器，防止内存泄漏
+ */
+class ListenerManager {
+  private listeners: Set<() => void> = new Set();
 
-type HighlightPayload = {
-  id: string;
-  highlightId?: string;
-  textContent: string;
-  contextBefore?: string;
-  contextAfter?: string;
-  anchorSelector?: string;
-  textOffset?: number;
-  highlightStyle?: 'inline' | 'overlay';
-};
+  addCleanup(cleanup: () => void): void {
+    this.listeners.add(cleanup);
+  }
+
+  cleanup(): void {
+    for (const cleanup of this.listeners) {
+      try {
+        cleanup();
+      } catch (error) {
+        console.error('Cleanup error:', error);
+      }
+    }
+    this.listeners.clear();
+  }
+}
+
+const listenerManager = new ListenerManager();
 
 chrome.runtime.onInstalled.addListener(async () => {
   // 初始化IndexedDB
@@ -39,7 +48,8 @@ chrome.runtime.onInstalled.addListener(async () => {
     await indexedDBManager.init();
     console.log('IndexedDB initialized successfully');
   } catch (error) {
-    console.error('Failed to initialize IndexedDB:', error);
+    const appError = ErrorHandler.handle(error, 'IndexedDB initialization');
+    console.error(appError.userMessage);
   }
 
   // 清理旧版本遗留的上下文菜单标识
@@ -59,14 +69,18 @@ chrome.runtime.onInstalled.addListener(async () => {
     () => {
       const error = chrome.runtime.lastError;
       if (error && !error.message?.includes('duplicate id')) {
-        console.error('创建右键菜单失败', error);
+        const appError = ErrorHandler.handle(error, 'Context menu creation');
+        console.error(appError.userMessage);
       }
     }
   );
 
-  contentScriptService.registerContentScript().catch(error => {
-    console.error('注册内容脚本失败', error);
-  });
+  try {
+    await contentScriptService.registerContentScript();
+  } catch (error) {
+    const appError = ErrorHandler.handle(error, 'Content script registration');
+    console.error(appError.userMessage);
+  }
 });
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -77,12 +91,16 @@ chrome.runtime.onStartup.addListener(async () => {
     await indexedDBManager.init();
     console.log('IndexedDB initialized on startup');
   } catch (error) {
-    console.error('Failed to initialize IndexedDB on startup:', error);
+    const appError = ErrorHandler.handle(error, 'IndexedDB startup initialization');
+    console.error(appError.userMessage);
   }
   
-  contentScriptService.registerContentScript().catch(error => {
-    console.error('启动时注册内容脚本失败', error);
-  });
+  try {
+    await contentScriptService.registerContentScript();
+  } catch (error) {
+    const appError = ErrorHandler.handle(error, 'Content script registration on startup');
+    console.error(appError.userMessage);
+  }
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -96,7 +114,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   }
 
   requestSelection(tab.id).catch(error => {
-    console.error('请求选区失败', error);
+    const appError = ErrorHandler.handle(error, 'Request selection');
+    console.error(appError.userMessage);
   });
 });
 
@@ -104,7 +123,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 registerMessageRouter();
 
 // 在用户访问匹配网址时自动激活页面中的相关摘要高亮
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+const tabUpdateListener = (tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => {
   try {
     const url = tab?.url;
     if (!url || changeInfo.status !== 'complete') {
@@ -113,8 +132,16 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
     void activatePageHighlights(tabId, url);
   } catch (error) {
-    console.warn('自动启用高亮失败', error);
+    const appError = ErrorHandler.handle(error, 'Tab update');
+    console.warn(appError.userMessage);
   }
+};
+
+chrome.tabs.onUpdated.addListener(tabUpdateListener);
+
+// 注册清理函数，防止内存泄漏
+listenerManager.addCleanup(() => {
+  chrome.tabs.onUpdated.removeListener(tabUpdateListener);
 });
 
 async function activatePageHighlights(tabId: number, url: string): Promise<void> {
@@ -146,11 +173,15 @@ async function attemptActivateHighlights(
   highlights: HighlightPayload[]
 ): Promise<boolean> {
   const sendHighlightRequest = async (): Promise<boolean> => {
-    const response = await contentScriptService.sendMessageToTab(tabId, {
-      type: 'ACTIVATE_HIGHLIGHTS',
-      payload: { highlights }
-    });
-    return Boolean((response as { success?: boolean })?.success);
+    try {
+      const response = await contentScriptService.sendMessageToTab<MessageResponse<unknown>>(tabId, {
+        type: 'ACTIVATE_HIGHLIGHTS',
+        payload: { highlights }
+      });
+      return Boolean(response?.success);
+    } catch (error) {
+      throw error;
+    }
   };
 
   try {
@@ -167,7 +198,8 @@ async function attemptActivateHighlights(
     return await sendHighlightRequest();
   } catch (error) {
     if (!contentScriptService.isMissingReceiverError(error)) {
-      console.warn('Failed to apply highlights', error);
+      const appError = ErrorHandler.handle(error, 'Activate highlights');
+      console.warn(appError.userMessage);
       return false;
     }
 
@@ -180,7 +212,8 @@ async function attemptActivateHighlights(
       return await sendHighlightRequest();
     } catch (retryError) {
       if (!contentScriptService.isMissingReceiverError(retryError)) {
-        console.warn('Failed to apply highlights', retryError);
+        const appError = ErrorHandler.handle(retryError, 'Retry activate highlights');
+        console.warn(appError.userMessage);
       }
       return false;
     }
@@ -196,13 +229,14 @@ async function requestSelection(tabId: number, attempt = 0): Promise<void> {
       void showNotification('无法访问页面', '此页面不允许扩展脚本运行。');
       return;
     }
-  } catch {
+  } catch (error) {
     // 如果查询标签页失败，继续执行并交由后续错误处理
   }
+  
   try {
-    const response = (await contentScriptService.sendMessageToTab(tabId, {
+    const response = await contentScriptService.sendMessageToTab<MessageResponse<unknown>>(tabId, {
       type: 'REQUEST_SELECTION'
-    })) as MessageResponse;
+    });
 
     handleSelectionResponse(response);
   } catch (error) {
@@ -213,7 +247,8 @@ async function requestSelection(tabId: number, attempt = 0): Promise<void> {
     }
 
     if (!contentScriptService.isMissingReceiverError(error)) {
-      void showNotification('保存失败', getErrorMessage(error));
+      const appError = ErrorHandler.handle(error, 'Request selection');
+      void showNotification('保存失败', appError.userMessage);
       throw error;
     }
 
@@ -223,9 +258,9 @@ async function requestSelection(tabId: number, attempt = 0): Promise<void> {
     }
 
     try {
-      const response = (await contentScriptService.sendMessageToTab(tabId, {
+      const response = await contentScriptService.sendMessageToTab<MessageResponse<unknown>>(tabId, {
         type: 'REQUEST_SELECTION'
-      })) as MessageResponse;
+      });
       handleSelectionResponse(response);
     } catch (retryError) {
       if (contentScriptService.isMissingReceiverError(retryError)) {
@@ -236,7 +271,8 @@ async function requestSelection(tabId: number, attempt = 0): Promise<void> {
         return;
       }
 
-      void showNotification('保存失败', getErrorMessage(retryError));
+      const appError = ErrorHandler.handle(retryError, 'Retry request selection');
+      void showNotification('保存失败', appError.userMessage);
       throw retryError;
     }
   }
@@ -252,15 +288,17 @@ async function attemptFocusClip(tabId: number, clip: Clip): Promise<void> {
 
   for (let attempt = 0; attempt < FOCUS_MAX_ATTEMPTS; attempt += 1) {
     try {
-      const response = await contentScriptService.sendMessageToTab(tabId, {
+      const payload: FocusClipPayload = {
+        id: clip.id,
+        textContent: clip.textContent
+      };
+      
+      const response = await contentScriptService.sendMessageToTab<MessageResponse<unknown>>(tabId, {
         type: 'FOCUS_CLIP',
-        payload: {
-          id: clip.id,
-          textContent: clip.textContent
-        }
+        payload
       });
 
-      if ((response as { success?: boolean })?.success) {
+      if (response?.success) {
         return;
       }
     } catch (error) {
@@ -273,12 +311,14 @@ async function attemptFocusClip(tabId: number, clip: Clip): Promise<void> {
               return;
             }
           } catch (injectionError) {
-            console.warn('注入辅助脚本失败', injectionError);
+            const appError = ErrorHandler.handle(injectionError, 'Content script injection');
+            console.warn(appError.userMessage);
             return;
           }
         }
       } else {
-        console.warn('定位剪辑失败', error);
+        const appError = ErrorHandler.handle(error, 'Focus clip');
+        console.warn(appError.userMessage);
         return;
       }
     }
@@ -287,7 +327,7 @@ async function attemptFocusClip(tabId: number, clip: Clip): Promise<void> {
   }
 }
 
-function handleSelectionResponse(response: MessageResponse | undefined): void {
+function handleSelectionResponse(response: MessageResponse<unknown> | undefined): void {
   if (!response) {
     void showNotification('保存失败', '发生未知错误，请稍后重试。');
     return;
@@ -307,10 +347,14 @@ function handleSelectionResponse(response: MessageResponse | undefined): void {
 }
 
 function isSupportedHttpUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') {
+    return false;
+  }
+  
   try {
     const parsed = new URL(url);
     return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
+  } catch (error) {
     return false;
   }
 }
@@ -341,7 +385,8 @@ async function showNotification(title: string, message: string): Promise<void> {
       iconUrl: NOTIFICATION_ICON
     });
   } catch (error) {
-    console.warn('无法显示通知', error);
+    const appError = ErrorHandler.handle(error, 'Show notification');
+    console.warn(appError.userMessage);
   }
 }
 
@@ -376,7 +421,10 @@ function collectHighlightPayloads(clips: Clip[]): HighlightPayload[] {
   return highlights;
 }
 
-// 初始化调度：注册消息处理器（已在顶部调用一次）
+// 导出清理函数，供测试或扩展卸载时调用
+export function cleanup(): void {
+  listenerManager.cleanup();
+}
 
 
 

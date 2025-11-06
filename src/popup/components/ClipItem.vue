@@ -52,6 +52,8 @@ import type { Clip } from '@/types/clip';
 import { formatDate } from '@/utils/helpers';
 import { sendMessage } from '@/utils/chrome';
 import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
+import { ErrorHandler } from '@/utils/error-handler';
+import type { MessageResponse } from '@/types/message';
 
 const MULTI_PART_TLDS = new Set(['co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'com.cn', 'net.cn', 'org.cn', 'gov.cn']);
 
@@ -108,7 +110,7 @@ async function handleOpen(): Promise<void> {
   }
   opening.value = true;
   try {
-    const response = await sendMessage<{ success: boolean; error?: string }>({
+    const response = await sendMessage<MessageResponse>({
       type: 'OPEN_CLIP',
       payload: { id: props.clip.id }
     });
@@ -117,7 +119,8 @@ async function handleOpen(): Promise<void> {
     }
     window.close();
   } catch (error) {
-    message.error((error as Error).message || '无法打开剪辑');
+    const appError = ErrorHandler.handle(error, 'Open clip from popup');
+    message.error(appError.userMessage);
   } finally {
     opening.value = false;
   }

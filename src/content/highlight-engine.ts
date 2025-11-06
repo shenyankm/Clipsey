@@ -102,6 +102,7 @@ function scrollRangeIntoView(range: Range): void {
 
 export class HighlightEngine {
   private activeSpans: Map<string, HTMLElement[]> = new Map();
+  private readonly maxHighlights = 200; // 防止内存泄漏：限制最大高亮数量
   private throttled = 16; // ms
   private abortController: AbortController | null = null;
   private lastPerf: { durationMs: number; appliedCount: number } | null = null;
@@ -159,6 +160,12 @@ export class HighlightEngine {
 
   async activateHighlights(highlights: RemoteHighlight[]): Promise<boolean> {
     if (!Array.isArray(highlights) || highlights.length === 0) return false;
+    
+    // 防止内存泄漏：如果超过最大数量，清理旧的
+    if (this.activeSpans.size >= this.maxHighlights) {
+      this.clearOldestHighlights(Math.floor(this.maxHighlights / 2));
+    }
+    
     // 确保高亮颜色已准备好（动态从设置读取并注入CSS变量）
     await ensureHighlightColorsReady().catch(() => {});
     this.abort();
@@ -236,5 +243,15 @@ export class HighlightEngine {
 
   getLastPerfStats(): { durationMs: number; appliedCount: number } | null {
     return this.lastPerf;
+  }
+
+
+  private clearOldestHighlights(count: number): void {
+    const keys = Array.from(this.activeSpans.keys());
+    const toRemove = keys.slice(0, count);
+    
+    for (const key of toRemove) {
+      this.undo(key);
+    }
   }
 }

@@ -1,6 +1,9 @@
 import type { Clip } from '@/types/clip';
 import { HighlightEngine } from '@/content/highlight-engine';
 import { ensureHighlightColorsReady, HIGHLIGHT_INLINE_CLASS } from '@/content/color-manager';
+import type { MessageResponse } from '@/types/message';
+import { ErrorHandler } from '@/utils/error-handler';
+
 // 在内容脚本环境内联消息发送函数，避免打包为外部 ESM 导入
 function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> {
   return new Promise((resolve, reject) => {
@@ -13,7 +16,7 @@ function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> 
         resolve(response as TResponse);
       });
     } catch (error) {
-      reject(error as any);
+      reject(error);
     }
   });
 }
@@ -75,15 +78,27 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
       case 'FOCUS_CLIP':
         __engine
           .focusClip(message?.payload)
-          .then(success => sendResponse({ success }))
-          .catch(error => sendResponse({ success: false, error: (error as Error).message }));
+          .then(success => sendResponse({ success } satisfies MessageResponse))
+          .catch(error => {
+            const appError = ErrorHandler.handle(error, 'Focus clip in content script');
+            sendResponse({ 
+              success: false, 
+              error: appError.message 
+            } satisfies MessageResponse);
+          });
         return true;
       case 'ACTIVATE_HIGHLIGHTS': {
         const remoteHighlights = normalizeIncomingHighlights(message?.payload);
         void __engine
           .activateHighlights(remoteHighlights)
-          .then(success => sendResponse({ success }))
-          .catch(error => sendResponse({ success: false, error: (error as Error).message }));
+          .then(success => sendResponse({ success } satisfies MessageResponse))
+          .catch(error => {
+            const appError = ErrorHandler.handle(error, 'Activate highlights in content script');
+            sendResponse({ 
+              success: false, 
+              error: appError.message 
+            } satisfies MessageResponse);
+          });
         return true;
       }
       default:
@@ -97,6 +112,7 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
 let cachedSafeAreaInsetTop: number | null = null;
 let underlineContainer: HTMLDivElement | null = null;
 const activeUnderlines: HTMLDivElement[] = [];
+const MAX_UNDERLINES = 100; // 防止内存泄漏：限制最大数量
 const UNDERLINE_THICKNESS = 2;
 // 背景高亮颜色（半透明蓝色），替代原下划线效果
 const UNDERLINE_COLOR = 'rgba(59, 130, 246, 0.22)';
@@ -842,6 +858,11 @@ function underlineRanges(ranges: Range[]): void {
     return;
   }
 
+  // 防止内存泄漏：如果超过最大数量，清理旧的
+  if (activeUnderlines.length >= MAX_UNDERLINES) {
+    clearOldestUnderlines(Math.floor(MAX_UNDERLINES / 2));
+  }
+
   const scrollX = window.scrollX ?? window.pageXOffset ?? 0;
   const scrollY = window.scrollY ?? window.pageYOffset ?? 0;
 
@@ -898,6 +919,16 @@ function ensureUnderlineContainer(): HTMLDivElement | null {
 function clearUnderlines(): void {
   while (activeUnderlines.length) {
     const underline = activeUnderlines.pop();
+    underline?.remove();
+  }
+}
+
+/**
+ * 清理最旧的几个 underline，防止内存泄漏
+ */
+function clearOldestUnderlines(count: number): void {
+  const toRemove = activeUnderlines.splice(0, count);
+  for (const underline of toRemove) {
     underline?.remove();
   }
 }

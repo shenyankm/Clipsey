@@ -1,16 +1,21 @@
 <template>
-  <a-space direction="vertical" size="large">
-    <a-space>
-      <a-mentions
-        v-model:value="searchQuery"
-        placeholder="输入 @title、@website、@content 进行精确搜索，或直接输入关键词进行全文搜索..."
-      >
-        <a-mentions-option value="title">@title - 搜索标题</a-mentions-option>
-        <a-mentions-option value="website">@website - 搜索网站</a-mentions-option>
-        <a-mentions-option value="content">@content - 搜索内容</a-mentions-option>
-      </a-mentions>
-      <a-button type="link" size="small" @click="refreshClips">刷新</a-button>
-    </a-space>
+  <a-space direction="vertical" size="large" style="width: 100%;">
+    <a-row :gutter="12" align="middle">
+      <a-col :xs="24" :sm="18" :md="20" :lg="20">
+        <a-mentions
+          v-model:value="searchQuery"
+          placeholder="输入 @title、@website、@content 进行精确搜索,或直接输入关键词进行全文搜索..."
+          style="width: 100%;"
+        >
+          <a-mentions-option value="title">@title - 搜索标题</a-mentions-option>
+          <a-mentions-option value="website">@website - 搜索网站</a-mentions-option>
+          <a-mentions-option value="content">@content - 搜索内容</a-mentions-option>
+        </a-mentions>
+      </a-col>
+      <a-col :xs="24" :sm="6" :md="4" :lg="4">
+        <a-button type="link" size="small" @click="refreshClips" style="width: 100%;">刷新</a-button>
+      </a-col>
+    </a-row>
 
     <div>
       <a-card v-if="searchTotal === 0" size="small">
