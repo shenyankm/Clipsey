@@ -19,6 +19,24 @@ export const HIGHLIGHT_OVERLAY_CLASS = 'clipsey-overlay-highlight';
 let cachedOptions: OptionsRecord | null = null;
 let styleInjected = false;
 
+// 在内容脚本环境内联消息发送函数，避免打包为外部 ESM 导入
+function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> {
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.runtime.sendMessage(message, response => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+          return;
+        }
+
+        resolve(response as TResponse);
+      });
+    } catch (error) {
+      reject(error as any);
+    }
+  });
+}
+
 function hexToRgba(hex: string, alpha = 0.45): string {
   const normalized = hex?.replace('#', '').trim();
   if (!normalized || !/^([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(normalized)) {
@@ -36,22 +54,9 @@ function hexToRgba(hex: string, alpha = 0.45): string {
 }
 
 async function readOptions(): Promise<OptionsRecord> {
-  // 在内容脚本环境下通过消息读取设置，避免直接依赖后台实现
+  // 在内容脚本环境下通过统一封装的消息读取设置，避免直接依赖后台实现
   try {
-    const response = await new Promise<{ success?: boolean; data?: OptionsRecord }>((resolve, reject) => {
-      try {
-        chrome.runtime.sendMessage({ type: 'REQUEST_SETTINGS' }, resp => {
-          if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
-            return;
-          }
-          resolve(resp as { success?: boolean; data?: OptionsRecord });
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
-
+    const response = await sendMessage<{ success?: boolean; data?: OptionsRecord }>({ type: 'REQUEST_SETTINGS' });
     if (response?.success && response.data) {
       return response.data;
     }

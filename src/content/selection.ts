@@ -1,13 +1,7 @@
 import type { Clip } from '@/types/clip';
 import { HighlightEngine } from '@/content/highlight-engine';
 import { ensureHighlightColorsReady, HIGHLIGHT_INLINE_CLASS } from '@/content/color-manager';
-
-function delay(milliseconds: number): Promise<void> {
-  return new Promise(resolve => {
-    setTimeout(resolve, milliseconds);
-  });
-}
-
+// 在内容脚本环境内联消息发送函数，避免打包为外部 ESM 导入
 function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> {
   return new Promise((resolve, reject) => {
     try {
@@ -16,12 +10,17 @@ function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> 
           reject(chrome.runtime.lastError);
           return;
         }
-
         resolve(response as TResponse);
       });
     } catch (error) {
-      reject(error);
+      reject(error as any);
     }
+  });
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise(resolve => {
+    setTimeout(resolve, milliseconds);
   });
 }
 

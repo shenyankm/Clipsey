@@ -14,7 +14,7 @@ const HIGHLIGHT_MAX_ATTEMPTS = 5;
 const HIGHLIGHT_RETRY_DELAY_MS = 400;
 const REQUEST_SELECTION_MAX_ATTEMPTS = 3;
 const REQUEST_SELECTION_RETRY_DELAY_MS = 200;
-const NOTIFICATION_ICON = chrome.runtime.getURL('assets/icon128.png');
+const NOTIFICATION_ICON = chrome.runtime.getURL('assets/icon128.jpg');
 
 type MessageResponse<T = unknown> = {
   success: boolean;
