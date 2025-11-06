@@ -1,11 +1,10 @@
 <template>
-  <n-message-provider>
+  <a-config-provider>
     <settings-view />
-  </n-message-provider>
+  </a-config-provider>
   
 </template>
 
 <script setup lang="ts">
-import { NMessageProvider } from 'naive-ui';
 import SettingsView from './components/SettingsView.vue';
 </script>

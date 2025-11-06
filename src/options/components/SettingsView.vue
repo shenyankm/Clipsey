@@ -1,97 +1,51 @@
 <template>
-  <n-config-provider :theme="themeObject" :locale="naiveLocale" :date-locale="naiveDateLocale">
-    <n-message-provider>
-      <div class="options">
-        <n-grid :cols="6" :x-gap="24">
-          <n-gi :span="24">
-            <n-card :bordered="false" size="small" :style="{ boxShadow: 'none' }" :content-style="{ padding: '0' }">
-              <n-tabs v-model:value="activeItem" type="line" animated class="settings-tabs">
-                <n-tab-pane name="basic" :tab="t('menuBasic')">
-                  <div class="basic-settings-grid">
-                    <!-- 显示语言：50% 宽度卡片，标签与选择框同一行 -->
-                    <n-card size="small" class="basic-card">
-                      <n-form :model="form" label-placement="left" class="basic-form">
-                        <n-form-item
-                          :label="t('displayLanguage')"
-                          :label-style="{ width: '96px' }"
-                          class="inline-form-item"
-                        >
-                          <n-select
-                            v-model:value="form.language"
-                            :options="languageOptions"
-                            class="inline-select"
-                          />
-                        </n-form-item>
-                      </n-form>
-                    </n-card>
+  <a-config-provider>
+    <a-card :bordered="false" size="small">
+      <a-tabs v-model:activeKey="activeItem">
+        <a-tab-pane key="basic" :tab="t('menuBasic')">
+          <a-row :gutter="[16, 16]">
+            <a-col :xs="24" :md="12">
+              <a-card size="small">
+                <a-form layout="horizontal" :labelCol="{ span: 8 }" :wrapperCol="{ span: 16 }">
+                  <a-form-item :label="t('displayLanguage')">
+                    <a-select v-model:value="form.language" :options="languageOptions" />
+                  </a-form-item>
+                </a-form>
+              </a-card>
+            </a-col>
 
-                    <!-- 内容高亮：50% 宽度卡片，标签与颜色选择器同一行 -->
-                    <n-card size="small" class="basic-card">
-                      <n-form :model="form" label-placement="left" class="basic-form">
-                        <n-form-item
-                          :label="t('highlightColor')"
-                          :label-style="{ width: '96px' }"
-                          class="inline-form-item"
-                        >
-                          <n-color-picker
-                            v-model:value="form.highlightColor"
-                            :show-alpha="false"
-                            class="inline-color-picker"
-                          />
-                        </n-form-item>
+            <a-col :xs="24" :md="12">
+              <a-card size="small">
+                <a-form layout="horizontal" :labelCol="{ span: 8 }" :wrapperCol="{ span: 16 }">
+                  <a-form-item :label="t('highlightColor')">
+                    <!-- Ant Design Vue 暂无内置颜色选择器，改用输入框维护十六进制颜色值，保持功能一致 -->
+                    <a-input v-model:value="form.highlightColor" placeholder="#ff0000" />
+                  </a-form-item>
+                  <a-form-item :label="t('autoHighlightPageSummary')">
+                    <a-switch v-model:checked="form.autoHighlightPageSummary" />
+                  </a-form-item>
+                  <a-form-item :label="t('autoLocateFirstSummary')">
+                    <a-switch v-model:checked="form.autoLocateFirstSummary" />
+                  </a-form-item>
+                </a-form>
+              </a-card>
+            </a-col>
+          </a-row>
+        </a-tab-pane>
 
-                        <n-form-item :label="t('autoHighlightPageSummary')" :label-style="{ width: '96px' }">
-                          <n-switch v-model:value="form.autoHighlightPageSummary" />
-                        </n-form-item>
-                        <n-form-item :label="t('autoLocateFirstSummary')" :label-style="{ width: '96px' }">
-                          <n-switch v-model:value="form.autoLocateFirstSummary" />
-                        </n-form-item>
-                      </n-form>
-                    </n-card>
-                  </div>
-                </n-tab-pane>
-                <n-tab-pane name="content" :tab="t('menuContent')">
-                  <ClipManager />
-                </n-tab-pane>
-
-              </n-tabs>
-            </n-card>
-          </n-gi>
-        </n-grid>
-      </div>
-    </n-message-provider>
-  </n-config-provider>
+        <a-tab-pane key="content" :tab="t('menuContent')">
+          <ClipManager />
+        </a-tab-pane>
+      </a-tabs>
+    </a-card>
+  </a-config-provider>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, reactive, ref, computed, watch } from 'vue';
-import {
-  NAlert,
-  NButton,
-  NCard,
-  NConfigProvider,
-  NGi,
-  NGrid,
-  NMessageProvider,
-  NForm,
-  NFormItem,
-  NInput,
-  NSelect,
-  NSpace,
-  NSwitch,
-  NText,
-  NTabs,
-  NTabPane,
-  NColorPicker,
-  useMessage,
-  darkTheme,
-  zhCN,
-  dateZhCN,
-  enUS,
-  dateEnUS
-} from 'naive-ui';
+import { onMounted, reactive, ref, computed, watch } from 'vue';
 import ClipManager from './ClipManager.vue';
 import { readSettingsValue, writeSettingsValue } from '@/background/settings-store';
+// Ant Design Vue 组件通过全局注册使用，无需逐一导入
 
 interface OptionsForm {
 
@@ -114,7 +68,7 @@ const DEFAULT_OPTIONS: OptionsForm = {
 const form = reactive<OptionsForm>({ ...DEFAULT_OPTIONS });
 
 
-const message = useMessage();
+// 使用 Ant Design Vue 全局 message（如需）
 
 const activeItem = ref<'basic' | 'content'>('basic');
 
@@ -124,24 +78,7 @@ const languageOptions = [
   { label: 'English', value: 'en-US' },
 ];
 
-const naiveLocale = computed(() => {
-  if (form.language === 'zh-CN' || form.language === 'zh-TW') {
-    return zhCN;
-  } else if (form.language === 'en-US') {
-    return enUS;
-  }
-  return zhCN; // Default to zhCN
-});
-
-const naiveDateLocale = computed(() => {
-  if (form.language === 'zh-CN' || form.language === 'zh-TW') {
-    return dateZhCN;
-  } else if (form.language === 'en-US') {
-    return dateEnUS;
-  }
-  return dateZhCN; // Default to dateZhCN
-});
-const themeObject = computed(() => null);
+// Ant Design Vue 的 locale 暂不使用（当前页面未涉及日期等组件），后续如需要可在 ConfigProvider 中配置。
 
 const texts = {
   title: 'Clipsey 设置',
@@ -269,55 +206,3 @@ function persistActiveTabToStorage(tab: 'basic' | 'content'): void {
   } catch {}
 }
 </script>
-
-<style scoped>
-.options {
-  min-height: 100vh;
-  padding: 32px 24px;
-  background: #f7f8fa;
-}
-
-.settings-tabs {
-  min-height: 360px;
-  padding: 8px 12px;
-}
-
-.basic-settings-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 24px;
-  align-items: flex-start;
-}
-
-.basic-card {
-  flex: 1 1 calc(50% - 12px);
-  min-width: 280px;
-}
-
-.basic-form {
-  width: 100%;
-}
-
-.inline-form-item {
-  display: flex;
-  align-items: center;
-}
-
-.inline-select {
-  width: 200px;
-}
-
-.inline-color-picker {
-  width: 200px;
-}
-
-@media (max-width: 768px) {
-  .options {
-    padding: 16px;
-  }
-
-  .basic-card {
-    flex: 1 1 100%;
-  }
-}
-</style>

@@ -1,67 +1,51 @@
 <template>
-  <n-card
+  <a-card
     size="small"
-    :segmented="{ content: true }"
     :bordered="false"
-    :style="{ borderRadius: '0', boxShadow: 'none' }"
-    :header-style="{ padding: '12px' }"
-    :content-style="{ padding: '12px' }"
-    :footer-style="{ padding: '12px' }"
   >
-    <template #header>
-      <n-space justify="space-between" align="center">
-        <n-text strong style="font-size: 18px;">Clipsey</n-text>
-      </n-space>
+    <template #title>
+      <a-row align="middle" justify="space-between">
+        <a-col>
+          <a-typography-title :level="5">Clipsey</a-typography-title>
+        </a-col>
+      </a-row>
     </template>
-    <template #header-extra>
-      <n-space size="small">
-        <n-button size="small" tertiary @click="refreshClips" :loading="loading">刷新</n-button>
-        <n-button size="small" type="error" tertiary @click="handleClear" :loading="loading">清空</n-button>
-        <n-tooltip placement="bottom" trigger="hover">
-          <template #trigger>
-            <n-button
-              size="small"
-              tertiary
-              @click="openSettings"
-              aria-label="设置"
-              style="padding: 0 6px;"
-            >
-              <n-icon>
-                <svg width="16" height="16" viewBox="0 0 24 24">
-                  <line x1="4" y1="6" x2="20" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                  <circle cx="10" cy="6" r="2" fill="currentColor" />
-                  <line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                  <circle cx="14" cy="12" r="2" fill="currentColor" />
-                  <line x1="4" y1="18" x2="20" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                  <circle cx="8" cy="18" r="2" fill="currentColor" />
-                </svg>
-              </n-icon>
-            </n-button>
-          </template>
-          设置
-        </n-tooltip>
-      </n-space>
+    <template #extra>
+      <a-space size="small">
+        <a-button size="small" type="link" @click="refreshClips" :loading="loading">刷新</a-button>
+        <a-button size="small" type="link" danger @click="handleClear" :loading="loading">清空</a-button>
+        <a-tooltip placement="bottom" trigger="hover">
+          <template #title>设置</template>
+          <a-button
+            size="small"
+            type="text"
+            @click="openSettings"
+            aria-label="设置"
+          >
+            <template #icon>
+              <SettingOutlined />
+            </template>
+          </a-button>
+        </a-tooltip>
+      </a-space>
     </template>
-    <n-spin :show="loading">
-      <div class="popup-content">
-        <n-scrollbar>
-          <clip-list :clips="clips" />
-        </n-scrollbar>
-      </div>
-    </n-spin>
-  </n-card>
+    <a-spin :spinning="loading">
+      <clip-list :clips="clips" />
+    </a-spin>
+  </a-card>
 </template>
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
-import { NButton, NCard, NSpace, NSpin, NText, NScrollbar, NIcon, NTooltip, useMessage } from 'naive-ui';
+import { message } from 'ant-design-vue';
 import type { Clip } from '@/types/clip';
 import ClipList from './components/ClipList.vue';
 import { sendMessage, isChromeExtensionEnv } from '@/utils/chrome';
+import { SettingOutlined } from '@ant-design/icons-vue';
 
 const clips = ref<Clip[]>([]);
 const loading = ref(false);
-const message = useMessage();
+// 使用 Ant Design Vue 全局消息
 const chromeEnv = isChromeExtensionEnv();
 
 async function refreshClips(): Promise<void> {
@@ -145,23 +129,6 @@ function handleStorageChange(
   void loadClips(false);
 }
 </script>
-
-<style scoped>
-.popup-content {
-  overflow: visible;
-  min-height: 400px;
-  display: flex;
-  flex-direction: column;
-}
-
-.popup-content :deep(.n-scrollbar) {
-  flex: 1;
-}
-
-.popup-content :deep(.n-scrollbar-content) {
-  min-height: 100%;
-}
-</style>
 
 
 

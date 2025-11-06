@@ -1,96 +1,90 @@
 <template>
-  <div class="clip-manager">
+  <a-space direction="vertical" size="large">
+    <a-space>
+      <a-mentions
+        v-model:value="searchQuery"
+        placeholder="输入 @title、@website、@content 进行精确搜索，或直接输入关键词进行全文搜索..."
+      >
+        <a-mentions-option value="title">@title - 搜索标题</a-mentions-option>
+        <a-mentions-option value="website">@website - 搜索网站</a-mentions-option>
+        <a-mentions-option value="content">@content - 搜索内容</a-mentions-option>
+      </a-mentions>
+      <a-button type="link" size="small" @click="refreshClips">刷新</a-button>
+    </a-space>
 
-    <div class="clip-manager__main">
-      <n-space vertical size="large">
-        <div class="clip-manager__search">
-          <n-mention
-            v-model:value="searchQuery"
-            :options="mentionOptions"
-            placeholder="输入 @title、@website、@content 进行精确搜索，或直接输入关键词进行全文搜索..."
-            clearable
-            size="medium"
-            class="clip-manager__search-input"
-            :render-label="renderMentionLabel"
-          />
-          <n-button tertiary size="small" @click="refreshClips">
-            刷新
-          </n-button>
-        </div>
+    <div>
+      <a-card v-if="searchTotal === 0" size="small">
+        <a-empty description="暂无摘抄记录" />
+        <a-space>
+          <a-button size="small" @click="refreshClips">刷新</a-button>
+        </a-space>
+      </a-card>
 
-        <div>
-          <n-card v-if="searchTotal === 0" size="small" class="clip-manager__empty-card">
-            <n-empty description="暂无摘抄记录">
-              <template #extra>
-                <n-button size="small" @click="refreshClips">
-                  刷新
-                </n-button>
+      <div v-else>
+        <a-table
+          :columns="columns"
+          :dataSource="paginatedClips"
+          :pagination="false"
+          :bordered="false"
+          :rowKey="rowKey"
+          size="small"
+          @change="handleTableChange"
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'sourceUrl'">
+              <template v-if="record.sourceUrl">
+                <a-tag color="blue">{{ getDomainFromUrl(record.sourceUrl) }}</a-tag>
               </template>
-            </n-empty>
-          </n-card>
+              <template v-else>无网址</template>
+            </template>
+            <template v-else-if="column.key === 'createdAt'">
+              {{ formatDateForTable(record.createdAt) }}
+            </template>
+            <template v-else-if="column.key === 'actions'">
+              <a-space :size="8" align="center">
+                <a-button size="small" @click="openClipDetail(record)">查看</a-button>
+                <a-button size="small" type="primary" :disabled="!record.sourceUrl" @click="openClip(record.id)">打开</a-button>
+                <a-popconfirm title="确认删除该摘抄？此操作不可恢复。" @confirm="deleteClip(record.id)">
+                  <a-button size="small" danger>删除</a-button>
+                </a-popconfirm>
+              </a-space>
+            </template>
+          </template>
+        </a-table>
+      </div>
 
-          <div v-else>
-            <n-data-table
-              :columns="columns"
-              :data="paginatedClips"
-              :pagination="false"
-              :bordered="false"
-              :single-line="false"
-              @update:sorter="handleSorterChange"
-            />
-          </div>
-
-          <n-space v-if="pageCount > 1" justify="end">
-            <n-pagination
-              v-model:page="currentPage"
-              :page-count="pageCount"
-              :page-size="pageSize"
-              size="small"
-            />
-          </n-space>
-        </div>
-      </n-space>
+      <div v-if="pageCount > 1">
+        <a-pagination
+          v-model:current="currentPage"
+          :total="searchTotal"
+          :pageSize="pageSize"
+          size="small"
+          showLessItems
+        />
+      </div>
     </div>
 
-    <n-modal v-model:show="showModal" preset="dialog" title="摘抄详情" :mask-closable="true">
-      <template #default>
-        <n-space vertical>
-          <n-text strong>标题:</n-text>
-          <n-text>{{ selectedClip?.title || '无标题' }}</n-text>
-          <n-text strong>URL:</n-text>
-          <n-text>{{ selectedClip?.sourceUrl || '无URL' }}</n-text>
-          <n-text strong>内容:</n-text>
-          <div v-if="selectedClip && clipHasRichContent(selectedClip)" v-html="resolveClipHtml(selectedClip)"></div>
-          <n-text v-else-if="selectedClip">{{ selectedClip.textContent || '暂无内容' }}</n-text>
-          <n-text v-else>暂无内容</n-text>
-        </n-space>
+    <a-modal v-model:open="showModal" title="摘抄详情" :maskClosable="true">
+      <template #footer>
+        <a-button @click="showModal = false">关闭</a-button>
       </template>
-      <template #action>
-        <n-button @click="showModal = false">关闭</n-button>
-      </template>
-    </n-modal>
-  </div>
+      <a-space direction="vertical">
+        <a-typography-text strong>标题:</a-typography-text>
+        <a-typography-text>{{ selectedClip?.title || '无标题' }}</a-typography-text>
+        <a-typography-text strong>URL:</a-typography-text>
+        <a-typography-text>{{ selectedClip?.sourceUrl || '无URL' }}</a-typography-text>
+        <a-typography-text strong>内容:</a-typography-text>
+        <div v-if="selectedClip && clipHasRichContent(selectedClip)" v-html="resolveClipHtml(selectedClip)"></div>
+        <a-typography-text v-else-if="selectedClip">{{ selectedClip.textContent || '暂无内容' }}</a-typography-text>
+        <a-typography-text v-else>暂无内容</a-typography-text>
+      </a-space>
+    </a-modal>
+  </a-space>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, h } from 'vue';
-import {
-  NSpace,
-  NCard,
-  NEmpty,
-  NButton,
-  NThing,
-  NTag,
-  NPagination,
-  useMessage,
-  NModal,
-  NText,
-  NPopconfirm,
-  NDataTable,
-  DataTableColumn,
-  NMention,
-  MentionOption
-} from 'naive-ui';
+import { ref, computed, onMounted, watch } from 'vue';
+import { message } from 'ant-design-vue';
 
 import { getClips, deleteClipById, searchClips } from '@/background/api';
 import type { Clip } from '@/types/clip';
@@ -99,8 +93,6 @@ import { sendMessage } from '@/utils/chrome';
 import { formatDateForTable } from '@/utils/helpers';
 
 const PAGE_SIZE = 20;
-
-const message = useMessage();
 const searchQuery = ref('');
 
 const currentPage = ref(1);
@@ -114,119 +106,52 @@ const selectedClip = ref<Clip | null>(null);
 const sortColumn = ref<string>('createdAt');
 const sortOrder = ref<'asc' | 'desc'>('desc'); // 默认按最新时间排序
 
-// 排序处理函数
-function handleSorterChange(sorter: any) {
+// Table 变更处理（排序）
+function handleTableChange(pagination: any, filters: any, sorter: any) {
   if (sorter && sorter.columnKey) {
     sortColumn.value = sorter.columnKey;
     sortOrder.value = sorter.order === 'ascend' ? 'asc' : 'desc';
   }
 }
 
-// 新增：定义表格列
-const columns = computed<DataTableColumn<Clip>[]>(() => [
+// 表格列定义（使用 Ant Design Vue 的 Table）
+const columns = computed(() => [
   {
     title: '标题',
+    dataIndex: 'title',
     key: 'title',
     width: 180,
-    ellipsis: { tooltip: true }, // 新增：文本省略
-    render(row: Clip) {
-      return row.title || '无标题';
-    }
+    ellipsis: true
   },
   {
     title: '网址',
+    dataIndex: 'sourceUrl',
     key: 'sourceUrl',
-    width: 200,
-    render(row: Clip) {
-      return row.sourceUrl ? h(NTag, { type: 'info', size: 'small' }, { default: () => getDomainFromUrl(row.sourceUrl) }) : '无网址';
-    }
+    width: 200
   },
   {
     title: '内容',
+    dataIndex: 'textContent',
     key: 'textContent',
-    ellipsis: { tooltip: true }, // 新增：文本省略
-    render(row: Clip) {
-      return row.textContent || '暂无内容';
-    }
+    ellipsis: true
   },
   {
     title: '创建时间',
+    dataIndex: 'createdAt',
     key: 'createdAt',
     width: 180,
-    sortOrder: sortColumn.value === 'createdAt' ? (sortOrder.value === 'asc' ? 'ascend' : 'descend') : false,
     sorter: true,
-    render(row: Clip) {
-      // 统一为与其他列一致的文本颜色（Naive UI 默认文本颜色），避免出现偏灰的视觉不一致
-      return h(NText, { depth: 1 }, { default: () => formatDateForTable(row.createdAt) });
-    }
+    sortOrder: sortColumn.value === 'createdAt' ? (sortOrder.value === 'asc' ? 'ascend' : 'descend') : undefined
   },
   {
     title: '操作',
     key: 'actions',
     width: 200,
-    align: 'center',
-    render(row: Clip) {
-      return h(
-        'div',
-        { style: { display: 'flex', justifyContent: 'center', gap: '8px' } },
-        [
-          h(
-            NButton,
-            { size: 'small', onClick: () => openClipDetail(row) },
-            { default: () => '查看' }
-          ),
-          h(
-            NButton,
-            { 
-              size: 'small', 
-              type: 'primary',
-              disabled: !row.sourceUrl,
-              onClick: () => openClip(row.id)
-            },
-            { default: () => '打开' }
-          ),
-          // 为删除按钮添加二次确认，防止误删
-          h(
-            NPopconfirm,
-            {
-              onPositiveClick: () => deleteClip(row.id)
-            },
-            {
-              trigger: () =>
-                h(
-                  NButton,
-                  { size: 'small', type: 'error' },
-                  { default: () => '删除' }
-                ),
-              default: () => '确认删除该摘抄？此操作不可恢复。'
-            }
-          )
-        ]
-      );
-    }
+    align: 'center'
   }
 ]);
 
-// Mention 组件的选项配置
-const mentionOptions: MentionOption[] = [
-  {
-    label: 'title - 搜索标题',
-    value: 'title'
-  },
-  {
-    label: 'website - 搜索网站',
-    value: 'website'
-  },
-  {
-    label: 'content - 搜索内容',
-    value: 'content'
-  }
-];
-
-// Mention 标签的渲染函数
-function renderMentionLabel(option: MentionOption): string {
-  return `@${option.value}`;
-}
+// Mentions 选项通过插槽提供，无需在脚本中定义
 
 // 搜索查询解析接口
 interface ParsedSearchQuery {
@@ -236,6 +161,11 @@ interface ParsedSearchQuery {
 
 // 解析搜索查询的函数
 function parseSearchQuery(query: string): ParsedSearchQuery {
+  /**
+   * 解析搜索指令与关键词
+   * - 支持指令前缀：@title、@website、@content
+   * - 当仅输入指令无关键词时，视为空搜索（不过滤）
+   */
   const trimmedQuery = query.trim();
   
   if (!trimmedQuery) {
@@ -280,6 +210,9 @@ function clipHasRichContent(clip: Clip): boolean {
 
 
 function getDomainFromUrl(url: string | undefined): string {
+  /**
+   * 从 URL 提取顶级域名（去掉 www 前缀），用于在表格中展示来源站点
+   */
   if (!url) {
     return '';
   }
@@ -374,40 +307,10 @@ async function openClip(clipId: string): Promise<void> {
 onMounted(() => {
   fetchClips();
 });
+
+// Table 唯一键
+const rowKey = (record: Clip) => record.id;
 </script>
-
-<style scoped>
-.clip-manager {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 24px;
-}
-
-.clip-manager__main {
-  min-width: 0;
-}
-
-.clip-manager__search {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.clip-manager__search-input {
-  flex: 1;
-  min-width: 300px;
-}
-
-.clip-manager__empty-card {
-  text-align: center;
-}
-
-.clip-card-title :deep(.n-thing-header__title) {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-</style>
 
 
 
