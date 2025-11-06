@@ -85,7 +85,11 @@ export class ContentScriptService {
     if (!message) {
       return false;
     }
-    return message.includes('Receiving end does not exist') || this.isFrameRemovedError(error);
+    return (
+      message.includes('Receiving end does not exist') ||
+      this.isFrameRemovedError(error) ||
+      this.isNoTabError(error)
+    );
   }
 
   isNoSuchContentScriptError(error: unknown): boolean {
@@ -119,6 +123,17 @@ export class ContentScriptService {
       return false;
     }
     return message.includes('frame with id') && message.includes('removed');
+  }
+
+  isNoTabError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+    const message = (error as { message?: string }).message;
+    if (!message) {
+      return false;
+    }
+    return message.includes('No tab with id');
   }
 
   getErrorMessage(error: unknown): string {

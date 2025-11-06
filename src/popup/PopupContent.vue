@@ -4,9 +4,9 @@
     :bordered="false"
   >
     <template #title>
-      <a-row align="middle" justify="space-between">
-        <a-col>
-          <a-typography-title :level="5">Clipsey</a-typography-title>
+      <a-row align="middle" justify="space-between" :wrap="false">
+        <a-col flex="none">
+          <a-typography-title :level="5" style="margin-bottom: 0;">Clipsey</a-typography-title>
         </a-col>
       </a-row>
     </template>

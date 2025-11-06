@@ -1,7 +1,9 @@
 <template>
   <a-list v-if="clips.length > 0" :data-source="clips" :split="false" item-layout="vertical">
     <template #renderItem="{ item }">
-      <clip-item :clip="item" />
+      <a-list-item style="padding: 0 0 12px 0;">
+        <clip-item :clip="item" />
+      </a-list-item>
     </template>
   </a-list>
   <a-empty v-else description="暂无剪贴板内容" />

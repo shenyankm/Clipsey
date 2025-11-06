@@ -77,8 +77,24 @@ async function attemptFocusClip(tabId: number, clip: Clip): Promise<void> {
     return;
   }
 
+  // 检查标签页是否仍然存在
+  try {
+    await chrome.tabs.get(tabId);
+  } catch (error) {
+    // 标签页已关闭或不存在，静默返回
+    return;
+  }
+
   let attemptedManualInjection = false;
   for (let attempt = 0; attempt < FOCUS_MAX_ATTEMPTS; attempt += 1) {
+    // 每次尝试前检查标签页是否仍然存在
+    try {
+      await chrome.tabs.get(tabId);
+    } catch (error) {
+      // 标签页已关闭，停止尝试
+      return;
+    }
+
     try {
       const response = await contentScriptService.sendMessageToTab(tabId, {
         type: 'FOCUS_CLIP',

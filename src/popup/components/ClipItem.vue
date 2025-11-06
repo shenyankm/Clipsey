@@ -1,13 +1,13 @@
 <template>
-  <a-card size="small" hoverable>
+  <a-card size="small" hoverable @click="toggleExpand" style="cursor: pointer;">
     <template #title>
-      <a-row align="middle" justify="space-between">
-        <a-col>
-          <a-typography-paragraph :ellipsis="{ rows: 1, expandable: true }">
+      <a-row align="middle" justify="space-between" :gutter="8">
+        <a-col flex="1" style="min-width: 0;">
+          <a-typography-paragraph :ellipsis="{ rows: 1 }" style="margin-bottom: 0;">
             {{ titleText }}
           </a-typography-paragraph>
         </a-col>
-        <a-col v-if="topDomain">
+        <a-col v-if="topDomain" flex="none">
           <a-tooltip placement="bottom">
             <template #title>
               <span>{{ clip.sourceUrl }}</span>
@@ -17,21 +17,26 @@
         </a-col>
       </a-row>
     </template>
-    <a-space direction="vertical">
+    <a-space direction="vertical" style="width: 100%;">
       <template v-if="hasSummary">
-        <a-collapse ghost>
-          <a-collapse-panel key="summary" header="摘要">
-            <div v-html="summaryHtml"></div>
-          </a-collapse-panel>
-        </a-collapse>
+        <div 
+          :class="{ 'summary-content': true, 'summary-collapsed': !expanded }"
+          v-html="summaryHtml"
+        ></div>
       </template>
       <a-typography-text v-else type="secondary">{{ missingSummaryLabel }}</a-typography-text>
-      <a-row align="middle" justify="space-between">
-        <a-col>
-          <a-typography-text type="secondary">{{ formattedDate }}</a-typography-text>
+      <a-row align="middle" justify="space-between" :gutter="8">
+        <a-col flex="1" style="min-width: 0;">
+          <a-typography-text type="secondary" style="font-size: 12px;">{{ formattedDate }}</a-typography-text>
         </a-col>
-        <a-col>
-          <a-button type="link" :disabled="!clip.sourceUrl" :loading="opening" @click.stop="handleOpen">
+        <a-col flex="none">
+          <a-button 
+            type="primary" 
+            size="small"
+            :disabled="!clip.sourceUrl" 
+            :loading="opening" 
+            @click.stop="handleOpen"
+          >
             打开
           </a-button>
         </a-col>
@@ -52,6 +57,7 @@ const MULTI_PART_TLDS = new Set(['co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'com.cn',
 
 const props = defineProps<{ clip: Clip }>();
 
+const expanded = ref(false);
 const formattedDate = computed(() => formatDate(props.clip.createdAt));
 const titleText = computed(() => props.clip.title?.trim() || '未命名剪辑');
 const summaryHtml = computed(() => getClipHtmlContent(props.clip));
@@ -85,6 +91,10 @@ const topDomain = computed(() => {
 
 // 标题与摘要的展开收起改用 Ant Design Vue 组件的内置交互，无需手动维护状态
 
+function toggleExpand(): void {
+  expanded.value = !expanded.value;
+}
+
 async function handleOpen(): Promise<void> {
   /**
    * 打开剪辑来源页面：通过后台消息在扩展环境中定位并打开对应页面
@@ -113,3 +123,28 @@ async function handleOpen(): Promise<void> {
   }
 }
 </script>
+
+<style scoped>
+.summary-content {
+  word-break: break-word;
+  line-height: 1.5;
+  transition: max-height 0.3s ease;
+}
+
+.summary-collapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.summary-content:deep(p) {
+  margin: 0;
+  padding: 0;
+}
+
+.summary-content:deep(p + p) {
+  margin-top: 8px;
+}
+</style>
