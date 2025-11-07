@@ -167,7 +167,7 @@ function normalizeWhitespace(text: string): string {
  */
 function mapNormalizedIndexToOriginal(
   original: string,
-  normalized: string,
+  _normalized: string,
   normalizedIndex: number
 ): number {
   let originalIndex = 0;

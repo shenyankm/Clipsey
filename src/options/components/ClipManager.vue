@@ -91,13 +91,11 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { message } from 'ant-design-vue';
 
-import { deleteClipById, searchClips, refreshClipsCache } from '@/background/api';
+import { deleteClipById, searchClips } from '@/background/api';
 import type { Clip } from '@/types/clip';
 import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
-import { sendMessage, isChromeExtensionEnv } from '@/utils/chrome';
+import { sendMessage } from '@/utils/chrome';
 import { formatDateForTable } from '@/utils/helpers';
-
-const chromeEnv = isChromeExtensionEnv();
 
 // BroadcastChannel 用于跨页面同步
 let syncChannel: BroadcastChannel | null = null;

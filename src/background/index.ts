@@ -3,16 +3,12 @@ import { delay, isSupportedHttpUrl } from '@/utils/helpers';
 import type { Clip } from '@/types/clip';
 import { indexedDBManager } from './indexeddb';
 import { migrateAllData } from './migration';
-import { DevTools } from './dev-tools';
 import { registerMessageRouter } from '@/background/handlers/message-router';
 import { contentScriptService } from '@/background/services/content-script-service';
 import { ErrorHandler } from '@/utils/error-handler';
-import type { MessageResponse, HighlightPayload, FocusClipPayload } from '@/types/message';
+import type { MessageResponse, HighlightPayload } from '@/types/message';
 
 const CONTEXT_MENU_ID = 'clipsey-context-menu';
-const CONTENT_SCRIPT_FILE = 'scripts/content.js';
-const FOCUS_MAX_ATTEMPTS = 5;
-const FOCUS_RETRY_DELAY_MS = 400;
 const HIGHLIGHT_MAX_ATTEMPTS = 5;
 const HIGHLIGHT_RETRY_DELAY_MS = 400;
 const REQUEST_SELECTION_MAX_ATTEMPTS = 3;
@@ -295,54 +291,6 @@ async function requestSelection(tabId: number, attempt = 0): Promise<void> {
 }
 
 
-async function attemptFocusClip(tabId: number, clip: Clip): Promise<void> {
-  if (!clip.textContent) {
-    return;
-  }
-
-  let attemptedManualInjection = false;
-
-  for (let attempt = 0; attempt < FOCUS_MAX_ATTEMPTS; attempt += 1) {
-    try {
-      const payload: FocusClipPayload = {
-        id: clip.id,
-        textContent: clip.textContent
-      };
-      
-      const response = await contentScriptService.sendMessageToTab<MessageResponse<unknown>>(tabId, {
-        type: 'FOCUS_CLIP',
-        payload
-      });
-
-      if (response?.success) {
-        return;
-      }
-    } catch (error) {
-      if (contentScriptService.isMissingReceiverError(error)) {
-        if (!attemptedManualInjection) {
-          attemptedManualInjection = true;
-          try {
-            const injected = await contentScriptService.injectContentScript(tabId);
-            if (!injected) {
-              return;
-            }
-          } catch (injectionError) {
-            const appError = ErrorHandler.handle(injectionError, 'Content script injection');
-            console.warn(appError.userMessage);
-            return;
-          }
-        }
-      } else {
-        const appError = ErrorHandler.handle(error, 'Focus clip');
-        console.warn(appError.userMessage);
-        return;
-      }
-    }
-
-    await delay(FOCUS_RETRY_DELAY_MS);
-  }
-}
-
 function handleSelectionResponse(response: MessageResponse<unknown> | undefined): void {
   if (!response) {
     void showNotification('保存失败', '发生未知错误，请稍后重试。');
@@ -363,18 +311,6 @@ function handleSelectionResponse(response: MessageResponse<unknown> | undefined)
 }
 
 // 使用 utils 中的 isSupportedHttpUrl，移除重复实现
-
-function getErrorMessage(error: unknown): string {
-  if (!error || typeof error !== 'object') {
-    return String(error ?? '未知错误');
-  }
-
-  return (
-    (error as { message?: string; toString?: () => string }).message ??
-    (error as { toString?: () => string }).toString?.() ??
-    '未知错误'
-  );
-}
 
 async function showNotification(title: string, message: string): Promise<void> {
   if (!chrome.notifications?.create) {
