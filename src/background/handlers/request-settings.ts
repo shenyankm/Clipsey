@@ -1,6 +1,10 @@
-import { settingsService } from '@/background/services/settings-service';
+import { readSettingsLocal, type SettingsOptions } from '@/utils/settings-local';
 
-export async function handleRequestSettings(): Promise<Record<string, unknown>> {
-  const value = await settingsService.read<Record<string, unknown>>();
-  return value ?? {};
+/**
+ * 后台消息处理：返回基础设置（来源于 chrome.storage.local）
+ * 为平滑迁移保留默认值与结构完整性。
+ */
+export async function handleRequestSettings(): Promise<SettingsOptions> {
+  const value = await readSettingsLocal();
+  return value;
 }

@@ -3,6 +3,7 @@ import { handleRequestClips } from '@/background/handlers/request-clips';
 import { handleClearClips } from '@/background/handlers/clear-clips';
 import { handleOpenClip } from '@/background/handlers/open-clip';
 import { handleRequestSettings } from '@/background/handlers/request-settings';
+import type { SettingsOptions } from '@/utils/settings-local';
 import { exportAllData, importAllData, refreshClipsCache } from '@/background/api';
 import type { AppMessage, MessageResponse, SaveClipPayload } from '@/types/message';
 import { ErrorHandler } from '@/utils/error-handler';
@@ -107,13 +108,13 @@ export function registerMessageRouter(): void {
           .then(options => sendResponse({ 
             success: true, 
             data: options 
-          } satisfies MessageResponse))
+          } satisfies MessageResponse<SettingsOptions>))
           .catch(error => {
             const appError = ErrorHandler.handle(error, 'Request settings');
             sendResponse({ 
               success: false, 
               error: appError.userMessage 
-            } satisfies MessageResponse);
+            } satisfies MessageResponse<SettingsOptions>);
           });
         return true;
       

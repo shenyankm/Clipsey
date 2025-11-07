@@ -16,6 +16,13 @@
     "type": "module"
   },
   "options_page": "options/index.html",
+  "content_scripts": [
+    {
+      "matches": ["https://*/*", "http://*/*"],
+      "js": ["scripts/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "permissions": ["contextMenus", "storage", "scripting", "notifications", "activeTab"],
   "host_permissions": ["https://*/*", "http://*/*"],
   "icons": {

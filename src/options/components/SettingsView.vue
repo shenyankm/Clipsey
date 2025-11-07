@@ -13,6 +13,30 @@
                 />
               </a-form-item>
               
+              <a-form-item :label="t('highlightColor')">
+                <a-select 
+                  v-model:value="form.highlightColor" 
+                  :options="highlightColorOptions" 
+                  style="width: 280px;"
+                >
+                  <template #option="{ label, hex }">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span 
+                        :style="{ 
+                          display: 'inline-block', 
+                          width: '16px', 
+                          height: '16px', 
+                          backgroundColor: hex,
+                          borderRadius: '2px',
+                          opacity: 0.6
+                        }"
+                      ></span>
+                      <span>{{ label }}</span>
+                    </div>
+                  </template>
+                </a-select>
+              </a-form-item>
+              
               <a-divider />
               
               <a-form-item>
@@ -49,12 +73,13 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue';
 import ClipManager from './ClipManager.vue';
-import { readSettingsValue, writeSettingsValue } from '@/background/settings-store';
+import { readSettingsLocal, writeSettingsLocal } from '@/utils/settings-local';
 // Ant Design Vue 组件通过全局注册使用，无需逐一导入
 
 interface OptionsForm {
 
   language: 'zh-CN' | 'zh-TW' | 'en-US';
+  highlightColor: 'amber' | 'green' | 'blue';
   autoHighlightPageSummary: boolean;
   autoLocateFirstSummary: boolean;
 }
@@ -64,6 +89,7 @@ type StoredOptions = Omit<OptionsForm, 'language'> & { language?: string };
 const DEFAULT_OPTIONS: OptionsForm = {
 
   language: 'zh-CN',
+  highlightColor: 'amber',
   autoHighlightPageSummary: true,
   autoLocateFirstSummary: true,
 };
@@ -81,14 +107,21 @@ const languageOptions = [
   { label: 'English', value: 'en-US' },
 ];
 
+const highlightColorOptions = [
+  { label: '琥珀色', value: 'amber', hex: '#FFC107' },
+  { label: '青绿色', value: 'green', hex: '#81C784' },
+  { label: '天蓝色', value: 'blue', hex: '#64B5F6' },
+];
+
 // Ant Design Vue 的 locale 暂不使用（当前页面未涉及日期等组件），后续如需要可在 ConfigProvider 中配置。
 
 const texts = {
   title: 'Clipsey 设置',
   menuBasic: '基础设置',
-  menuContent: '内容管理',
+  menuContent: '摘要管理',
 
   displayLanguage: '显示语言',
+  highlightColor: '内容高亮颜色',
   languageZhCN: '简体中文',
   languageZhTW: '繁體中文',
   languageEnUS: 'English',
@@ -120,6 +153,9 @@ function mergeStoredOptions(
   if (current.language !== undefined) {
     mergedOptions.language = current.language as OptionsForm['language'];
   }
+  if (current.highlightColor !== undefined) {
+    mergedOptions.highlightColor = current.highlightColor as OptionsForm['highlightColor'];
+  }
   if (current.autoHighlightPageSummary !== undefined) {
     mergedOptions.autoHighlightPageSummary = current.autoHighlightPageSummary;
   }
@@ -131,7 +167,7 @@ function mergeStoredOptions(
 }
 
 onMounted(async () => {
-  // 优先从 URL 或本地存储恢复上次访问的标签页，确保刷新后仍停留在“内容管理”等当前页面
+  // 优先从 URL 或本地存储恢复上次访问的标签页,确保刷新后仍停留在"摘要管理"等当前页面
   const initial = restoreActiveTabFromUrl() ?? restoreActiveTabFromStorage() ?? 'basic';
   activeItem.value = initial;
 
@@ -149,8 +185,8 @@ onMounted(async () => {
 
 async function getSettings(): Promise<OptionsForm> {
   try {
-    const stored = await readSettingsValue<Partial<StoredOptions>>();
-    return mergeStoredOptions(stored ?? {});
+    const stored = await readSettingsLocal();
+    return mergeStoredOptions(stored ?? {} as Partial<StoredOptions>);
   } catch (error) {
     console.warn('Failed to load settings from IndexedDB:', error);
     return { ...DEFAULT_OPTIONS };
@@ -206,11 +242,12 @@ function persistActiveTabToStorage(tab: 'basic' | 'content'): void {
 
 // Watch form changes and auto-save
 watch(
-  () => [form.language, form.autoHighlightPageSummary, form.autoLocateFirstSummary],
+  () => [form.language, form.highlightColor, form.autoHighlightPageSummary, form.autoLocateFirstSummary],
   async () => {
     try {
-      await writeSettingsValue({
+      await writeSettingsLocal({
         language: form.language,
+        highlightColor: form.highlightColor,
         autoHighlightPageSummary: form.autoHighlightPageSummary,
         autoLocateFirstSummary: form.autoLocateFirstSummary,
       });

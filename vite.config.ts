@@ -108,9 +108,9 @@ export default defineConfig({
           return 'assets/[name]-[hash].js';
         },
         chunkFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash][extname]',
-        manualChunks: () => undefined
-      }
+        assetFileNames: 'assets/[name]-[hash][extname]'
+      },
+      preserveEntrySignatures: false
     }
   }
 });

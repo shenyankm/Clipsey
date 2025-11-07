@@ -3,6 +3,7 @@ import { delay, isSupportedHttpUrl } from '@/utils/helpers';
 import type { Clip } from '@/types/clip';
 import { indexedDBManager } from './indexeddb';
 import { migrateAllData } from './migration';
+import { migrateSettingsToLocal } from '@/background/migration-settings';
 import { registerMessageRouter } from '@/background/handlers/message-router';
 import { contentScriptService } from '@/background/services/content-script-service';
 import { ErrorHandler } from '@/utils/error-handler';
@@ -59,6 +60,16 @@ chrome.runtime.onInstalled.addListener(async () => {
     console.warn('[Migration] Data migration failed (non-critical):', error);
   }
 
+  // 迁移基础设置到 chrome.storage.local（一次性）
+  try {
+    const settingsResult = await migrateSettingsToLocal();
+    if (settingsResult.migrated) {
+      console.log('[Migration] Settings migrated to chrome.storage.local');
+    }
+  } catch (error) {
+    console.warn('[Migration] Settings migration failed (non-critical):', error);
+  }
+
   // 清理旧版本遗留的上下文菜单标识
   chrome.contextMenus.remove('page-clipper-context-menu', () => {
     const removalError = chrome.runtime.lastError;
@@ -107,6 +118,16 @@ chrome.runtime.onStartup.addListener(async () => {
   } catch (error) {
     const appError = ErrorHandler.handle(error, 'Content script registration on startup');
     console.error(appError.userMessage);
+  }
+
+  // 确保基础设置存在于 chrome.storage.local（如首次启动或本地数据被清理）
+  try {
+    const result = await migrateSettingsToLocal();
+    if (result.migrated) {
+      console.log('[Migration] Settings ensured in chrome.storage.local');
+    }
+  } catch (error) {
+    console.warn('[Migration] Ensure settings in local failed (non-critical):', error);
   }
 });
 
@@ -241,7 +262,7 @@ async function requestSelection(tabId: number, attempt = 0): Promise<void> {
       void showNotification('无法访问页面', '此页面不允许扩展脚本运行。');
       return;
     }
-  } catch (error) {
+  } catch {
     // 如果查询标签页失败，继续执行并交由后续错误处理
   }
   

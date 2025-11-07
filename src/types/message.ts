@@ -22,9 +22,14 @@ export interface RequestClipsMessage extends RuntimeMessage {
   type: 'REQUEST_CLIPS';
 }
 
+import type { SettingsOptions } from '@/utils/settings-local';
+
 export interface RequestSettingsMessage extends RuntimeMessage {
   type: 'REQUEST_SETTINGS';
 }
+
+// 请求设置的标准响应类型，统一为 SettingsOptions
+export type RequestSettingsResponse = MessageResponse<SettingsOptions>;
 
 export interface ClearClipsMessage extends RuntimeMessage {
   type: 'CLEAR_CLIPS';
