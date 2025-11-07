@@ -2,7 +2,25 @@ import type { Clip } from '@/types/clip';
 import { HighlightEngine } from '@/content/highlight-engine';
 import { ensureHighlightColorsReady, HIGHLIGHT_INLINE_CLASS } from '@/content/color-manager';
 import type { MessageResponse } from '@/types/message';
-import { ErrorHandler } from '@/utils/error-handler';
+// 注：避免在内容脚本中依赖外部 ESM 模块，内联最小错误消息提取逻辑
+function getErrorMessage(error: unknown): string {
+  if (!error) return '未知错误';
+  if (typeof error === 'string') return error;
+  if (typeof error === 'object') {
+    const maybeMessage = (error as { message?: unknown }).message;
+    if (typeof maybeMessage === 'string' && maybeMessage) return maybeMessage;
+    const toString = (error as { toString?: () => string }).toString;
+    if (typeof toString === 'function') {
+      const s = toString();
+      if (s) return s;
+    }
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
 
 // 在内容脚本环境内联消息发送函数，避免打包为外部 ESM 导入
 function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> {
@@ -80,11 +98,9 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
           .focusClip(message?.payload)
           .then(success => sendResponse({ success } satisfies MessageResponse))
           .catch(error => {
-            const appError = ErrorHandler.handle(error, 'Focus clip in content script');
-            sendResponse({ 
-              success: false, 
-              error: appError.message 
-            } satisfies MessageResponse);
+            const msg = getErrorMessage(error);
+            void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'FOCUS_CLIP in content script' } });
+            sendResponse({ success: false, error: msg } satisfies MessageResponse);
           });
         return true;
       case 'ACTIVATE_HIGHLIGHTS': {
@@ -93,11 +109,9 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
           .activateHighlights(remoteHighlights)
           .then(success => sendResponse({ success } satisfies MessageResponse))
           .catch(error => {
-            const appError = ErrorHandler.handle(error, 'Activate highlights in content script');
-            sendResponse({ 
-              success: false, 
-              error: appError.message 
-            } satisfies MessageResponse);
+            const msg = getErrorMessage(error);
+            void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'ACTIVATE_HIGHLIGHTS in content script' } });
+            sendResponse({ success: false, error: msg } satisfies MessageResponse);
           });
         return true;
       }
@@ -1049,13 +1063,17 @@ function handleRequestSelection(
   const textContent = selection?.toString().trim();
 
   if (!textContent || !selection?.rangeCount) {
-    sendResponse({ success: false, error: 'δѡ���κ�����' });
+    const msg = 'δѡ���κ�����';
+    void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'REQUEST_SELECTION in content script' } });
+    sendResponse({ success: false, error: msg });
     return false;
   }
 
   const activeRange = selection.getRangeAt(0);
   if (activeRange.collapsed) {
-    sendResponse({ success: false, error: 'δѡ���κ�����' });
+    const msg = 'δѡ���κ�����';
+    void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'REQUEST_SELECTION in content script' } });
+    sendResponse({ success: false, error: msg });
     return false;
   }
 
@@ -1065,7 +1083,9 @@ function handleRequestSelection(
   const highlightSpan = wrapRangeInHighlight(activeRange, highlightId);
 
   if (!highlightSpan) {
-    sendResponse({ success: false, error: '�޷�Ϊѡ�������ָ���' });
+    const msg = '�޷�Ϊѡ�������ָ���';
+    void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'REQUEST_SELECTION in content script' } });
+    sendResponse({ success: false, error: msg });
     return false;
   }
 
@@ -1089,7 +1109,11 @@ function handleRequestSelection(
 
   sendMessage({ type: 'SAVE_CLIP', payload })
     .then(() => sendResponse({ success: true }))
-    .catch(error => sendResponse({ success: false, error: error?.message }));
+    .catch(error => {
+      const msg = getErrorMessage(error);
+      void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'SAVE_CLIP from content script' } });
+      sendResponse({ success: false, error: msg });
+    });
 
   return true;
 }

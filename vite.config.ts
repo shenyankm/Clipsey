@@ -105,7 +105,6 @@ export default defineConfig({
           if (chunk.name === 'background' || chunk.name === 'content') {
             return `scripts/${chunk.name}.js`;
           }
-
           return 'assets/[name]-[hash].js';
         },
         chunkFileNames: 'assets/[name]-[hash].js',

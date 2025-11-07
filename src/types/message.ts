@@ -49,6 +49,11 @@ export interface ActivateHighlightsMessage extends RuntimeMessage {
   payload: { highlights: HighlightPayload[] };
 }
 
+export interface LogErrorMessage extends RuntimeMessage {
+  type: 'LOG_ERROR';
+  payload: { message?: string; context?: string; stack?: string };
+}
+
 export interface SaveClipPayload {
   textContent: string;
   sourceUrl?: string;
@@ -86,4 +91,5 @@ export type AppMessage =
   | OpenClipMessage
   | RequestSelectionMessage
   | FocusClipMessage
-  | ActivateHighlightsMessage;
+  | ActivateHighlightsMessage
+  | LogErrorMessage;

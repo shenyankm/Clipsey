@@ -5,6 +5,7 @@ import { handleOpenClip } from '@/background/handlers/open-clip';
 import { handleRequestSettings } from '@/background/handlers/request-settings';
 import type { AppMessage, MessageResponse, SaveClipPayload } from '@/types/message';
 import { ErrorHandler } from '@/utils/error-handler';
+import { handleLogError } from '@/background/handlers/log-error';
 
 /**
  * 类型守卫：验证消息是否为有效的应用消息
@@ -55,6 +56,15 @@ export function registerMessageRouter(): void {
 
     // 路由消息到对应的处理器
     switch (message.type) {
+      case 'LOG_ERROR': {
+        handleLogError(message.payload)
+          .then(ok => sendResponse({ success: ok } satisfies MessageResponse))
+          .catch(error => {
+            const appError = ErrorHandler.handle(error, 'Log error');
+            sendResponse({ success: false, error: appError.userMessage } satisfies MessageResponse);
+          });
+        return true;
+      }
       case 'SAVE_CLIP': {
         if (!isSaveClipPayload(message.payload)) {
           sendResponse({ 
