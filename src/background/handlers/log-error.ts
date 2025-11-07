@@ -1,15 +1,10 @@
 import { ErrorHandler } from '@/utils/error-handler';
+import { indexedDBManager } from '@/background/indexeddb';
+import { IndexedDBQuery } from '@/background/indexeddb-query';
+import type { ErrorLogRecord } from '@/types/indexeddb';
 
 type LogErrorPayload = {
   message?: string;
-  context?: string;
-  stack?: string;
-};
-
-type StoredError = {
-  id: string;
-  time: string; // ISO 格式时间
-  message: string;
   context?: string;
   stack?: string;
 };
@@ -18,7 +13,7 @@ const MAX_LOGS = 200; // 限制最大日志条数，避免存储膨胀
 
 export async function handleLogError(payload: unknown): Promise<boolean> {
   const p = normalizePayload(payload);
-  const entry: StoredError = {
+  const entry: ErrorLogRecord = {
     id: crypto?.randomUUID?.() ?? `err-${Date.now()}`,
     time: new Date().toISOString(),
     message: p.message || '未知错误',
@@ -27,15 +22,32 @@ export async function handleLogError(payload: unknown): Promise<boolean> {
   };
 
   try {
-    const current = await chrome.storage.local.get('errorLogs');
-    const logs: StoredError[] = Array.isArray(current?.errorLogs) ? current.errorLogs : [];
-    logs.push(entry);
-    while (logs.length > MAX_LOGS) logs.shift();
-    await chrome.storage.local.set({ errorLogs: logs });
+    // 初始化 IndexedDB
+    await indexedDBManager.init();
+    
+    // 添加新日志
+    await indexedDBManager.add('errorLogs', entry);
+    
+    // 检查是否超过最大条数，如超过则删除最旧的
+    const count = await indexedDBManager.count('errorLogs');
+    if (count > MAX_LOGS) {
+      // 获取所有日志，按时间升序
+      const allLogs = await IndexedDBQuery.getAll('errorLogs', {
+        indexName: 'time',
+        direction: 'next'
+      });
+      
+      // 删除超出部分
+      const toDelete = allLogs.slice(0, count - MAX_LOGS);
+      for (const log of toDelete) {
+        await indexedDBManager.delete('errorLogs', log.id);
+      }
+    }
+    
     return true;
   } catch (error) {
-    // 兜底：打印到控制台
-    const handled = ErrorHandler.handle(error, 'Persist error log');
+    // 兰底：打印到控制台
+    const handled = ErrorHandler.handle(error, 'Persist error log to IndexedDB');
     console.error('[Clipsey] Persist error log failed:', handled.message);
     return false;
   }

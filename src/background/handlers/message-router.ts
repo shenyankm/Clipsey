@@ -3,6 +3,7 @@ import { handleRequestClips } from '@/background/handlers/request-clips';
 import { handleClearClips } from '@/background/handlers/clear-clips';
 import { handleOpenClip } from '@/background/handlers/open-clip';
 import { handleRequestSettings } from '@/background/handlers/request-settings';
+import { exportAllData, importAllData, refreshClipsCache } from '@/background/api';
 import type { AppMessage, MessageResponse, SaveClipPayload } from '@/types/message';
 import { ErrorHandler } from '@/utils/error-handler';
 import { handleLogError } from '@/background/handlers/log-error';
@@ -148,6 +149,57 @@ export function registerMessageRouter(): void {
           });
         return true;
       }
+      
+      case 'EXPORT_DATA':
+        exportAllData()
+          .then(data => sendResponse({ 
+            success: true, 
+            data 
+          } satisfies MessageResponse))
+          .catch(error => {
+            const appError = ErrorHandler.handle(error, 'Export data');
+            sendResponse({ 
+              success: false, 
+              error: appError.userMessage 
+            } satisfies MessageResponse);
+          });
+        return true;
+      
+      case 'IMPORT_DATA': {
+        if (!message.payload || typeof message.payload !== 'object') {
+          sendResponse({ 
+            success: false, 
+            error: 'Invalid IMPORT_DATA payload' 
+          } satisfies MessageResponse);
+          return false;
+        }
+        
+        importAllData(message.payload as { clips?: any[]; errorLogs?: any[] })
+          .then(result => sendResponse({ 
+            success: true, 
+            data: result 
+          } satisfies MessageResponse))
+          .catch(error => {
+            const appError = ErrorHandler.handle(error, 'Import data');
+            sendResponse({ 
+              success: false, 
+              error: appError.userMessage 
+            } satisfies MessageResponse);
+          });
+        return true;
+      }
+      
+      case 'REFRESH_CACHE':
+        refreshClipsCache()
+          .then(() => sendResponse({ success: true } satisfies MessageResponse))
+          .catch(error => {
+            const appError = ErrorHandler.handle(error, 'Refresh cache');
+            sendResponse({ 
+              success: false, 
+              error: appError.userMessage 
+            } satisfies MessageResponse);
+          });
+        return true;
       
       default:
         // 未知的消息类型

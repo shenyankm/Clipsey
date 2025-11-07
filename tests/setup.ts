@@ -45,3 +45,15 @@ global.chrome = {
 
 // 统一设置基础文档结构
 document.body.innerHTML = '';
+
+// 在 jsdom 环境下补充 Range 的布局测量方法，便于覆盖层测试
+// @ts-expect-error jsdom 可能缺少这些方法
+if (typeof (globalThis as any).Range !== 'undefined') {
+  const RP = (globalThis as any).Range.prototype as any;
+  if (typeof RP.getClientRects !== 'function') {
+    RP.getClientRects = () => [{ left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 }];
+  }
+  if (typeof RP.getBoundingClientRect !== 'function') {
+    RP.getBoundingClientRect = () => ({ left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 });
+  }
+}

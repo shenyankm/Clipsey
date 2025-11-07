@@ -54,6 +54,22 @@ export interface LogErrorMessage extends RuntimeMessage {
   payload: { message?: string; context?: string; stack?: string };
 }
 
+export interface ExportDataMessage extends RuntimeMessage {
+  type: 'EXPORT_DATA';
+}
+
+export interface ImportDataMessage extends RuntimeMessage {
+  type: 'IMPORT_DATA';
+  payload: {
+    clips?: unknown[];
+    errorLogs?: unknown[];
+  };
+}
+
+export interface RefreshCacheMessage extends RuntimeMessage {
+  type: 'REFRESH_CACHE';
+}
+
 export interface SaveClipPayload {
   textContent: string;
   sourceUrl?: string;
@@ -92,4 +108,7 @@ export type AppMessage =
   | RequestSelectionMessage
   | FocusClipMessage
   | ActivateHighlightsMessage
-  | LogErrorMessage;
+  | LogErrorMessage
+  | ExportDataMessage
+  | ImportDataMessage
+  | RefreshCacheMessage;

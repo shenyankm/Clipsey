@@ -1,8 +1,9 @@
 import type { Clip } from '@/types/clip';
 import { HighlightEngine } from '@/content/highlight-engine';
-import { ensureHighlightColorsReady, HIGHLIGHT_INLINE_CLASS } from '@/content/color-manager';
+import { ensureHighlightColorsReady, getInlineHighlightColor, HIGHLIGHT_INLINE_CLASS } from '@/content/color-manager';
 import type { MessageResponse } from '@/types/message';
-// 注：避免在内容脚本中依赖外部 ESM 模块，内联最小错误消息提取逻辑
+import { delay } from '@/utils/helpers';
+// 注:避免在内容脚本中依赖外部 ESM 模块,内联最小错误消息提取逻辑
 function getErrorMessage(error: unknown): string {
   if (!error) return '未知错误';
   if (typeof error === 'string') return error;
@@ -39,11 +40,7 @@ function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> 
   });
 }
 
-function delay(milliseconds: number): Promise<void> {
-  return new Promise(resolve => {
-    setTimeout(resolve, milliseconds);
-  });
-}
+// 复用工具函数 delay，避免重复定义
 
 declare global {
   interface Window {
@@ -91,6 +88,10 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     switch (message?.type) {
+      case 'PING':
+        // 用于检测内容脚本是否已加载
+        sendResponse({ success: true } satisfies MessageResponse);
+        return true;
       case 'REQUEST_SELECTION':
         return handleRequestSelection(sendResponse);
       case 'FOCUS_CLIP':
@@ -127,11 +128,12 @@ let cachedSafeAreaInsetTop: number | null = null;
 let underlineContainer: HTMLDivElement | null = null;
 const activeUnderlines: HTMLDivElement[] = [];
 const MAX_UNDERLINES = 100; // 防止内存泄漏：限制最大数量
-const UNDERLINE_THICKNESS = 2;
-// 背景高亮颜色（半透明蓝色），替代原下划线效果
-const UNDERLINE_COLOR = 'rgba(59, 130, 246, 0.22)';
 const UNDERLINE_ID = 'page-clipper-underline-layer';
 
+/**
+ * 提取选区的HTML内容
+ * 优化:保留完整的富文本结构信息
+ */
 function extractSelectionHtml(selection: Selection | null): string | undefined {
   if (!selection || selection.rangeCount === 0) {
     return undefined;
@@ -139,14 +141,21 @@ function extractSelectionHtml(selection: Selection | null): string | undefined {
 
   const container = document.createElement('div');
   for (let i = 0; i < selection.rangeCount; i += 1) {
-    container.appendChild(selection.getRangeAt(i).cloneContents());
+    const range = selection.getRangeAt(i);
+    const clonedContent = range.cloneContents();
+    container.appendChild(clonedContent);
   }
 
-  // 使用 innerHTML 时尽量保留原始标记
-  return container.innerHTML || undefined;
+  // 使用 innerHTML 保留完整的富文本结构
+  const html = container.innerHTML;
+  return html && html.trim() ? html : undefined;
 }
 
-async function focusClip(
+/**
+ * 定位到指定的剪辑内容
+ * @deprecated 该函数已被 HighlightEngine.focusClip 替代，保留供未来参考
+ */
+async function _focusClip(
   payload: { textContent?: string; id?: string } | undefined
 ): Promise<boolean> {
   const textContent = payload?.textContent?.trim();
@@ -845,7 +854,11 @@ function matchTokensAt(
   return { start: startPosition, end: endPosition };
 }
 
-function underlineSelection(selection: Selection | null): void {
+/**
+ * 为选区添加下划线高亮标记
+ * @deprecated 该函数已被 HighlightEngine 替代，保留供未来参考
+ */
+function _underlineSelection(selection: Selection | null): void {
   if (!selection || selection.rangeCount === 0) {
     return;
   }
@@ -858,9 +871,23 @@ function underlineSelection(selection: Selection | null): void {
   underlineRanges(ranges);
 }
 
+/**
+ * 为单个Range添加下划线高亮
+ * 用于焦点定位时的临时高亮效果
+ */
+
+/**
+ * 为单个Range添加下划线高亮
+ * 用于焦点定位时的临时高亮效果
+ */
 function underlineRange(range: Range): void {
   underlineRanges([range.cloneRange()]);
 }
+
+/**
+ * 为多个Range添加下划线高亮
+ * 优化:防止内存泄漏,使用动态颜色管理
+ */
 
 function underlineRanges(ranges: Range[]): void {
   if (!ranges.length || !document.body) {
@@ -895,7 +922,7 @@ function underlineRanges(ranges: Range[]): void {
       underline.style.top = `${rect.top + scrollY}px`;
       underline.style.width = `${rect.width}px`;
       underline.style.height = `${rect.height}px`;
-      underline.style.backgroundColor = UNDERLINE_COLOR;
+      underline.style.backgroundColor = getInlineHighlightColor();
       underline.style.boxSizing = 'border-box';
       underline.style.borderRadius = '3px';
       container.appendChild(underline);
@@ -948,7 +975,11 @@ function clearOldestUnderlines(count: number): void {
 }
 
 
-async function activateHighlights(highlights: RemoteHighlight[]): Promise<boolean> {
+/**
+ * 激活页面中的多个高亮标记
+ * @deprecated 该函数已被 HighlightEngine.activateHighlights 替代，保留供未来参考
+ */
+async function _activateHighlights(highlights: RemoteHighlight[]): Promise<boolean> {
   if (!Array.isArray(highlights) || !highlights.length) {
     return false;
   }
@@ -1126,13 +1157,16 @@ function generateHighlightId(): string {
   return 'highlight-' + Math.random().toString(36).slice(2, 11);
 }
 
+/**
+ * 创建高亮 span 元素
+ * 优化:简化样式,使用CSS变量统一管理颜色
+ */
 function createHighlightSpanElement(highlightId: string): HTMLSpanElement {
   const span = document.createElement('span');
   span.className = INLINE_HIGHLIGHT_CLASS;
   span.dataset.clipseyId = highlightId;
   span.dataset.clipsey = 'true';
-  span.style.borderRadius = '3px';
-  span.style.padding = '0';
+  // 样式由 color-manager 的 CSS 规则统一管理
   return span;
 }
 
@@ -1142,6 +1176,10 @@ type HighlightSegment = {
   end: number;
 };
 
+/**
+ * 收集需要高亮的文本节点片段
+ * 优化:正确处理富文本结构,跨元素高亮
+ */
 function collectHighlightSegments(range: Range): HighlightSegment[] {
   const segments: HighlightSegment[] = [];
   const root = range.commonAncestorContainer;
@@ -1150,14 +1188,31 @@ function collectHighlightSegments(range: Range): HighlightSegment[] {
   let current: Node | null = walker.nextNode();
   while (current) {
     const textNode = current as Text;
+    
+    // 检查节点是否在range范围内
     if (!range.intersectsNode(textNode)) {
       current = walker.nextNode();
       continue;
     }
 
+    // 跳过已高亮内容，避免重复包裹
     if (textNode.parentElement?.closest('[data-clipsey-id]')) {
       current = walker.nextNode();
       continue;
+    }
+    
+    // 跳过不可见元素
+    const parent = textNode.parentElement;
+    if (parent) {
+      try {
+        const style = getComputedStyle(parent);
+        if (style.visibility === 'hidden' || style.display === 'none') {
+          current = walker.nextNode();
+          continue;
+        }
+      } catch {
+        // 忽略样式获取错误
+      }
     }
 
     const content = textNode.textContent ?? '';
@@ -1190,11 +1245,16 @@ function collectHighlightSegments(range: Range): HighlightSegment[] {
   return segments;
 }
 
+/**
+ * 应用高亮到所有收集的文本片段
+ * 优化:支持富文本结构,跨元素高亮
+ */
 function applyHighlightSegments(range: Range, highlightId: string): HTMLSpanElement[] {
   const segments = collectHighlightSegments(range);
   const created: HTMLSpanElement[] = [];
 
   for (const { node, start, end } of segments) {
+    // 检查节点是否还在DOM中
     if (!node.isConnected) {
       continue;
     }
@@ -1204,20 +1264,25 @@ function applyHighlightSegments(range: Range, highlightId: string): HTMLSpanElem
     segmentRange.setEnd(node, end);
 
     const span = createHighlightSpanElement(highlightId);
+    
+    // 尝试直接包裹
     try {
       segmentRange.surroundContents(span);
+      created.push(span);
+      continue;
     } catch {
+      // 如果直接包裹失败(如跨元素),尝试提取内容后再包裹
       try {
         const fragment = segmentRange.extractContents();
         span.appendChild(fragment);
         segmentRange.insertNode(span);
+        created.push(span);
       } catch {
+        // 如果两种方式都失败,清理span并跳过
         span.remove();
         continue;
       }
     }
-
-    created.push(span);
   }
 
   return created;
@@ -1544,18 +1609,39 @@ function createRangeFromDocumentOffset(offset: number, length: number): Range | 
   return range;
 }
 
+/**
+ * 在指定根节点下查找文本范围
+ * 优化:支持富文本结构,忽略空白字符差异
+ */
 function findTextRangeInNode(root: Node, text: string): Range | null {
+  if (!root || !text) return null;
+  const query = text.trim();
+  if (!query) return null;
+  
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       if (!node?.parentElement) {
         return NodeFilter.FILTER_SKIP;
       }
+      // 排除脚本、样式等不可见元素
       if (node.parentElement.closest('script, style, noscript, svg, canvas')) {
         return NodeFilter.FILTER_REJECT;
       }
       const content = node.textContent;
       if (!content || !content.trim()) {
         return NodeFilter.FILTER_SKIP;
+      }
+      // 检查元素是否可见
+      try {
+        const parent = node.parentElement;
+        if (parent) {
+          const style = getComputedStyle(parent);
+          if (style.visibility === 'hidden' || style.display === 'none') {
+            return NodeFilter.FILTER_REJECT;
+          }
+        }
+      } catch {
+        // 忽略样式获取错误
       }
       return NodeFilter.FILTER_ACCEPT;
     }
@@ -1576,7 +1662,41 @@ function findTextRangeInNode(root: Node, text: string): Range | null {
   }
 
   const combined = buffer.join('');
-  const index = combined.toLowerCase().indexOf(text.toLowerCase());
+  // 先尝试精确匹配
+  let index = combined.toLowerCase().indexOf(query.toLowerCase());
+  
+  // 如果精确匹配失败,尝试规范化后匹配(忽略多余空白)
+  if (index === -1) {
+    const normalizedCombined = combined.replace(/\s+/g, ' ').trim();
+    const normalizedQuery = query.replace(/\s+/g, ' ').trim();
+    const normalizedIndex = normalizedCombined.toLowerCase().indexOf(normalizedQuery.toLowerCase());
+    
+    if (normalizedIndex !== -1) {
+      // 将规范化索引映射回原始索引(简化版)
+      let originalIndex = 0;
+      let normalizedCount = 0;
+      let inWhitespace = false;
+      
+      for (let i = 0; i < combined.length && normalizedCount < normalizedIndex; i++) {
+        const char = combined[i];
+        const isWhitespace = /\s/.test(char);
+        
+        if (isWhitespace) {
+          if (!inWhitespace) {
+            normalizedCount++;
+            inWhitespace = true;
+          }
+        } else {
+          normalizedCount++;
+          inWhitespace = false;
+        }
+        originalIndex++;
+      }
+      
+      index = originalIndex;
+    }
+  }
+  
   if (index === -1) {
     return null;
   }
@@ -1587,7 +1707,7 @@ function findTextRangeInNode(root: Node, text: string): Range | null {
 
   for (const textNode of textNodes) {
     const contentLength = textNode.textContent?.length ?? 0;
-    if (remaining <= contentLength) {
+    if (remaining < contentLength) {
       startNode = textNode;
       startOffset = remaining;
       break;
@@ -1602,7 +1722,7 @@ function findTextRangeInNode(root: Node, text: string): Range | null {
   const range = document.createRange();
   range.setStart(startNode, startOffset);
 
-  let remainingLength = text.length;
+  let remainingLength = query.length;
   let currentIndex = textNodes.indexOf(startNode);
   let endNode = startNode;
   let endOffset = Math.min(startOffset + remainingLength, startNode.textContent?.length ?? 0);

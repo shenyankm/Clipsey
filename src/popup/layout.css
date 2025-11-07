@@ -1,17 +1,13 @@
 html, body {
   margin: 0;
   padding: 0;
-  width: 320px;
-  min-width: 300px;
+  width: 450px;
+  min-width: 400px;
 }
 
 #app {
   width: 100%;
-  min-height: 420px;
-}
-
-@media (max-width: 420px) {
-  html, body {
-    width: 300px;
-  }
+  min-height: 300px;
+  max-height: 600px;
+  overflow-y: auto;
 }

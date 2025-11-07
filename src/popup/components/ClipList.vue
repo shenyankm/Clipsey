@@ -1,7 +1,7 @@
 <template>
   <a-list v-if="clips.length > 0" :data-source="clips" :split="false" item-layout="vertical">
     <template #renderItem="{ item }">
-      <a-list-item style="padding: 0 0 12px 0;">
+      <a-list-item style="padding: 0 0 10px 0;">
         <clip-item :clip="item" />
       </a-list-item>
     </template>

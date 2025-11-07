@@ -3,11 +3,12 @@ import type { Clip } from './clip';
 // IndexedDB 数据库配置
 export const DB_CONFIG = {
   name: 'ClipseyDB',
-  version: 1,
+  version: 2, // 升级版本以添加 errorLogs store
   stores: {
     clips: 'clips',
     settings: 'settings',
-    metadata: 'metadata'
+    metadata: 'metadata',
+    errorLogs: 'errorLogs'
   }
 } as const;
 
@@ -31,6 +32,10 @@ export interface DBSchema {
     key: string;
     value: MetadataRecord;
   };
+  errorLogs: {
+    key: string;
+    value: ErrorLogRecord;
+  };
 }
 
 // 设置记录类型
@@ -46,6 +51,15 @@ export interface MetadataRecord {
   value: any;
   createdAt: string;
   updatedAt: string;
+}
+
+// 错误日志记录类型
+export interface ErrorLogRecord {
+  id: string;
+  time: string; // ISO 格式时间
+  message: string;
+  context?: string;
+  stack?: string;
 }
 
 // 查询选项
@@ -142,6 +156,17 @@ export const STORE_CONFIGS: StoreConfig[] = [
       {
         name: 'updatedAt',
         keyPath: 'updatedAt',
+        options: { unique: false }
+      }
+    ]
+  },
+  {
+    name: 'errorLogs',
+    keyPath: 'id',
+    indexes: [
+      {
+        name: 'time',
+        keyPath: 'time',
         options: { unique: false }
       }
     ]

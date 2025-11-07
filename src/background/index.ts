@@ -1,7 +1,8 @@
 import { getClipsForUrl } from './storage';
-import { delay } from '@/utils/helpers';
+import { delay, isSupportedHttpUrl } from '@/utils/helpers';
 import type { Clip } from '@/types/clip';
 import { indexedDBManager } from './indexeddb';
+import { migrateAllData } from './migration';
 import { DevTools } from './dev-tools';
 import { registerMessageRouter } from '@/background/handlers/message-router';
 import { contentScriptService } from '@/background/services/content-script-service';
@@ -50,6 +51,16 @@ chrome.runtime.onInstalled.addListener(async () => {
   } catch (error) {
     const appError = ErrorHandler.handle(error, 'IndexedDB initialization');
     console.error(appError.userMessage);
+  }
+
+  // 执行数据迁移（从 chrome.storage.local 迁移到 IndexedDB）
+  try {
+    const migrationResult = await migrateAllData();
+    if (migrationResult.clipsResult.migratedCount > 0 || migrationResult.errorLogsResult.migratedCount > 0) {
+      console.log('[Migration] Data migration completed:', migrationResult);
+    }
+  } catch (error) {
+    console.warn('[Migration] Data migration failed (non-critical):', error);
   }
 
   // 清理旧版本遗留的上下文菜单标识
@@ -158,6 +169,11 @@ async function activatePageHighlights(tabId: number, url: string): Promise<void>
   if (!highlights.length) {
     return;
   }
+  
+  // 等待一小段时间,确保页面和内容脚本都已经准备好
+  // 这解决了动态加载内容造成的 DOM 未就绪问题
+  await delay(500);
+  
   for (let attempt = 0; attempt < HIGHLIGHT_MAX_ATTEMPTS; attempt += 1) {
     const success = await attemptActivateHighlights(tabId, highlights);
     if (success) {
@@ -346,18 +362,7 @@ function handleSelectionResponse(response: MessageResponse<unknown> | undefined)
   void showNotification('保存失败', response.error ?? '发生未知错误，请稍后重试。');
 }
 
-function isSupportedHttpUrl(url: string): boolean {
-  if (!url || typeof url !== 'string') {
-    return false;
-  }
-  
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch (error) {
-    return false;
-  }
-}
+// 使用 utils 中的 isSupportedHttpUrl，移除重复实现
 
 function getErrorMessage(error: unknown): string {
   if (!error || typeof error !== 'object') {

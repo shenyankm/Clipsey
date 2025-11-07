@@ -30,3 +30,15 @@ export function delay(milliseconds: number): Promise<void> {
     setTimeout(resolve, milliseconds);
   });
 }
+
+export function isSupportedHttpUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') {
+    return false;
+  }
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}

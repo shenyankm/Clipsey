@@ -88,14 +88,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { message } from 'ant-design-vue';
 
-import { getClips, deleteClipById, searchClips } from '@/background/api';
+import { deleteClipById, searchClips, refreshClipsCache } from '@/background/api';
 import type { Clip } from '@/types/clip';
 import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
-import { sendMessage } from '@/utils/chrome';
+import { sendMessage, isChromeExtensionEnv } from '@/utils/chrome';
 import { formatDateForTable } from '@/utils/helpers';
+
+const chromeEnv = isChromeExtensionEnv();
+
+// BroadcastChannel 用于跨页面同步
+let syncChannel: BroadcastChannel | null = null;
 
 const PAGE_SIZE = 20;
 const searchQuery = ref('');
@@ -112,7 +117,7 @@ const sortColumn = ref<string>('createdAt');
 const sortOrder = ref<'asc' | 'desc'>('desc'); // 默认按最新时间排序
 
 // Table 变更处理（排序）
-function handleTableChange(pagination: any, filters: any, sorter: any) {
+function handleTableChange(_pagination: any, _filters: any, sorter: any) {
   if (sorter && sorter.columnKey) {
     sortColumn.value = sorter.columnKey;
     sortOrder.value = sorter.order === 'ascend' ? 'asc' : 'desc';
@@ -279,6 +284,11 @@ async function deleteClip(id: string) {
   try {
     await deleteClipById(id);
     message.success('摘抄已删除');
+    
+    // 删除后不需要手动刷新缓存，deleteClipById 已经处理
+    // 并且会触发 BroadcastChannel 通知，自动刷新页面
+    
+    // 本地立即刷新当前页面
     await fetchClips();
   } catch (error) {
     message.error(`删除摘抄失败: ${(error as Error).message}`);
@@ -311,7 +321,48 @@ async function openClip(clipId: string): Promise<void> {
 
 onMounted(() => {
   fetchClips();
+  
+  // 创建 BroadcastChannel 监听数据变化
+  try {
+    syncChannel = new BroadcastChannel('clipsey-storage-sync');
+    syncChannel.onmessage = handleBroadcastMessage;
+    
+    if (import.meta.env.DEV) {
+      console.log('[ClipManager] BroadcastChannel listener registered');
+    }
+  } catch (error) {
+    console.warn('[ClipManager] BroadcastChannel not supported, sync disabled:', error);
+  }
 });
+
+/**
+ * 组件卸载时清理
+ * 移除 BroadcastChannel 监听器，防止内存泄漏
+ */
+onBeforeUnmount(() => {
+  if (syncChannel) {
+    syncChannel.close();
+    syncChannel = null;
+  }
+});
+
+/**
+ * 处理 BroadcastChannel 消息
+ * 监听数据变化并静默刷新
+ */
+function handleBroadcastMessage(event: MessageEvent): void {
+  if (event.data?.type === 'CLIPS_CHANGED') {
+    if (import.meta.env.DEV) {
+      console.log('[ClipManager Sync] Received storage change event:', {
+        oldCount: event.data.oldCount,
+        newCount: event.data.newCount,
+        timestamp: event.data.timestamp
+      });
+    }
+    // 静默刷新,不打扰用户当前操作
+    void fetchClips();
+  }
+}
 
 // Table 唯一键
 const rowKey = (record: Clip) => record.id;

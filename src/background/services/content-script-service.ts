@@ -40,12 +40,36 @@ export class ContentScriptService {
     }
   }
 
+  /**
+   * 注入内容脚本。
+   * 注意:由于内容脚本已通过 registerContentScript 注册,
+   * 此方法主要用于处理已经打开的标签页(扩展安装前)。
+   * 为防止重复注入,首先检测脚本是否已存在。
+   */
   async injectContentScript(tabId: number): Promise<boolean> {
+    // 首先检测内容脚本是否已经存在
+    try {
+      await this.sendMessageToTab(tabId, { type: 'PING' });
+      // 如果没有抛出异常,说明内容脚本已经存在,不需要重复注入
+      return true;
+    } catch (error) {
+      // 如果发送消息失败,说明内容脚本不存在,需要注入
+      if (!this.isMissingReceiverError(error)) {
+        // 其他错误直接抛出
+        throw error;
+      }
+    }
+
+    // 内容脚本不存在,执行注入
     try {
       await chrome.scripting.executeScript({
         target: { tabId },
         files: [CONTENT_SCRIPT_FILE]
       });
+      
+      // 注入后等待一小段时间,确保脚本完全初始化
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       return true;
     } catch (error) {
       const message = this.getErrorMessage(error);

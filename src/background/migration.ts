@@ -1,0 +1,112 @@
+/**
+ * 数据迁移工具
+ * 用于从 chrome.storage.local 迁移到 IndexedDB
+ */
+
+import type { Clip } from '@/types/clip';
+import type { ErrorLogRecord } from '@/types/indexeddb';
+import { saveClips } from './storage';
+import { indexedDBManager } from './indexeddb';
+
+/**
+ * 从 chrome.storage.local 迁移 clips 数据到 IndexedDB
+ */
+export async function migrateClipsFromChromeStorage(): Promise<{
+  success: boolean;
+  migratedCount: number;
+  error?: string;
+}> {
+  try {
+    // 检查是否在 Chrome 扩展环境中
+    if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+      return { success: false, migratedCount: 0, error: 'Not in Chrome extension environment' };
+    }
+
+    // 尝试从 chrome.storage.local 读取旧数据
+    const result = await chrome.storage.local.get('clips');
+    const oldClips = result.clips;
+
+    if (!Array.isArray(oldClips) || oldClips.length === 0) {
+      console.log('[Migration] No clips data found in chrome.storage.local');
+      return { success: true, migratedCount: 0 };
+    }
+
+    // 迁移到 IndexedDB
+    await saveClips(oldClips as Clip[]);
+
+    // 迁移成功后，从 chrome.storage.local 中移除旧数据
+    await chrome.storage.local.remove('clips');
+
+    console.log(`[Migration] Successfully migrated ${oldClips.length} clips to IndexedDB`);
+    return { success: true, migratedCount: oldClips.length };
+  } catch (error) {
+    console.error('[Migration] Failed to migrate clips:', error);
+    return {
+      success: false,
+      migratedCount: 0,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+/**
+ * 从 chrome.storage.local 迁移错误日志到 IndexedDB
+ */
+export async function migrateErrorLogsFromChromeStorage(): Promise<{
+  success: boolean;
+  migratedCount: number;
+  error?: string;
+}> {
+  try {
+    if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+      return { success: false, migratedCount: 0, error: 'Not in Chrome extension environment' };
+    }
+
+    const result = await chrome.storage.local.get('errorLogs');
+    const oldLogs = result.errorLogs;
+
+    if (!Array.isArray(oldLogs) || oldLogs.length === 0) {
+      console.log('[Migration] No error logs found in chrome.storage.local');
+      return { success: true, migratedCount: 0 };
+    }
+
+    // 迁移到 IndexedDB
+    await indexedDBManager.init();
+    for (const log of oldLogs) {
+      await indexedDBManager.add('errorLogs', log as ErrorLogRecord);
+    }
+
+    // 迁移成功后，从 chrome.storage.local 中移除旧数据
+    await chrome.storage.local.remove('errorLogs');
+
+    console.log(`[Migration] Successfully migrated ${oldLogs.length} error logs to IndexedDB`);
+    return { success: true, migratedCount: oldLogs.length };
+  } catch (error) {
+    console.error('[Migration] Failed to migrate error logs:', error);
+    return {
+      success: false,
+      migratedCount: 0,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+/**
+ * 执行完整的数据迁移
+ */
+export async function migrateAllData(): Promise<{
+  clipsResult: { success: boolean; migratedCount: number; error?: string };
+  errorLogsResult: { success: boolean; migratedCount: number; error?: string };
+}> {
+  console.log('[Migration] Starting data migration from chrome.storage.local to IndexedDB');
+
+  const clipsResult = await migrateClipsFromChromeStorage();
+  const errorLogsResult = await migrateErrorLogsFromChromeStorage();
+
+  console.log('[Migration] Migration completed:', {
+    clips: clipsResult,
+    errorLogs: errorLogsResult
+  });
+
+  return { clipsResult, errorLogsResult };
+}

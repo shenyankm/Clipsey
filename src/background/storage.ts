@@ -53,6 +53,7 @@ export async function saveClips(clips: Clip[]): Promise<void> {
   await ensureInitialized();
   
   try {
+    const oldClips = cachedClips ? [...cachedClips] : [];
     const normalizedClips = normalizeClips(clips);
     
     // 清空现有数据
@@ -67,6 +68,9 @@ export async function saveClips(clips: Clip[]): Promise<void> {
     
     // 更新缓存
     updateCache(normalizedClips);
+    
+    // 通知变化,确保popup和其他监听者同步
+    notifyStorageChange(oldClips, normalizedClips);
     
   } catch (error) {
     throw new IndexedDBError(
@@ -417,6 +421,18 @@ function hashString(value: string): string {
  */
 let changeListeners: Array<(changes: any, areaName: string) => void> = [];
 
+/**
+ * 跨页面同步通道（使用 BroadcastChannel 实现同源页面通信）
+ */
+let syncChannel: BroadcastChannel | null = null;
+
+function getSyncChannel(): BroadcastChannel {
+  if (!syncChannel) {
+    syncChannel = new BroadcastChannel('clipsey-storage-sync');
+  }
+  return syncChannel;
+}
+
 export const storage = {
   onChanged: {
     addListener: (callback: (changes: any, areaName: string) => void) => {
@@ -433,6 +449,10 @@ export const storage = {
 
 /**
  * 触发变化事件
+ * 优化：
+ * 1. 使用 BroadcastChannel 实现跨页面同步，替代 chrome.storage.local
+ * 2. 增加详细日志，便于调试数据同步问题
+ * 3. 实现Popup和ClipManager的实时双向同步
  */
 function notifyStorageChange(oldValue: Clip[], newValue: Clip[]): void {
   const changes = {
@@ -442,21 +462,61 @@ function notifyStorageChange(oldValue: Clip[], newValue: Clip[]): void {
     }
   };
   
+  // 记录变化详情(仅在开发模式下)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[Storage Sync] Data changed:', {
+      oldCount: oldValue.length,
+      newCount: newValue.length,
+      operation: newValue.length > oldValue.length ? 'ADD' : 
+                 newValue.length < oldValue.length ? 'DELETE' : 'UPDATE',
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  // 触发自定义监听器(兼容非Chrome环境)
+  let customListenerCount = 0;
   changeListeners.forEach(listener => {
     try {
       listener(changes, 'local');
+      customListenerCount++;
     } catch (error) {
-      console.error('Storage change listener error:', error);
+      console.error('[Storage Sync] Custom listener error:', error);
     }
   });
+  
+  if (process.env.NODE_ENV === 'development' && customListenerCount > 0) {
+    console.log(`[Storage Sync] Notified ${customListenerCount} custom listener(s)`);
+  }
+  
+  // 使用 BroadcastChannel 实现跨页面同步
+  try {
+    const channel = getSyncChannel();
+    channel.postMessage({
+      type: 'CLIPS_CHANGED',
+      timestamp: Date.now(),
+      oldCount: oldValue.length,
+      newCount: newValue.length
+    });
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Storage Sync] BroadcastChannel message sent successfully');
+    }
+  } catch (error) {
+    console.error('[Storage Sync] Failed to send BroadcastChannel message:', error);
+  }
 }
 
 // 导出额外的IndexedDB特定功能
 export { IndexedDBQuery };
 
 /**
- * 获取存储统计信息
+ * 刷新缓存 - 从 IndexedDB 重新加载数据
  */
+export async function refreshCache(): Promise<void> {
+  cachedClips = null;
+  inflightLoad = null;
+  await getCachedClips();
+}
 export async function getStorageStats(): Promise<{
   totalClips: number;
   totalSize: number;

@@ -1,43 +1,29 @@
 /**
- * 颜色管理器：统一管理高亮颜色的读取、计算与样式注入。
- * 目标：
- * - 与设置存储解耦，通过消息读取配置（REQUEST_SETTINGS）
- * - 将颜色以 CSS 变量方式注入，避免在功能逻辑中硬编码颜色
- * - 提供内联/覆盖两种高亮颜色的计算方法，便于未来扩展
+ * 颜色管理器:统一管理高亮颜色的读取、计算与样式注入。
+ * 目标:
+ * - 将颜色以 CSS 变量方式注入,避免在功能逻辑中硬编码颜色
+ * - 提供内联/覆盖两种高亮颜色的计算方法,便于未来扩展
+ * - 采用最佳实践配色方案,确保良好的阅读体验
  */
 
-type OptionsRecord = {
-  highlightColor?: string; // 基础设置中的“内容高亮”颜色，hex 格式，如 #ff0000
-};
-
-const DEFAULT_INLINE_RGBA = 'rgba(251, 191, 36, 0.45)'; // 旧版默认（琥珀色半透明）
-const DEFAULT_OVERLAY_RGBA = 'rgba(251, 191, 36, 0.30)';
+// 高亮配色方案:琥珀色 (Material Design Amber 500)
+// 相比黄色具有更好的对比度和视觉舒适度
+const DEFAULT_HIGHLIGHT_HEX = '#FFC107';
+const DEFAULT_INLINE_RGBA = 'rgba(255, 193, 7, 0.3)';
+const DEFAULT_OVERLAY_RGBA = 'rgba(255, 193, 7, 0.2)'; 
 
 export const HIGHLIGHT_INLINE_CLASS = 'clipsey-inline-highlight';
 export const HIGHLIGHT_OVERLAY_CLASS = 'clipsey-overlay-highlight';
 
-let cachedOptions: OptionsRecord | null = null;
 let styleInjected = false;
 
-// 在内容脚本环境内联消息发送函数，避免打包为外部 ESM 导入
-function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> {
-  return new Promise((resolve, reject) => {
-    try {
-      chrome.runtime.sendMessage(message, response => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-          return;
-        }
-
-        resolve(response as TResponse);
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
-
-function hexToRgba(hex: string, alpha = 0.45): string {
+/**
+ * 将十六进制颜色转换为 RGBA 格式
+ * @param hex 十六进制颜色值（如 #FFC107 或 #FC0）
+ * @param alpha 不透明度 (0-1)
+ * @returns RGBA 颜色字符串
+ */
+function hexToRgba(hex: string, alpha: number): string {
   const normalized = hex?.replace('#', '').trim();
   if (!normalized || !/^([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(normalized)) {
     return DEFAULT_INLINE_RGBA;
@@ -51,11 +37,6 @@ function hexToRgba(hex: string, alpha = 0.45): string {
   const b = parseInt(full.slice(4, 6), 16);
   const a = Math.max(0, Math.min(1, alpha));
   return `rgba(${r}, ${g}, ${b}, ${a})`;
-}
-
-async function readOptions(): Promise<OptionsRecord> {
-  // 已废弃 - 现在使用默认颜色，不再从配置中读取
-  return {};
 }
 
 function ensureStyleInjected(inlineColor: string, overlayColor: string): void {
@@ -88,34 +69,26 @@ function ensureStyleInjected(inlineColor: string, overlayColor: string): void {
   }
 }
 
+/**
+ * 确保高亮颜色样式已注入到页面中
+ * 使用优化后的配色方案：琥珀色 (Amber 500) 具有更好的对比度和可读性
+ */
 export async function ensureHighlightColorsReady(): Promise<void> {
-  // 使用默认高亮颜色，不再从配置中读取
-  const hex = '#ff0000';
-  const inline = hexToRgba(hex, 0.45);
-  const overlay = hexToRgba(hex, 0.30);
+  const inline = hexToRgba(DEFAULT_HIGHLIGHT_HEX, 0.3);
+  const overlay = hexToRgba(DEFAULT_HIGHLIGHT_HEX, 0.2);
   ensureStyleInjected(inline, overlay);
 }
 
+/**
+ * 获取内联高亮颜色（用于文本选区的背景高亮）
+ */
 export function getInlineHighlightColor(): string {
-  const hex = cachedOptions?.highlightColor;
-  return hex ? hexToRgba(hex, 0.45) : DEFAULT_INLINE_RGBA;
+  return DEFAULT_INLINE_RGBA;
 }
 
+/**
+ * 获取覆盖层高亮颜色（用于浮层遮罩的高亮）
+ */
 export function getOverlayHighlightColor(): string {
-  const hex = cachedOptions?.highlightColor;
-  return hex ? hexToRgba(hex, 0.30) : DEFAULT_OVERLAY_RGBA;
-}
-
-export function updateCachedOptions(options: OptionsRecord): void {
-  cachedOptions = options;
-  // 更新 CSS 变量
-  const inline = getInlineHighlightColor();
-  const overlay = getOverlayHighlightColor();
-  try {
-    const root = document.documentElement;
-    root.style.setProperty('--clipsey-inline-highlight-color', inline);
-    root.style.setProperty('--clipsey-overlay-highlight-color', overlay);
-  } catch {
-    // ignore
-  }
+  return DEFAULT_OVERLAY_RGBA;
 }
