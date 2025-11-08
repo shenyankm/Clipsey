@@ -3,6 +3,10 @@ node_modules/
 
 # Build outputs
 dist/
+clipsey.zip
+
+# IDE-specific files
+.qoder/
 build/
 tmp/
 temp/
