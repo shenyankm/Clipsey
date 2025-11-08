@@ -143,6 +143,12 @@ export class ErrorHandler {
       'chrome://',
       'receiving end does not exist',
       'no tab with id',
+      // Chrome 脚本注册/注入相关错误
+      'no such content script',
+      'nonexistent script id',
+      'duplicate script id',
+      'frame with id',
+      'removed',
     ];
     const lowerMessage = message.toLowerCase();
     return permissionKeywords.some(keyword => lowerMessage.includes(keyword));

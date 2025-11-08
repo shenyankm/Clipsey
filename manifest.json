@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Clipsey",
-  "description": "Clipsey 是一款基于 Vite、Vue 3、Naive UI 和 TypeScript 的现代网页摘录工具。",
+  "description": "Clipsey 是一款基于 Vite、Vue 3、Ant Design Vue 和 TypeScript 的现代网页摘录工具。",
   "version": "1.0.0",
   "action": {
     "default_popup": "popup/index.html",
@@ -16,14 +16,7 @@
     "type": "module"
   },
   "options_page": "options/index.html",
-  "content_scripts": [
-    {
-      "matches": ["https://*/*", "http://*/*"],
-      "js": ["scripts/content.js"],
-      "run_at": "document_idle"
-    }
-  ],
-  "permissions": ["contextMenus", "storage", "scripting", "notifications", "activeTab"],
+  "permissions": ["contextMenus", "storage", "scripting", "notifications", "activeTab", "tabs"],
   "host_permissions": ["https://*/*", "http://*/*"],
   "icons": {
     "16": "assets/icon16.png",
