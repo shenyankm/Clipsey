@@ -1611,9 +1611,9 @@ function createRangeFromDocumentOffset(offset: number, length: number): Range | 
 
 /**
  * 在指定根节点下查找文本范围
- * 优化:支持富文本结构,忽略空白字符差异
+ * 优化:支持富文本结构,忽略空白字符差异,支持跳过已高亮内容
  */
-function findTextRangeInNode(root: Node, text: string): Range | null {
+function findTextRangeInNode(root: Node, text: string, skipHighlighted = true): Range | null {
   if (!root || !text) return null;
   const query = text.trim();
   if (!query) return null;
@@ -1662,39 +1662,62 @@ function findTextRangeInNode(root: Node, text: string): Range | null {
   }
 
   const combined = buffer.join('');
-  // 先尝试精确匹配
-  let index = combined.toLowerCase().indexOf(query.toLowerCase());
   
-  // 如果精确匹配失败,尝试规范化后匹配(忽略多余空白)
-  if (index === -1) {
-    const normalizedCombined = combined.replace(/\s+/g, ' ').trim();
-    const normalizedQuery = query.replace(/\s+/g, ' ').trim();
-    const normalizedIndex = normalizedCombined.toLowerCase().indexOf(normalizedQuery.toLowerCase());
+  // 查找所有匹配位置，如果需要跳过已高亮内容，则找到第一个未高亮的位置
+  let index = -1;
+  let searchStartPos = 0;
+  
+  while (true) {
+    // 先尝试精确匹配
+    let foundIndex = combined.toLowerCase().indexOf(query.toLowerCase(), searchStartPos);
     
-    if (normalizedIndex !== -1) {
-      // 将规范化索引映射回原始索引(简化版)
-      let originalIndex = 0;
-      let normalizedCount = 0;
-      let inWhitespace = false;
+    // 如果精确匹配失败,尝试规范化后匹配(忽略多余空白)
+    if (foundIndex === -1) {
+      const normalizedCombined = combined.replace(/\s+/g, ' ').trim();
+      const normalizedQuery = query.replace(/\s+/g, ' ').trim();
+      const normalizedFoundIndex = normalizedCombined.toLowerCase().indexOf(
+        normalizedQuery.toLowerCase(), 
+        searchStartPos
+      );
       
-      for (let i = 0; i < combined.length && normalizedCount < normalizedIndex; i++) {
-        const char = combined[i];
-        const isWhitespace = /\s/.test(char);
+      if (normalizedFoundIndex !== -1) {
+        // 将规范化索引映射回原始索引(简化版)
+        let originalIndex = 0;
+        let normalizedCount = 0;
+        let inWhitespace = false;
         
-        if (isWhitespace) {
-          if (!inWhitespace) {
+        for (let i = 0; i < combined.length && normalizedCount < normalizedFoundIndex; i++) {
+          const char = combined[i];
+          const isWhitespace = /\s/.test(char);
+          
+          if (isWhitespace) {
+            if (!inWhitespace) {
+              normalizedCount++;
+              inWhitespace = true;
+            }
+          } else {
             normalizedCount++;
-            inWhitespace = true;
+            inWhitespace = false;
           }
-        } else {
-          normalizedCount++;
-          inWhitespace = false;
+          originalIndex++;
         }
-        originalIndex++;
+        
+        foundIndex = originalIndex;
       }
-      
-      index = originalIndex;
     }
+    
+    if (foundIndex === -1) break;
+    
+    // 检查此位置是否已被高亮
+    if (skipHighlighted && isTextRangeHighlighted(textNodes, foundIndex, query.length)) {
+      // 跳过此匹配，继续查找下一个
+      searchStartPos = foundIndex + 1;
+      continue;
+    }
+    
+    // 找到未高亮的匹配
+    index = foundIndex;
+    break;
   }
   
   if (index === -1) {
@@ -1748,6 +1771,52 @@ function findTextRangeInNode(root: Node, text: string): Range | null {
 
   range.setEnd(endNode, endOffset);
   return range;
+}
+
+/**
+ * 检查指定位置的文本范围是否已被高亮
+ * @param textNodes 文本节点数组
+ * @param startIndex 在合并文本中的起始索引
+ * @param length 文本长度
+ * @returns 如果该范围已被高亮则返回true
+ */
+function isTextRangeHighlighted(textNodes: Text[], startIndex: number, length: number): boolean {
+  let remaining = startIndex;
+  let checkLength = length;
+  
+  // 找到起始文本节点
+  for (const tn of textNodes) {
+    const nodeLen = tn.textContent?.length ?? 0;
+    
+    if (remaining < nodeLen) {
+      // 从这个节点开始检查
+      let currentNode: Text | null = tn;
+      let nodeIndex = textNodes.indexOf(tn);
+      
+      while (checkLength > 0 && currentNode) {
+        // 检查当前节点是否在高亮元素内
+        const parent = currentNode.parentElement;
+        if (parent?.closest('[data-clipsey-id]')) {
+          return true; // 已被高亮
+        }
+        
+        // 移动到下一个需要检查的节点
+        const currentNodeLen = currentNode.textContent?.length ?? 0;
+        const checkedInThisNode = Math.min(checkLength, currentNodeLen - remaining);
+        checkLength -= checkedInThisNode;
+        remaining = 0; // 后续节点从头开始检查
+        
+        nodeIndex++;
+        currentNode = nodeIndex < textNodes.length ? textNodes[nodeIndex] : null;
+      }
+      
+      return false; // 检查完所有相关节点，未发现高亮
+    }
+    
+    remaining -= nodeLen;
+  }
+  
+  return false;
 }
 
 function applyInlineHighlight(range: Range, highlight: RemoteHighlight): boolean {

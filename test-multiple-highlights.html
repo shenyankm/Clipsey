@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多摘要高亮测试</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+        .summary {
+            background: #f0f0f0;
+            padding: 15px;
+            margin: 20px 0;
+            border-left: 4px solid #007bff;
+        }
+        .clipsey-highlight-inline {
+            background-color: #ffc107;
+            padding: 2px 0;
+            border-radius: 3px;
+        }
+        h1 {
+            color: #333;
+        }
+        p {
+            margin: 15px 0;
+        }
+        .info {
+            background: #e7f3ff;
+            padding: 10px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>多个"摘要"元素高亮测试页面</h1>
+    
+    <div class="info">
+        <strong>测试说明：</strong>本页面包含多个"摘要"关键词，用于测试修复后的高亮功能是否能正确高亮所有匹配的文本。
+    </div>
+
+    <div class="summary">
+        <strong>摘要1：</strong>这是第一段摘要内容，描述了项目的基本背景和目标。
+    </div>
+
+    <p>正文内容部分，详细说明了项目的各个方面...</p>
+
+    <div class="summary">
+        <strong>摘要2：</strong>这是第二段摘要内容，总结了项目的核心功能特性。
+    </div>
+
+    <p>更多正文内容，包含技术细节和实现方案...</p>
+
+    <div class="summary">
+        <strong>摘要3：</strong>这是第三段摘要内容，概括了项目的未来发展方向。
+    </div>
+
+    <p>结尾部分的内容...</p>
+
+    <h2>测试要点</h2>
+    <ul>
+        <li>页面中共有3个"摘要"关键词</li>
+        <li>修复前：只有第一个"摘要"会被高亮</li>
+        <li>修复后：所有3个"摘要"都应该被正确高亮</li>
+    </ul>
+
+    <div class="info">
+        <strong>如何测试：</strong>
+        <ol>
+            <li>加载 Clipsey 扩展</li>
+            <li>选中第一个"摘要"并右键保存</li>
+            <li>选中第二个"摘要"并右键保存</li>
+            <li>选中第三个"摘要"并右键保存</li>
+            <li>刷新页面，检查所有3个"摘要"是否都被高亮</li>
+        </ol>
+    </div>
+
+    <script>
+        console.log('测试页面加载完成');
+        console.log('页面中"摘要"关键词数量:', 
+            document.body.textContent.match(/摘要/g)?.length || 0);
+    </script>
+</body>
+</html>

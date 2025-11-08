@@ -10,8 +10,9 @@ import { ErrorHandler } from '@/utils/error-handler';
 import type { MessageResponse, HighlightPayload } from '@/types/message';
 
 const CONTEXT_MENU_ID = 'clipsey-context-menu';
-const HIGHLIGHT_MAX_ATTEMPTS = 5;
-const HIGHLIGHT_RETRY_DELAY_MS = 400;
+const HIGHLIGHT_MAX_ATTEMPTS = 8; // 增加重试次数
+const HIGHLIGHT_RETRY_DELAY_MS = 600; // 增加重试间隔
+const HIGHLIGHT_INITIAL_DELAY_MS = 800; // 初始等待时间
 const REQUEST_SELECTION_MAX_ATTEMPTS = 3;
 const REQUEST_SELECTION_RETRY_DELAY_MS = 200;
 const NOTIFICATION_ICON = chrome.runtime.getURL('assets/icon128.png');
@@ -187,18 +188,24 @@ async function activatePageHighlights(tabId: number, url: string): Promise<void>
     return;
   }
   
-  // 等待一小段时间,确保页面和内容脚本都已经准备好
+  // 等待更长时间,确保页面和内容脚本都已经准备好
   // 这解决了动态加载内容造成的 DOM 未就绪问题
-  await delay(500);
+  await delay(HIGHLIGHT_INITIAL_DELAY_MS);
   
   for (let attempt = 0; attempt < HIGHLIGHT_MAX_ATTEMPTS; attempt += 1) {
     const success = await attemptActivateHighlights(tabId, highlights);
     if (success) {
+      console.log(`[Highlight] Successfully activated highlights on attempt ${attempt + 1}`);
       return;
     }
 
-    await delay(HIGHLIGHT_RETRY_DELAY_MS);
+    // 使用递增延迟，给页面更多加载时间
+    const delay_ms = HIGHLIGHT_RETRY_DELAY_MS * (attempt + 1);
+    console.log(`[Highlight] Retry ${attempt + 1}/${HIGHLIGHT_MAX_ATTEMPTS} after ${delay_ms}ms`);
+    await delay(delay_ms);
   }
+  
+  console.warn(`[Highlight] Failed to activate highlights after ${HIGHLIGHT_MAX_ATTEMPTS} attempts`);
 }
 
 async function attemptActivateHighlights(

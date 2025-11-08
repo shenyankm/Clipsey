@@ -51,8 +51,14 @@ function safeCssEscape(value: string): string {
  * 1. 支持富文本结构中的文本查找
  * 2. 跨元素精确定位（如 <strong>、<em> 等标签）
  * 3. 忽略空白字符差异,提升匹配成功率
+ * 4. 支持跳过已高亮内容，查找下一个匹配位置
+ * 
+ * @param root 搜索的根节点
+ * @param text 要查找的文本
+ * @param skipHighlighted 是否跳过已高亮的内容（默认true）
+ * @returns 找到的第一个未高亮的匹配范围，如果没有找到则返回null
  */
-function findTextRangeInNode(root: Node, text: string): Range | null {
+function findTextRangeInNode(root: Node, text: string, skipHighlighted = true): Range | null {
   if (!root) return null;
   const query = text.trim();
   if (!query) return null;
@@ -100,16 +106,38 @@ function findTextRangeInNode(root: Node, text: string): Range | null {
   const normalizedCombined = normalizeWhitespace(combined);
   const normalizedQuery = normalizeWhitespace(query);
   
-  // 先尝试精确匹配
-  let index = combined.toLowerCase().indexOf(query.toLowerCase());
+  // 查找所有匹配位置，如果需要跳过已高亮内容，则找到第一个未高亮的位置
+  let index = -1;
+  let searchStartPos = 0;
   
-  // 如果精确匹配失败,尝试规范化后匹配
-  if (index === -1) {
-    index = normalizedCombined.toLowerCase().indexOf(normalizedQuery.toLowerCase());
-    if (index === -1) return null;
-    // 将规范化索引映射回原始文本索引
-    index = mapNormalizedIndexToOriginal(combined, normalizedCombined, index);
+  while (true) {
+    // 先尝试精确匹配
+    let foundIndex = combined.toLowerCase().indexOf(query.toLowerCase(), searchStartPos);
+    
+    // 如果精确匹配失败,尝试规范化后匹配
+    if (foundIndex === -1) {
+      const normalizedFoundIndex = normalizedCombined.toLowerCase().indexOf(
+        normalizedQuery.toLowerCase(), 
+        searchStartPos
+      );
+      if (normalizedFoundIndex === -1) break;
+      // 将规范化索引映射回原始文本索引
+      foundIndex = mapNormalizedIndexToOriginal(combined, normalizedCombined, normalizedFoundIndex);
+    }
+    
+    // 检查此位置是否已被高亮
+    if (skipHighlighted && isRangeHighlighted(textNodes, foundIndex, query.length)) {
+      // 跳过此匹配，继续查找下一个
+      searchStartPos = foundIndex + 1;
+      continue;
+    }
+    
+    // 找到未高亮的匹配
+    index = foundIndex;
+    break;
   }
+  
+  if (index === -1) return null;
 
   // 将合并索引映射回具体文本节点的起止位置
   let remaining = index;
@@ -153,6 +181,52 @@ function findTextRangeInNode(root: Node, text: string): Range | null {
 
   range.setEnd(endNode, endOffset);
   return range;
+}
+
+/**
+ * 检查指定位置的文本范围是否已被高亮
+ * @param textNodes 文本节点数组
+ * @param startIndex 在合并文本中的起始索引
+ * @param length 文本长度
+ * @returns 如果该范围已被高亮则返回true
+ */
+function isRangeHighlighted(textNodes: Text[], startIndex: number, length: number): boolean {
+  let remaining = startIndex;
+  let checkLength = length;
+  
+  // 找到起始文本节点
+  for (const tn of textNodes) {
+    const nodeLen = tn.textContent?.length ?? 0;
+    
+    if (remaining < nodeLen) {
+      // 从这个节点开始检查
+      let currentNode: Text | null = tn;
+      let nodeIndex = textNodes.indexOf(tn);
+      
+      while (checkLength > 0 && currentNode) {
+        // 检查当前节点是否在高亮元素内
+        const parent = currentNode.parentElement;
+        if (parent?.closest('[data-clipsey-id]')) {
+          return true; // 已被高亮
+        }
+        
+        // 移动到下一个需要检查的节点
+        const currentNodeLen = currentNode.textContent?.length ?? 0;
+        const checkedInThisNode = Math.min(checkLength, currentNodeLen - remaining);
+        checkLength -= checkedInThisNode;
+        remaining = 0; // 后续节点从头开始检查
+        
+        nodeIndex++;
+        currentNode = nodeIndex < textNodes.length ? textNodes[nodeIndex] : null;
+      }
+      
+      return false; // 检查完所有相关节点，未发现高亮
+    }
+    
+    remaining -= nodeLen;
+  }
+  
+  return false;
 }
 
 /**
@@ -465,9 +539,29 @@ export class HighlightEngine {
       if (!text) return false;
       
       const id = h.highlightId ?? h.id ?? text;
-      // 如果已有相同高亮存在，避免重复应用
-      if (id && document.querySelector('[data-clipsey-id="' + safeCssEscape(id) + '"]')) {
-        return true;
+      
+      // 增强的重复高亮检查：同时检查 activeSpans 和 DOM
+      if (id) {
+        // 检查内存中是否已有
+        if (this.activeSpans.has(id)) {
+          // 检查 DOM 中是否真的存在
+          const existingSpans = this.activeSpans.get(id);
+          if (existingSpans && existingSpans.some(span => span.isConnected)) {
+            return true; // 已存在且连接到DOM
+          } else {
+            // 内存中有但DOM中不存在，清理过时的引用
+            this.activeSpans.delete(id);
+          }
+        }
+        
+        // 检查 DOM 中是否已有高亮元素
+        const existingElement = document.querySelector('[data-clipsey-id="' + safeCssEscape(id) + '"]');
+        if (existingElement) {
+          // DOM中存在但内存中没有，重新注册到内存
+          const spans = Array.from(document.querySelectorAll('[data-clipsey-id="' + safeCssEscape(id) + '"]')) as HTMLElement[];
+          this.activeSpans.set(id, spans);
+          return true;
+        }
       }
       
       // 多级定位策略:按优先级尝试不同的定位方法
@@ -607,6 +701,7 @@ export class HighlightEngine {
   /**
    * 等待 DOM 就绪
    * 解决动态加载内容导致的时序问题
+   * 优化：增加等待时间和更智能的检测机制
    */
   private async waitForDOMReady(): Promise<void> {
     // 如果 document.body 尚未就绪,等待它
@@ -620,8 +715,21 @@ export class HighlightEngine {
       });
     }
     
-    // 额外等待一小段时间,确保动态内容也加载完成
-    await this.sleep(100);
+    // 等待更长时间以确保动态内容加载
+    // 使用更智能的策略：检查 document.readyState
+    if (document.readyState === 'loading') {
+      await new Promise<void>((resolve) => {
+        document.addEventListener('DOMContentLoaded', () => resolve(), { once: true });
+      });
+      // DOM加载完成后额外等待
+      await this.sleep(200);
+    } else if (document.readyState === 'interactive') {
+      // 页面正在加载资源，等待更长时间
+      await this.sleep(300);
+    } else {
+      // 页面已完全加载，稍微等待动态内容
+      await this.sleep(150);
+    }
   }
 
   private sleep(ms: number): Promise<void> {
