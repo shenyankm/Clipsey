@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import { resolve } from 'path';
+import wxtConfig from './wxt.config';
 
 export default defineConfig({
   test: {
@@ -19,7 +20,6 @@ export default defineConfig({
       exclude: [
         'src/options/**',
         'src/popup/**',
-        'src/background/index.ts',
         'src/background/dev-tools.ts',
         'src/background/storage.ts',
         'src/background/indexeddb*.ts',
@@ -29,9 +29,6 @@ export default defineConfig({
       ]
     }
   },
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src')
-    }
-  }
+  // 复用 WXT 的 Vite 配置
+  ...wxtConfig.vite?.()
 });

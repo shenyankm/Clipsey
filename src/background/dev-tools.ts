@@ -234,6 +234,6 @@ export class DevTools {
 }
 
 // 在开发环境中自动暴露工具
-if (process.env.NODE_ENV === 'development' || typeof window !== 'undefined') {
+if (import.meta.env.DEV || typeof window !== 'undefined') {
   DevTools.exposeToConsole();
 }

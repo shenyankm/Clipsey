@@ -21,7 +21,7 @@ const SANITIZE_CONFIG: DOMPurify.Config = {
   ALLOW_UNKNOWN_PROTOCOLS: false,
   SAFE_FOR_TEMPLATES: true,
   RETURN_TRUSTED_TYPE: false,
-};
+} as DOMPurify.Config;
 
 /**
  * 净化HTML内容，防止XSS攻击
@@ -34,7 +34,7 @@ function sanitizeHtml(html: string): string {
   }
   
   try {
-    return DOMPurify.sanitize(html.trim(), SANITIZE_CONFIG);
+    return DOMPurify.sanitize(html.trim(), SANITIZE_CONFIG as unknown as DOMPurify.Config);
   } catch (error) {
     console.error('HTML sanitization failed:', error);
     return '';

@@ -1,5 +1,10 @@
 import type { AppMessage, MessageResponse } from '@/types/message';
 
+/**
+ * 通用的 runtime 消息发送封装
+ * @param message 任意消息对象
+ * @returns Promise包裹的响应
+ */
 export function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> {
   return new Promise((resolve, reject) => {
     try {
@@ -8,7 +13,6 @@ export function sendMessage<TResponse = unknown>(message: unknown): Promise<TRes
           reject(chrome.runtime.lastError);
           return;
         }
-
         resolve(response as TResponse);
       });
     } catch (error) {
@@ -17,33 +21,27 @@ export function sendMessage<TResponse = unknown>(message: unknown): Promise<TRes
   });
 }
 
+/**
+ * 检查是否在 Chrome 扩展环境中
+ */
 export function isChromeExtensionEnv(): boolean {
   return typeof chrome !== 'undefined' && typeof chrome.runtime !== 'undefined';
 }
 
 /**
  * 类型安全的 runtime 消息发送封装
- * 返回统一的 MessageResponse<T>，便于统一错误与数据处理
+ * @param message 应用消息对象
+ * @returns Promise<MessageResponse<TData>>
  */
 export function sendRuntimeMessage<TData = unknown>(message: AppMessage): Promise<MessageResponse<TData>> {
-  return new Promise((resolve, reject) => {
-    try {
-      chrome.runtime.sendMessage(message, response => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-          return;
-        }
-        resolve(response as MessageResponse<TData>);
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
+  return sendMessage<MessageResponse<TData>>(message);
 }
 
 /**
  * 类型安全的 tab 消息发送封装
- * 背景页或具有 tabs 权限的上下文可用
+ * @param tabId 标签页ID
+ * @param message 应用消息对象
+ * @returns Promise<MessageResponse<TData>>
  */
 export function sendTabMessage<TData = unknown>(tabId: number, message: AppMessage): Promise<MessageResponse<TData>> {
   return new Promise((resolve, reject) => {

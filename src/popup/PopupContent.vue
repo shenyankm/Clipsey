@@ -197,23 +197,16 @@ function openSettings(): void {
 
 /**
  * 手动刷新摘要列表
- * 用户点击刷新按钮时调用,重新加载最新的clips数据
  */
 async function handleRefresh(): Promise<void> {
   await loadClips(true);
   message.success('已刷新');
 }
 
-
-
 /**
  * 组件挂载时初始化
- * 优化：
- * 1. 并行加载clips数据和当前标签页URL,提高加载速度
- * 2. 使用 useBroadcastSync 监听跨页面数据变化
  */
 onMounted(async () => {
-  // 每次打开弹窗时都重新加载数据,确保显示最新内容
   await Promise.all([loadClips(true), getCurrentTabUrl()]);
 });
 </script>
@@ -252,9 +245,3 @@ onMounted(async () => {
   background: #8c8c8c;
 }
 </style>
-
-
-
-
-
-

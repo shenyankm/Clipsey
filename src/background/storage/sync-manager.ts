@@ -57,7 +57,7 @@ export class SyncManager {
     };
     
     // 记录变化详情（仅在开发模式下）
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.log('[Storage Sync] Data changed:', {
         oldCount: oldValue.length,
         newCount: newValue.length,
@@ -78,7 +78,7 @@ export class SyncManager {
       }
     });
     
-    if (process.env.NODE_ENV === 'development' && customListenerCount > 0) {
+    if (import.meta.env.DEV && customListenerCount > 0) {
       console.log(`[Storage Sync] Notified ${customListenerCount} custom listener(s)`);
     }
     
@@ -100,7 +100,7 @@ export class SyncManager {
         newCount: newValue.length
       });
       
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         console.log('[Storage Sync] BroadcastChannel message sent successfully');
       }
     } catch (error) {

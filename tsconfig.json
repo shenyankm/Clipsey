@@ -1,5 +1,5 @@
 {
-  "extends": "./tsconfig.node.json",
+  "extends": "./.wxt/tsconfig.json",
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
@@ -17,7 +17,7 @@
     "src/**/*.vue",
     "src/**/*.tsx",
     "src/**/*.jsx",
-    "vite.config.ts",
+    "wxt.config.ts",
     "tests/**/*.ts"
   ]
 }

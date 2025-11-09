@@ -2,7 +2,7 @@ import 'vfonts/Inter.css'; // 拉丁字体
 import 'vfonts/FiraCode.css'; // 等宽字体
 import 'ant-design-vue/dist/reset.css'; // Ant Design Vue 基础重置样式（v4）
 import { createApp } from 'vue';
-import App from './App.vue';
+import App from '@/options/App.vue';
 // 按需注册 Ant Design Vue 组件，避免全量引入导致体积膨胀
 import {
   ConfigProvider,

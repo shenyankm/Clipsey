@@ -4,9 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc --noEmit -p tsconfig.app.json && vite build",
-    "preview": "vite preview",
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
+    "postinstall": "wxt prepare",
     "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
     "test": "vitest run --coverage",
     "lint:eslint": "eslint . --ext .ts,.vue",
@@ -28,6 +32,7 @@
     "@typescript-eslint/parser": "^8.46.3",
     "@vitejs/plugin-vue": "^5.0.4",
     "@vitest/coverage-v8": "^2.1.9",
+    "@wxt-dev/module-vue": "^1.0.3",
     "eslint": "^9.39.1",
     "eslint-plugin-vue": "^10.5.1",
     "jsdom": "^24.0.0",
@@ -42,6 +47,7 @@
     "vfonts": "^0.0.3",
     "vite": "^5.2.9",
     "vitest": "^2.1.1",
-    "vue-tsc": "^2.0.13"
+    "vue-tsc": "^2.0.13",
+    "wxt": "^0.20.11"
   }
 }

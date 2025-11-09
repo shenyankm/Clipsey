@@ -1,7 +1,7 @@
 import 'ant-design-vue/dist/reset.css'; // Ant Design Vue 基础重置样式（v4）
-import './layout.css'; // 控制扩展弹窗窗口尺寸的最小布局样式
+import '@/popup/layout.css'; // 控制扩展弹窗窗口尺寸的最小布局样式
 import { createApp } from 'vue';
-import App from './App.vue';
+import App from '@/popup/App.vue';
 // 按需注册 Ant Design Vue 组件，避免全量引入导致体积膨胀
 import {
   ConfigProvider,

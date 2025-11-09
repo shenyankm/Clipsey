@@ -1,6 +1,4 @@
-const CONTENT_SCRIPT_ID = 'clipsey-selection';
 const CONTENT_SCRIPT_FILE = 'scripts/content.js';
-const CONTENT_MATCHES = ['https://*/*', 'http://*/*'];
 
 export type MessageResponse<T = unknown> = {
   success: boolean;
@@ -9,35 +7,21 @@ export type MessageResponse<T = unknown> = {
 };
 
 /**
- * ContentScriptService 负责与内容脚本的交互：注册、注入、消息发送。
+ * ContentScriptService 负责与内容脚本的交互：注入、消息发送。
+ * 注：WXT 框架会自动处理 content script 的注册，无需手动调用 registerContentScripts
  */
 export class ContentScriptService {
+  /**
+   * 注册内容脚本（仅用于向后兼容，WXT 会自动处理）
+   * @deprecated WXT 框架已自动处理 content script 注册，此方法仅保留以防意外
+   */
   async registerContentScript(): Promise<void> {
-    try {
-      await chrome.scripting.unregisterContentScripts({ ids: [CONTENT_SCRIPT_ID, 'page-clipper-selection'] });
-    } catch (error) {
-      if (!this.isNoSuchContentScriptError(error)) {
-        throw error;
-      }
+    // WXT 框架已自动处理 content script 注册
+    // 此方法保留以防在某些边缘情况下需要手动重新注册
+    if (import.meta.env.DEV) {
+      console.log('[ContentScriptService] WXT handles content script registration automatically');
     }
-
-    try {
-      await chrome.scripting.registerContentScripts([
-        {
-          id: CONTENT_SCRIPT_ID,
-          matches: CONTENT_MATCHES,
-          js: [CONTENT_SCRIPT_FILE],
-          runAt: 'document_idle',
-          persistAcrossSessions: true
-        }
-      ]);
-    } catch (error) {
-      if (this.isDuplicateScriptIdError(error)) {
-        return;
-      }
-
-      throw error;
-    }
+    // 不再执行手动注册逻辑
   }
 
   /**
@@ -116,26 +100,14 @@ export class ContentScriptService {
     );
   }
 
-  isNoSuchContentScriptError(error: unknown): boolean {
-    if (!error || typeof error !== 'object') {
-      return false;
-    }
-    const message = (error as { message?: string }).message;
-    if (!message) {
-      return false;
-    }
-    return message.includes('No such content script') || message.includes('Nonexistent script ID');
+  isNoSuchContentScriptError(_error: unknown): boolean {
+    // 此方法保留以保持 API 兼容性，但 WXT 下不再需要
+    return false;
   }
 
-  isDuplicateScriptIdError(error: unknown): boolean {
-    if (!error || typeof error !== 'object') {
-      return false;
-    }
-    const message = (error as { message?: string }).message?.toLowerCase();
-    if (!message) {
-      return false;
-    }
-    return message.includes('duplicate script id');
+  isDuplicateScriptIdError(_error: unknown): boolean {
+    // 此方法保留以保持 API 兼容性，但 WXT 下不再需要
+    return false;
   }
 
   isFrameRemovedError(error: unknown): boolean {
