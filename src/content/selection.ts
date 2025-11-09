@@ -4,24 +4,7 @@ import { ensureHighlightColorsReady, HIGHLIGHT_INLINE_CLASS } from '@/content/co
 import { clearUnderlines } from '@/content/highlight/underline';
 import { captureHighlightMetadata } from '@/content/highlight/metadata';
 import type { MessageResponse } from '@/types/message';
-function getErrorMessage(error: unknown): string {
-  if (!error) return '未知错误';
-  if (typeof error === 'string') return error;
-  if (typeof error === 'object') {
-    const maybeMessage = (error as { message?: unknown }).message;
-    if (typeof maybeMessage === 'string' && maybeMessage) return maybeMessage;
-    const toString = (error as { toString?: () => string }).toString;
-    if (typeof toString === 'function') {
-      const s = toString();
-      if (s) return s;
-    }
-  }
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
-}
+import { ErrorHandler } from '@/utils/error-handler';
 
 // 在内容脚本环境内联消息发送函数，避免打包为外部 ESM 导入
 function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> {
@@ -90,7 +73,7 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
           .focusClip(message?.payload)
           .then(success => sendResponse({ success } satisfies MessageResponse))
           .catch(error => {
-            const msg = getErrorMessage(error);
+            const msg = ErrorHandler.getErrorMessage(error);
             void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'FOCUS_CLIP in content script' } });
             sendResponse({ success: false, error: msg } satisfies MessageResponse);
           });
@@ -101,7 +84,7 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
           .activateHighlights(remoteHighlights)
           .then(success => sendResponse({ success } satisfies MessageResponse))
           .catch(error => {
-            const msg = getErrorMessage(error);
+            const msg = ErrorHandler.getErrorMessage(error);
             void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'ACTIVATE_HIGHLIGHTS in content script' } });
             sendResponse({ success: false, error: msg } satisfies MessageResponse);
           });
@@ -114,8 +97,6 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
     return undefined;
   });
 }
-
-// 下划线临时高亮状态已由 underline 模块管理
 
 /**
  * 提取选区的HTML内容
@@ -138,85 +119,7 @@ function extractSelectionHtml(selection: Selection | null): string | undefined {
   return html && html.trim() ? html : undefined;
 }
 
-/**
- * 定位到指定的剪辑内容
- * @deprecated 该函数已被 HighlightEngine.focusClip 替代，保留供未来参考
- */
-// 已废弃：旧版 window.find 搜索
-// 已废弃：旧版 DOM 搜索
-// 已废弃：旧版 DOM 搜索（兼容回退）
-// 已废弃：构建旧版焦点查询词
 
-
-
-// 已废弃：旧版精确 DOM 匹配
-
-
-
-
-// 已抽取为 viewport 模块：detectTopObstructionHeight 与 ObstructionDetection 类型
-
-// 已抽取为 viewport 模块：measureFixedOrStickyHeaderHeight
-
-// 已抽取为 viewport 模块：evaluateObstructionElement
-
-// 已抽取为 viewport 模块：measureHeaderFromSelectors
-
-// 已抽取为 viewport 模块：getScrollPaddingTopValue
-
-// 已抽取为 viewport 模块：getSafeAreaInsetTop
-
-// 已抽取为 viewport 模块：scheduleFallbackScrolls
-
-// 已抽取为 viewport 模块：smoothScrollBy
-
-// 已抽取为 viewport 模块：parseCssPixels
-
-// 已抽取为 viewport 模块：clamp
-
-
-
-/**
- * 为选区添加下划线高亮标记
- * @deprecated 该函数已被 HighlightEngine 替代，保留供未来参考
- */
-
-/**
- * 为单个Range添加下划线高亮
- * 用于焦点定位时的临时高亮效果
- */
-
-/**
- * 为单个Range添加下划线高亮
- * 用于焦点定位时的临时高亮效果
- */
-// 已抽取为 underline 模块：underlineRange
-
-/**
- * 为多个Range添加下划线高亮
- * 优化:防止内存泄漏,使用动态颜色管理
- */
-
-// 已抽取为 underline 模块：underlineRanges
-
-// 已抽取为 underline 模块：ensureUnderlineContainer
-
-// 已抽取为 underline 模块：clearUnderlines
-
-/**
- * 清理最旧的几个 underline，防止内存泄漏
- */
-// 已抽取为 underline 模块：clearOldestUnderlines
-
-
-/**
- * 激活页面中的多个高亮标记
- * @deprecated 该函数已被 HighlightEngine.activateHighlights 替代，保留供未来参考
- */
-
-
-
-// 已抽取为通用模块：createTextNodeWalker
 
 function handleRequestSelection(
   sendResponse: (response: { success: boolean; error?: string }) => void
@@ -225,7 +128,7 @@ function handleRequestSelection(
   const textContent = selection?.toString().trim();
 
   if (!textContent || !selection?.rangeCount) {
-    const msg = 'δѡ���κ�����';
+    const msg = '未选择任何内容';
     void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'REQUEST_SELECTION in content script' } });
     sendResponse({ success: false, error: msg });
     return false;
@@ -233,7 +136,7 @@ function handleRequestSelection(
 
   const activeRange = selection.getRangeAt(0);
   if (activeRange.collapsed) {
-    const msg = 'δѡ���κ�����';
+    const msg = '未选择任何内容';
     void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'REQUEST_SELECTION in content script' } });
     sendResponse({ success: false, error: msg });
     return false;
@@ -245,7 +148,7 @@ function handleRequestSelection(
   const highlightSpan = wrapRangeInHighlight(activeRange, highlightId);
 
   if (!highlightSpan) {
-    const msg = '�޷�Ϊѡ�������ָ���';
+    const msg = '无法为选区添加高亮';
     void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'REQUEST_SELECTION in content script' } });
     sendResponse({ success: false, error: msg });
     return false;
@@ -272,7 +175,7 @@ function handleRequestSelection(
   sendMessage({ type: 'SAVE_CLIP', payload })
     .then(() => sendResponse({ success: true }))
     .catch(error => {
-      const msg = getErrorMessage(error);
+      const msg = ErrorHandler.getErrorMessage(error);
       void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'SAVE_CLIP from content script' } });
       sendResponse({ success: false, error: msg });
     });
@@ -449,9 +352,7 @@ function wrapRangeInHighlight(range: Range | null, highlightId: string): HTMLSpa
 
 
 
-// 已抽取为模块：captureHighlightMetadata、computeDocumentTextData、buildCssPath
 
-// 已抽取为通用模块：cssEscape
 
 function normalizeIncomingHighlights(payload: unknown): RemoteHighlight[] {
   let raw: unknown[] = [];
@@ -510,19 +411,7 @@ function normalizeIncomingHighlights(payload: unknown): RemoteHighlight[] {
 }
 
 
-// 已抽取为通用模块：safeQuerySelector
 
-
-// 已抽取为纯函数模块：findTextRangeInNode
-
-/**
- * 检查指定位置的文本范围是否已被高亮
- * @param textNodes 文本节点数组
- * @param startIndex 在合并文本中的起始索引
- * @param length 文本长度
- * @returns 如果该范围已被高亮则返回true
- */
-// 已抽取并在 text-search 模块提供：isTextRangeHighlighted（删除本地未使用实现）
 
 
 

@@ -28,7 +28,7 @@
       <div v-else>
         <a-table
           :columns="columns"
-          :dataSource="paginatedClips"
+          :dataSource="paginatedData"
           :pagination="false"
           :bordered="false"
           :rowKey="rowKey"
@@ -48,7 +48,7 @@
             <template v-else-if="column.key === 'actions'">
               <a-space :size="8" align="center">
                 <a-button size="small" @click="openClipDetail(record)">查看</a-button>
-                <a-button size="small" type="primary" :disabled="!record.sourceUrl" @click="openClip(record.id)">打开</a-button>
+                <a-button size="small" type="primary" :disabled="!record.sourceUrl" @click="openClipAction(record.id)">打开</a-button>
                 <a-popconfirm title="确认删除该摘抄？此操作不可恢复。" @confirm="deleteClip(record.id)">
                   <a-button size="small" danger>删除</a-button>
                 </a-popconfirm>
@@ -88,31 +88,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { message } from 'ant-design-vue';
-
-import { deleteClipById, searchClips } from '@/background/api';
 import type { Clip } from '@/types/clip';
 import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
-import { sendMessage } from '@/utils/chrome';
 import { formatDateForTable } from '@/utils/helpers';
+import { useClipSearch } from '../composables/useClipSearch';
+import { useClipPagination } from '../composables/useClipPagination';
+import { useClipCRUD } from '../composables/useClipCRUD';
+import { useBroadcastSync } from '@/composables/useBroadcastSync';
 
-// BroadcastChannel 用于跨页面同步
-let syncChannel: BroadcastChannel | null = null;
+// 使用组合式函数
+const { searchQuery, searchResults, searchTotal, performSearch } = useClipSearch();
+const { currentPage, paginatedClips: paginatedData } = useClipPagination(searchResults, 20);
+const { deleteClip: deleteClipAction, openClip: openClipAction } = useClipCRUD();
 
-const PAGE_SIZE = 20;
-const searchQuery = ref('');
+// 使用BroadcastChannel同步
+useBroadcastSync('clipsey-storage-sync', () => {
+  void refreshClips(false);
+});
 
-const currentPage = ref(1);
-const clips = ref<Clip[]>([]);
-const paginatedClips = ref<Clip[]>([]);
-const searchTotal = ref(0);
 const showModal = ref(false);
 const selectedClip = ref<Clip | null>(null);
+const pageSize = 20;
 
 // 排序状态管理
 const sortColumn = ref<string>('createdAt');
-const sortOrder = ref<'asc' | 'desc'>('desc'); // 默认按最新时间排序
+const sortOrder = ref<'asc' | 'desc'>('desc');
 
 // Table 变更处理（排序）
 function handleTableChange(_pagination: any, _filters: any, sorter: any) {
@@ -121,6 +123,11 @@ function handleTableChange(_pagination: any, _filters: any, sorter: any) {
     sortOrder.value = sorter.order === 'ascend' ? 'asc' : 'desc';
   }
 }
+
+const pageCount = computed(() => {
+  if (searchTotal.value <= 0) return 1;
+  return Math.ceil(searchTotal.value / pageSize);
+});
 
 // 表格列定义（使用 Ant Design Vue 的 Table）
 const columns = computed(() => [
@@ -161,53 +168,6 @@ const columns = computed(() => [
 
 // Mentions 选项通过插槽提供，无需在脚本中定义
 
-// 搜索查询解析接口
-interface ParsedSearchQuery {
-  type: 'all' | 'title' | 'website' | 'content';
-  keyword: string;
-}
-
-// 解析搜索查询的函数
-function parseSearchQuery(query: string): ParsedSearchQuery {
-  /**
-   * 解析搜索指令与关键词
-   * - 支持指令前缀：@title、@website、@content
-   * - 当仅输入指令无关键词时，视为空搜索（不过滤）
-   */
-  const trimmedQuery = query.trim();
-  
-  if (!trimmedQuery) {
-    return { type: 'all', keyword: '' };
-  }
-  
-  // 检查是否以 @ 开头
-  if (trimmedQuery.startsWith('@')) {
-    const parts = trimmedQuery.split(' ');
-    const typePrefix = parts[0].substring(1); // 移除 @
-    const keyword = parts.slice(1).join(' ').trim();
-    
-    // 验证类型是否有效
-    if (['title', 'website', 'content'].includes(typePrefix)) {
-      // 只有当有具体关键词时才返回特定类型搜索
-      if (keyword) {
-        return {
-          type: typePrefix as 'title' | 'website' | 'content',
-          keyword
-        };
-      } else {
-        // 仅有前缀没有关键词时，返回空搜索（不触发筛选）
-        return {
-          type: 'all',
-          keyword: ''
-        };
-      }
-    }
-  }
-  
-  // 默认全文搜索
-  return { type: 'all', keyword: trimmedQuery };
-}
-
 function resolveClipHtml(clip: Clip): string {
   return getClipHtmlContent(clip);
 }
@@ -234,133 +194,60 @@ function getDomainFromUrl(url: string | undefined): string {
   }
 }
 
-const pageCount = computed(() => {
-  if (searchTotal.value <= 0) return 1;
-  return Math.ceil(searchTotal.value / PAGE_SIZE);
-});
 
-const pageSize = PAGE_SIZE;
 
+// 监听搜索查询变化
 watch(searchQuery, () => {
   currentPage.value = 1;
-  void fetchClips();
+  void performSearch(currentPage.value, pageSize);
 });
 
+// 监听排序变化
 watch([sortColumn, sortOrder], () => {
   currentPage.value = 1;
-  void fetchClips();
+  void performSearch(currentPage.value, pageSize);
 });
 
+// 监听分页变化
 watch(currentPage, () => {
-  void fetchClips();
+  void performSearch(currentPage.value, pageSize);
 });
 
-async function fetchClips() {
-  try {
-    // 基于查询与排序的后台分页搜索
-    const parsedQuery = parseSearchQuery(searchQuery.value);
-    const { items, total } = await searchClips({
-      type: parsedQuery.type,
-      keyword: parsedQuery.keyword,
-      page: currentPage.value,
-      pageSize: PAGE_SIZE,
-      sortBy: sortColumn.value as any,
-      sortOrder: sortOrder.value
-    });
-    paginatedClips.value = items;
-    searchTotal.value = total;
-    // 维持原始全量剪辑缓存（可选）
-    if (!parsedQuery.keyword && currentPage.value === 1) {
-      clips.value = items;
-    }
-  } catch (error) {
-    message.error(`加载摘抄列表失败: ${(error as Error).message}`);
+/**
+ * 刷新Clips列表
+ */
+async function refreshClips(showMessage = true) {
+  await performSearch(currentPage.value, pageSize);
+  if (showMessage) {
+    message.success('已刷新');
   }
 }
 
+/**
+ * 删除Clip
+ */
 async function deleteClip(id: string) {
-  try {
-    await deleteClipById(id);
-    message.success('摘抄已删除');
-    
-    // 删除后不需要手动刷新缓存，deleteClipById 已经处理
-    // 并且会触发 BroadcastChannel 通知，自动刷新页面
-    
-    // 本地立即刷新当前页面
-    await fetchClips();
-  } catch (error) {
-    message.error(`删除摘抄失败: ${(error as Error).message}`);
+  const success = await deleteClipAction(id);
+  if (success) {
+    // 删除成功后重新搜索
+    await performSearch(currentPage.value, pageSize);
   }
 }
 
+/**
+ * 打开Clip详情弹窗
+ */
 function openClipDetail(clip: Clip) {
   selectedClip.value = clip;
   showModal.value = true;
 }
 
-function refreshClips() {
-  fetchClips();
-}
-
-async function openClip(clipId: string): Promise<void> {
-  try {
-    const response = await sendMessage<{ success: boolean; error?: string }>({
-      type: 'OPEN_CLIP',
-      payload: { id: clipId }
-    });
-    if (!response?.success) {
-      throw new Error(response?.error ?? '无法打开摘抄');
-    }
-    message.success('正在打开摘抄...');
-  } catch (error) {
-    message.error((error as Error).message || '无法打开摘抄');
-  }
-}
-
+/**
+ * 初始化组件
+ */
 onMounted(() => {
-  fetchClips();
-  
-  // 创建 BroadcastChannel 监听数据变化
-  try {
-    syncChannel = new BroadcastChannel('clipsey-storage-sync');
-    syncChannel.onmessage = handleBroadcastMessage;
-    
-    if (import.meta.env.DEV) {
-      console.log('[ClipManager] BroadcastChannel listener registered');
-    }
-  } catch (error) {
-    console.warn('[ClipManager] BroadcastChannel not supported, sync disabled:', error);
-  }
+  void performSearch(currentPage.value, pageSize);
 });
-
-/**
- * 组件卸载时清理
- * 移除 BroadcastChannel 监听器，防止内存泄漏
- */
-onBeforeUnmount(() => {
-  if (syncChannel) {
-    syncChannel.close();
-    syncChannel = null;
-  }
-});
-
-/**
- * 处理 BroadcastChannel 消息
- * 监听数据变化并静默刷新
- */
-function handleBroadcastMessage(event: MessageEvent): void {
-  if (event.data?.type === 'CLIPS_CHANGED') {
-    if (import.meta.env.DEV) {
-      console.log('[ClipManager Sync] Received storage change event:', {
-        oldCount: event.data.oldCount,
-        newCount: event.data.newCount,
-        timestamp: event.data.timestamp
-      });
-    }
-    // 静默刷新,不打扰用户当前操作
-    void fetchClips();
-  }
-}
 
 // Table 唯一键
 const rowKey = (record: Clip) => record.id;

@@ -73,46 +73,37 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { message, Empty } from 'ant-design-vue';
 import { SettingOutlined, ReloadOutlined } from '@ant-design/icons-vue';
 import type { Clip } from '@/types/clip';
 import ClipList from './components/ClipList.vue';
 import { sendMessage, isChromeExtensionEnv } from '@/utils/chrome';
-
-const emptyImage = Empty.PRESENTED_IMAGE_SIMPLE;
+import { useClipFilter } from '@/composables/useClipFilter';
+import { useClipSort } from '@/composables/useClipSort';
+import { useBroadcastSync } from '@/composables/useBroadcastSync';
 
 const clips = ref<Clip[]>([]);
 const loading = ref(false);
 const currentUrl = ref<string>('');
 const chromeEnv = isChromeExtensionEnv();
+const emptyImage = Empty.PRESENTED_IMAGE_SIMPLE;
 
-// BroadcastChannel 用于跨页面同步
-let syncChannel: BroadcastChannel | null = null;
+// 使用组合式函数
+const { filteredClips: urlFilteredClips } = useClipFilter(clips, currentUrl);
+const { sortedClips: filteredClips } = useClipSort(urlFilteredClips, 'desc');
 
-// 计算属性：过滤当前URL匹配的clips并按时间降序排列
-const filteredClips = computed(() => {
-  if (!currentUrl.value) return [];
-  const filtered = clips.value.filter(clip => {
-    if (!clip.sourceUrl) return false;
-    try {
-      const clipUrl = new URL(clip.sourceUrl);
-      const currentUrlObj = new URL(currentUrl.value);
-      // 比较协议、主机名和路径
-      return clipUrl.protocol === currentUrlObj.protocol &&
-             clipUrl.hostname === currentUrlObj.hostname &&
-             clipUrl.pathname === currentUrlObj.pathname;
-    } catch {
-      return false;
-    }
-  });
-  
-  // 按创建时间降序排列（最新的在最上方）
-  return filtered.sort((a, b) => {
-    const dateA = new Date(a.createdAt).getTime();
-    const dateB = new Date(b.createdAt).getTime();
-    return dateB - dateA;
-  });
+// 使用BroadcastChannel同步
+useBroadcastSync('clipsey-storage-sync', (data) => {
+  if (import.meta.env.DEV) {
+    console.log('[Popup Sync] Received storage change event:', {
+      oldCount: data.oldCount,
+      newCount: data.newCount,
+      timestamp: data.timestamp
+    });
+  }
+  // 静默刷新,不显示loader,不打扰用户
+  void loadClips(false);
 });
 
 // 显示URL（简洁形式）
@@ -219,53 +210,12 @@ async function handleRefresh(): Promise<void> {
  * 组件挂载时初始化
  * 优化：
  * 1. 并行加载clips数据和当前标签页URL,提高加载速度
- * 2. 使用 BroadcastChannel 监听跨页面数据变化
+ * 2. 使用 useBroadcastSync 监听跨页面数据变化
  */
 onMounted(async () => {
   // 每次打开弹窗时都重新加载数据,确保显示最新内容
   await Promise.all([loadClips(true), getCurrentTabUrl()]);
-  
-  // 创建 BroadcastChannel 监听数据变化
-  try {
-    syncChannel = new BroadcastChannel('clipsey-storage-sync');
-    syncChannel.onmessage = handleBroadcastMessage;
-    
-    if (import.meta.env.DEV) {
-      console.log('[Popup] BroadcastChannel listener registered');
-    }
-  } catch (error) {
-    console.warn('[Popup] BroadcastChannel not supported, sync disabled:', error);
-  }
 });
-
-/**
- * 组件卸载时清理
- * 移除 BroadcastChannel 监听器，防止内存泄漏
- */
-onBeforeUnmount(() => {
-  if (syncChannel) {
-    syncChannel.close();
-    syncChannel = null;
-  }
-});
-
-/**
- * 处理 BroadcastChannel 消息
- * 监听数据变化并静默刷新
- */
-function handleBroadcastMessage(event: MessageEvent): void {
-  if (event.data?.type === 'CLIPS_CHANGED') {
-    if (import.meta.env.DEV) {
-      console.log('[Popup Sync] Received storage change event:', {
-        oldCount: event.data.oldCount,
-        newCount: event.data.newCount,
-        timestamp: event.data.timestamp
-      });
-    }
-    // 静默刷新,不显示loader,不打扰用户
-    void loadClips(false);
-  }
-}
 </script>
 
 <style scoped>
