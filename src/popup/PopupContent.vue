@@ -184,13 +184,25 @@ async function loadClips(showLoader: boolean = true): Promise<void> {
 
 function openSettings(): void {
   try {
+    // 统一使用显式 URL，避免极端情况下 openOptionsPage 回退到扩展详情页
+    const url = chrome.runtime.getURL('options.html');
+
+    // 在扩展环境下优先通过 tabs.create 新开标签页，体验更稳定
+    if (chromeEnv && chrome.tabs?.create) {
+      chrome.tabs.create({ url });
+      return;
+    }
+
+    // 其次尝试 openOptionsPage（某些浏览器版本兼容性存在差异）
     if (chromeEnv && chrome.runtime?.openOptionsPage) {
       chrome.runtime.openOptionsPage();
-    } else {
-      const url = new URL('/src/options/index.html', window.location.origin).toString();
-      window.open(url, '_blank');
+      return;
     }
-  } catch {
+
+    // 开发环境或无扩展 API 时，直接在新窗口打开构建产物
+    window.open(url, '_blank');
+  } catch (error) {
+    console.error('打开设置失败:', error);
     message.error('打开设置失败');
   }
 }
