@@ -1,0 +1,106 @@
+import type { AppMessage, MessageResponse } from '@/types/message';
+import type { SettingsOptions } from '@/utils/settings-local';
+import { handleSaveClip } from './save-clip';
+import { handleRequestClips } from './request-clips';
+import { handleClearClips } from './clear-clips';
+import { handleOpenClip } from './open-clip';
+import { handleRequestSettings } from './request-settings';
+import { handleLogError } from './log-error';
+import { exportAllData, importAllData, refreshClipsCache } from '@/background/api';
+import { ResponseBuilder, wrapHandler } from './middleware/response';
+import {
+  isSaveClipPayload,
+  isOpenClipPayload,
+  isImportDataPayload
+} from './middleware/validator';
+
+/**
+ * 消息处理器类型定义
+ */
+type MessageHandler = (
+  message: AppMessage,
+  sender: chrome.runtime.MessageSender
+) => Promise<MessageResponse>;
+
+/**
+ * 消息处理器注册表
+ */
+class HandlerRegistry {
+  private handlers = new Map<string, MessageHandler>();
+
+  /**
+   * 注册消息处理器
+   */
+  register(type: string, handler: MessageHandler): void {
+    this.handlers.set(type, handler);
+  }
+
+  /**
+   * 获取消息处理器
+   */
+  get(type: string): MessageHandler | undefined {
+    return this.handlers.get(type);
+  }
+
+  /**
+   * 检查是否存在处理器
+   */
+  has(type: string): boolean {
+    return this.handlers.has(type);
+  }
+}
+
+// 创建全局注册表实例
+export const registry = new HandlerRegistry();
+
+// 注册所有消息处理器
+registry.register('LOG_ERROR', async (message) => {
+  return wrapHandler(
+    () => handleLogError(message.payload).then(() => undefined),
+    'Log error'
+  );
+});
+
+registry.register('SAVE_CLIP', async (message) => {
+  if (!isSaveClipPayload(message.payload)) {
+    return ResponseBuilder.validationError('Invalid SAVE_CLIP payload');
+  }
+  const payload = message.payload;
+  return wrapHandler(() => handleSaveClip(payload), 'Save clip');
+});
+
+registry.register('REQUEST_CLIPS', async () => {
+  return wrapHandler(() => handleRequestClips(), 'Request clips');
+});
+
+registry.register('REQUEST_SETTINGS', async () => {
+  return wrapHandler<SettingsOptions>(() => handleRequestSettings(), 'Request settings');
+});
+
+registry.register('CLEAR_CLIPS', async () => {
+  return wrapHandler(() => handleClearClips(), 'Clear clips');
+});
+
+registry.register('OPEN_CLIP', async (message) => {
+  if (!isOpenClipPayload(message.payload)) {
+    return ResponseBuilder.validationError('Invalid OPEN_CLIP payload');
+  }
+  const payload = message.payload;
+  return wrapHandler(() => handleOpenClip(payload.id), 'Open clip');
+});
+
+registry.register('EXPORT_DATA', async () => {
+  return wrapHandler(() => exportAllData(), 'Export data');
+});
+
+registry.register('IMPORT_DATA', async (message) => {
+  if (!isImportDataPayload(message.payload)) {
+    return ResponseBuilder.validationError('Invalid IMPORT_DATA payload');
+  }
+  const payload = message.payload;
+  return wrapHandler(() => importAllData(payload), 'Import data');
+});
+
+registry.register('REFRESH_CACHE', async () => {
+  return wrapHandler(() => refreshClipsCache(), 'Refresh cache');
+});

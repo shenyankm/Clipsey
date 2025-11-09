@@ -204,5 +204,5 @@ try {
     });
   }
 } catch {
-  // ignore
+  
 }
