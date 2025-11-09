@@ -13,7 +13,7 @@
         </a-mentions>
       </a-col>
       <a-col :xs="24" :sm="6" :md="4" :lg="4">
-        <a-button type="link" size="small" @click="refreshClips" style="width: 100%;">刷新</a-button>
+        <a-button type="link" size="small" style="width: 100%;" @click="refreshClips">刷新</a-button>
       </a-col>
     </a-row>
 

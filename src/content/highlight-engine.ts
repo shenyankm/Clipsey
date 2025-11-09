@@ -8,40 +8,15 @@ type RemoteHighlight = {
   textOffset?: number;
   highlightStyle?: 'inline' | 'overlay';
 };
-import {
-  ensureHighlightColorsReady,
-  HIGHLIGHT_INLINE_CLASS as INLINE_CLASS,
-  HIGHLIGHT_OVERLAY_CLASS as OVERLAY_CLASS
-} from '@/content/color-manager';
+import { ensureHighlightColorsReady } from '@/content/color-manager';
+import { applyInline, applyOverlay } from '@/content/highlight/painters';
+import { createTextNodeWalker, safeCssEscape } from '@/content/highlight/dom-utils';
+import { findTextRangeInNode } from '@/content/highlight/text-search';
+import { detectTopObstructionHeight, scheduleFallbackScrolls } from '@/content/highlight/viewport';
 
-function createTextNodeWalker(root: Node = document.body): TreeWalker | null {
-  if (!root) return null;
-  try {
-    return document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-      acceptNode(node) {
-        const parent = node.parentElement;
-        if (!parent) return NodeFilter.FILTER_REJECT;
-        const style = getComputedStyle(parent);
-        if (style && (style.visibility === 'hidden' || style.display === 'none')) {
-          return NodeFilter.FILTER_REJECT;
-        }
-        return NodeFilter.FILTER_ACCEPT;
-      }
-    });
-  } catch {
-    return null;
-  }
-}
+// 抽取到通用模块：createTextNodeWalker
 
-function safeCssEscape(value: string): string {
-  try {
-    // 运行时支持 CSS.escape 时使用原生；否则做最小转义
-    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
-      return CSS.escape(value);
-    }
-  } catch {}
-  return String(value).replace(/["\\]/g, '\\$&');
-}
+// 抽取到通用模块：safeCssEscape
 
 /**
  * 在指定根节点下查找文本范围，支持跨多个文本节点与嵌套富文本结构。
@@ -58,130 +33,7 @@ function safeCssEscape(value: string): string {
  * @param skipHighlighted 是否跳过已高亮的内容（默认true）
  * @returns 找到的第一个未高亮的匹配范围，如果没有找到则返回null
  */
-function findTextRangeInNode(root: Node, text: string, skipHighlighted = true): Range | null {
-  if (!root) return null;
-  const query = text.trim();
-  if (!query) return null;
-
-  // 收集根节点下的文本节点，并构建顺序文本缓冲
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode(node) {
-      const parent = (node as Text).parentElement;
-      if (!parent) return NodeFilter.FILTER_REJECT;
-      // 排除脚本、样式等不可见元素
-      if (parent.closest('script, style, noscript, svg, canvas')) {
-        return NodeFilter.FILTER_REJECT;
-      }
-      const content = (node as Text).textContent ?? '';
-      if (!content.trim()) {
-        return NodeFilter.FILTER_SKIP;
-      }
-      // 检查元素是否可见
-      try {
-        const style = getComputedStyle(parent);
-        if (style && (style.visibility === 'hidden' || style.display === 'none')) {
-          return NodeFilter.FILTER_REJECT;
-        }
-      } catch {
-        // 某些节点可能无法获取样式,继续处理
-      }
-      return NodeFilter.FILTER_ACCEPT;
-    }
-  });
-
-  const textNodes: Text[] = [];
-  const buffer: string[] = [];
-  let current: Node | null = walker.nextNode();
-  while (current) {
-    const t = current as Text;
-    textNodes.push(t);
-    buffer.push(t.textContent ?? '');
-    current = walker.nextNode();
-  }
-
-  if (!textNodes.length) return null;
-
-  // 使用normalize后的文本进行匹配,提升匹配成功率
-  const combined = buffer.join('');
-  const normalizedCombined = normalizeWhitespace(combined);
-  const normalizedQuery = normalizeWhitespace(query);
-  
-  // 查找所有匹配位置，如果需要跳过已高亮内容，则找到第一个未高亮的位置
-  let index = -1;
-  let searchStartPos = 0;
-  
-  while (true) {
-    // 先尝试精确匹配
-    let foundIndex = combined.toLowerCase().indexOf(query.toLowerCase(), searchStartPos);
-    
-    // 如果精确匹配失败,尝试规范化后匹配
-    if (foundIndex === -1) {
-      const normalizedFoundIndex = normalizedCombined.toLowerCase().indexOf(
-        normalizedQuery.toLowerCase(), 
-        searchStartPos
-      );
-      if (normalizedFoundIndex === -1) break;
-      // 将规范化索引映射回原始文本索引
-      foundIndex = mapNormalizedIndexToOriginal(combined, normalizedCombined, normalizedFoundIndex);
-    }
-    
-    // 检查此位置是否已被高亮
-    if (skipHighlighted && isRangeHighlighted(textNodes, foundIndex, query.length)) {
-      // 跳过此匹配，继续查找下一个
-      searchStartPos = foundIndex + 1;
-      continue;
-    }
-    
-    // 找到未高亮的匹配
-    index = foundIndex;
-    break;
-  }
-  
-  if (index === -1) return null;
-
-  // 将合并索引映射回具体文本节点的起止位置
-  let remaining = index;
-  let startNode: Text | null = null;
-  let startOffset = 0;
-  for (const tn of textNodes) {
-    const len = tn.textContent?.length ?? 0;
-    if (remaining < len) {
-      startNode = tn;
-      startOffset = remaining;
-      break;
-    }
-    remaining -= len;
-  }
-  if (!startNode) return null;
-
-  const range = document.createRange();
-  range.setStart(startNode, startOffset);
-
-  let remainingLength = query.length;
-  let endNode: Text = startNode;
-  let endOffset = Math.min(startOffset + remainingLength, startNode.textContent?.length ?? 0);
-  remainingLength -= endOffset - startOffset;
-
-  let idx = textNodes.indexOf(startNode);
-  while (remainingLength > 0 && idx + 1 < textNodes.length) {
-    idx += 1;
-    const nextNode = textNodes[idx];
-    const len = nextNode.textContent?.length ?? 0;
-    if (len === 0) continue;
-    if (remainingLength <= len) {
-      endNode = nextNode;
-      endOffset = remainingLength;
-      remainingLength = 0;
-      break;
-    }
-    remainingLength -= len;
-    endNode = nextNode;
-    endOffset = len;
-  }
-
-  range.setEnd(endNode, endOffset);
-  return range;
-}
+// 抽取到纯函数模块：findTextRangeInNode
 
 /**
  * 检查指定位置的文本范围是否已被高亮
@@ -190,82 +42,17 @@ function findTextRangeInNode(root: Node, text: string, skipHighlighted = true): 
  * @param length 文本长度
  * @returns 如果该范围已被高亮则返回true
  */
-function isRangeHighlighted(textNodes: Text[], startIndex: number, length: number): boolean {
-  let remaining = startIndex;
-  let checkLength = length;
-  
-  // 找到起始文本节点
-  for (const tn of textNodes) {
-    const nodeLen = tn.textContent?.length ?? 0;
-    
-    if (remaining < nodeLen) {
-      // 从这个节点开始检查
-      let currentNode: Text | null = tn;
-      let nodeIndex = textNodes.indexOf(tn);
-      
-      while (checkLength > 0 && currentNode) {
-        // 检查当前节点是否在高亮元素内
-        const parent = currentNode.parentElement;
-        if (parent?.closest('[data-clipsey-id]')) {
-          return true; // 已被高亮
-        }
-        
-        // 移动到下一个需要检查的节点
-        const currentNodeLen = currentNode.textContent?.length ?? 0;
-        const checkedInThisNode = Math.min(checkLength, currentNodeLen - remaining);
-        checkLength -= checkedInThisNode;
-        remaining = 0; // 后续节点从头开始检查
-        
-        nodeIndex++;
-        currentNode = nodeIndex < textNodes.length ? textNodes[nodeIndex] : null;
-      }
-      
-      return false; // 检查完所有相关节点，未发现高亮
-    }
-    
-    remaining -= nodeLen;
-  }
-  
-  return false;
-}
+// 抽取到纯函数模块：isRangeHighlighted
 
 /**
  * 规范化空白字符,将连续空白替换为单个空格
  */
-function normalizeWhitespace(text: string): string {
-  return text.replace(/\s+/g, ' ').trim();
-}
+// 抽取到纯函数模块：normalizeWhitespace
 
 /**
  * 将规范化文本中的索引映射回原始文本索引
  */
-function mapNormalizedIndexToOriginal(
-  original: string,
-  _normalized: string,
-  normalizedIndex: number
-): number {
-  let originalIndex = 0;
-  let normalizedCount = 0;
-  let inWhitespace = false;
-
-  for (let i = 0; i < original.length && normalizedCount < normalizedIndex; i++) {
-    const char = original[i];
-    const isWhitespace = /\s/.test(char);
-
-    if (isWhitespace) {
-      if (!inWhitespace) {
-        normalizedCount++;
-        inWhitespace = true;
-      }
-    } else {
-      normalizedCount++;
-      inWhitespace = false;
-    }
-    originalIndex++;
-  }
-
-  return originalIndex;
-}
+// 抽取到纯函数模块：mapNormalizedIndexToOriginal
 
 /**
  * 应用内联高亮：在选中文本外包裹高亮元素
@@ -274,163 +61,30 @@ function mapNormalizedIndexToOriginal(
 /**
  * 创建高亮元素，保留富文本结构与可访问性标识
  */
-function createInlineSpan(id?: string): HTMLSpanElement {
-  const span = document.createElement('span');
-  span.className = INLINE_CLASS;
-  if (id) {
-    span.dataset.clipseyId = id;
-    span.dataset.clipsey = 'true';
-  }
-  span.style.borderRadius = '3px';
-  span.style.padding = '0';
-  return span;
-}
+// 抽取到 painters 模块
 
-type HighlightSegment = { node: Text; start: number; end: number };
+// 抽取到 painters 模块
 
-/**
- * 收集Range中的所有文本节点片段
- * 优化:正确处理富文本结构,避免重复高亮
- */
-function collectSegments(range: Range): HighlightSegment[] {
-  const segments: HighlightSegment[] = [];
-  const root = range.commonAncestorContainer;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let current: Node | null = walker.nextNode();
-  
-  while (current) {
-    const textNode = current as Text;
-    
-    // 检查节点是否在range范围内
-    if (!range.intersectsNode(textNode)) {
-      current = walker.nextNode();
-      continue;
-    }
-    
-    // 跳过已高亮内容，避免重复包裹
-    if (textNode.parentElement?.closest('[data-clipsey-id]')) {
-      current = walker.nextNode();
-      continue;
-    }
-    
-    // 跳过不可见元素
-    const parent = textNode.parentElement;
-    if (parent) {
-      try {
-        const style = getComputedStyle(parent);
-        if (style.visibility === 'hidden' || style.display === 'none') {
-          current = walker.nextNode();
-          continue;
-        }
-      } catch {
-        // 忽略样式获取错误
-      }
-    }
-    
-    const content = textNode.textContent ?? '';
-    if (!content.trim()) {
-      current = walker.nextNode();
-      continue;
-    }
-    
-    const length = content.length;
-    let start = 0;
-    let end = length;
-    
-    if (textNode === range.startContainer) {
-      start = Math.max(0, Math.min(length, range.startOffset));
-    }
-    if (textNode === range.endContainer) {
-      end = Math.max(0, Math.min(length, range.endOffset));
-    }
-    
-    if (start >= end) {
-      current = walker.nextNode();
-      continue;
-    }
-    
-    segments.push({ node: textNode, start, end });
-    current = walker.nextNode();
-  }
-  
-  return segments;
-}
+// 抽取到 painters 模块
 
-function wrapSegment(range: Range, id?: string): HTMLSpanElement | null {
-  const span = createInlineSpan(id);
-  try {
-    range.surroundContents(span);
-    return span;
-  } catch {
-    try {
-      const fragment = range.extractContents();
-      span.appendChild(fragment);
-      range.insertNode(span);
-      return span;
-    } catch {
-      span.remove();
-      return null;
-    }
-  }
-}
-
-function applyInline(range: Range, id?: string): HTMLElement[] {
-  const text = range.toString();
-  if (!text) return [];
-  const segments = collectSegments(range);
-  const created: HTMLElement[] = [];
-  for (const { node, start, end } of segments) {
-    if (!node.isConnected) continue;
-    const seg = document.createRange();
-    seg.setStart(node, start);
-    seg.setEnd(node, end);
-    const span = wrapSegment(seg, id);
-    if (span) created.push(span);
-  }
-  // 如果未能分段包裹，则尝试整体包裹一次
-  if (!created.length) {
-    const span = wrapSegment(range, id);
-    if (span) created.push(span);
-  }
-  return created;
-}
+// 抽取到 painters 模块
 
 /**
  * 应用覆盖层高亮：创建浮动遮罩层覆盖在选中文本上
  * 颜色通过 CSS 变量统一管理，不在此处硬编码
  */
-function applyOverlay(range: Range): HTMLElement[] {
-  let rects = Array.from(typeof range.getClientRects === 'function' ? range.getClientRects() : []);
-  if (!rects.length) {
-    const fallback = range.getBoundingClientRect?.();
-    if (fallback && (fallback.width > 0 || fallback.height > 0)) {
-      rects = [fallback];
-    }
-  }
-  if (!rects.length) return [];
-  const overlays: HTMLElement[] = [];
-  for (const rect of rects) {
-    const div = document.createElement('div');
-    div.className = OVERLAY_CLASS;
-    div.style.position = 'absolute';
-    div.style.left = `${rect.left + window.scrollX}px`;
-    div.style.top = `${rect.top + window.scrollY}px`;
-    div.style.width = `${rect.width}px`;
-    div.style.height = `${Math.max(1, rect.height)}px`;
-    div.style.pointerEvents = 'none';
-    div.style.zIndex = '2147483647';
-    document.body.appendChild(div);
-    overlays.push(div);
-  }
-  return overlays;
-}
+// 抽取到 painters 模块
 
 function scrollRangeIntoView(range: Range): void {
   try {
     const rect = range.getBoundingClientRect();
     if (!rect) return;
-    const y = Math.max(0, rect.top + window.scrollY - 16);
-    window.scrollTo({ top: y, behavior: 'smooth' });
+    const obstruction = detectTopObstructionHeight();
+    const baseline = obstruction.detected ? obstruction.offset : 16;
+    const targetY = Math.max(0, rect.top + window.scrollY - baseline);
+    window.scrollTo({ top: targetY, behavior: 'smooth' });
+    // 额外的兜底滚动，避免固定头部晚于滚动生效导致覆盖
+    scheduleFallbackScrolls(targetY);
   } catch {
     // noop
   }
