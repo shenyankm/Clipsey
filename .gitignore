@@ -82,7 +82,6 @@ $RECYCLE.BIN/
 # Package Manager Files
 *.tgz
 *.tar.gz
-pnpm-lock.yaml
 package-lock.json
 yarn.lock
 .pnpm-store/

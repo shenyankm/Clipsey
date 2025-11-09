@@ -11,7 +11,6 @@ export default defineConfig({
     short_name: 'Clipsey',
     description: 'Clipsey 是一款轻量的网页摘录与高亮工具,支持选中内容保存、来源定位、颜色标注、弹窗检索与管理。',
     version: '1.0.0',
-    default_locale: 'zh_CN',
     permissions: [
       'contextMenus',
       'storage',

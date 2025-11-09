@@ -1,11 +1,12 @@
 import DOMPurify from 'dompurify';
 import type { Clip } from '@/types/clip';
+import type { Config } from 'dompurify';
 
 /**
  * XSS防护：严格的HTML净化配置
  * 仅允许安全的标签和属性，移除所有脚本和事件处理器
  */
-const SANITIZE_CONFIG: DOMPurify.Config = {
+const SANITIZE_CONFIG: Config = {
   ALLOWED_TAGS: [
     'p', 'br', 'strong', 'em', 'u', 'b', 'i', 's', 'del', 'ins',
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -21,7 +22,7 @@ const SANITIZE_CONFIG: DOMPurify.Config = {
   ALLOW_UNKNOWN_PROTOCOLS: false,
   SAFE_FOR_TEMPLATES: true,
   RETURN_TRUSTED_TYPE: false,
-} as DOMPurify.Config;
+};
 
 /**
  * 净化HTML内容，防止XSS攻击
@@ -34,7 +35,8 @@ function sanitizeHtml(html: string): string {
   }
   
   try {
-    return DOMPurify.sanitize(html.trim(), SANITIZE_CONFIG as unknown as DOMPurify.Config);
+    const sanitized = DOMPurify.sanitize(html.trim(), SANITIZE_CONFIG);
+    return typeof sanitized === 'string' ? sanitized : String(sanitized);
   } catch (error) {
     console.error('HTML sanitization failed:', error);
     return '';
