@@ -1,4 +1,6 @@
-const CONTENT_SCRIPT_FILE = 'scripts/content.js';
+// WXT 构建输出的内容脚本实际路径为 content-scripts/content.js（见 .output/chrome-mv3*/content-scripts/content.js）
+// 旧路径 'scripts/content.js' 会导致注入失败，从而在背景页抛出错误并出现“接收端不存在”等问题。
+const CONTENT_SCRIPT_FILE = 'content-scripts/content.js';
 
 export type MessageResponse<T = unknown> = {
   success: boolean;

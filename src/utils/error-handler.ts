@@ -149,6 +149,10 @@ export class ErrorHandler {
       'duplicate script id',
       'frame with id',
       'removed',
+      // 注入文件路径错误/连接失败（常见于内容脚本路径不匹配或未加载）
+      'could not load file',
+      'cannot load file',
+      'could not establish connection',
     ];
     const lowerMessage = message.toLowerCase();
     return permissionKeywords.some(keyword => lowerMessage.includes(keyword));
