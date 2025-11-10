@@ -2,10 +2,7 @@ import { isValidMessage } from './middleware/validator';
 import { ResponseBuilder } from './middleware/response';
 import { registry } from './registry';
 
-/**
- * 注册消息路由器
- * 使用策略模式，通过注册表分发消息到对应的处理器
- */
+/** 注册消息路由器：通过注册表将消息分发给处理器（策略模式）。 */
 export function registerMessageRouter(): void {
   chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
     // 验证消息格式

@@ -1,9 +1,6 @@
 // DOM 工具模块：安全选择器、文本节点遍历等
 
-/**
- * 创建文本节点的 TreeWalker
- * 默认遍历 document.body；可传入自定义根节点
- */
+// 创建文本节点 TreeWalker（默认 document.body，可传入自定义根节点）
 export function createTextNodeWalker(root: Node = document.body): TreeWalker | null {
   if (!root) return null;
   try {
@@ -35,9 +32,7 @@ export function createTextNodeWalker(root: Node = document.body): TreeWalker | n
   }
 }
 
-/**
- * 安全的 CSS 选择器转义
- */
+// CSS 选择器安全转义
 export function safeCssEscape(value: string): string {
   try {
     if (typeof CSS !== 'undefined' && typeof (CSS as any).escape === 'function') {
@@ -52,9 +47,7 @@ export function cssEscape(value: string): string {
   return safeCssEscape(value);
 }
 
-/**
- * 带错误保护的 querySelector，避免选择器异常导致崩溃
- */
+// 带错误保护的 querySelector（避免选择器异常导致崩溃）
 export function safeQuerySelector(selector: string): Element | null {
   try {
     return document.querySelector(selector);

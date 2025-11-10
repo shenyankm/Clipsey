@@ -1,12 +1,6 @@
-/**
- * 高亮同步服务
- * 负责在删除Clip后刷新页面高亮状态
- */
+/** 高亮同步服务：剪辑删除后刷新对应页面的高亮状态。 */
 export class HighlightSyncService {
-  /**
-   * 刷新指定URL页面的高亮显示
-   * 用于删除Clip后同步更新页面高亮状态
-   */
+  // 刷新指定 URL 的页面高亮（用于剪辑删除后的同步）
   async refreshPageHighlights(url: string): Promise<void> {
     try {
       const tabs = await chrome.tabs.query({});
@@ -23,9 +17,7 @@ export class HighlightSyncService {
     }
   }
 
-  /**
-   * 更新标签页的高亮
-   */
+  // 更新标签页高亮：收集 URL 对应剪辑并通知页面激活
   private async updateTabHighlights(tabId: number, tabUrl: string): Promise<void> {
     try {
       const { getClipsForUrl } = await import('@/background/storage');
@@ -53,9 +45,7 @@ export class HighlightSyncService {
     }
   }
 
-  /**
-   * 比较两个URL是否匹配（忽略查询参数和hash）
-   */
+  // 比较两个 URL 是否匹配（忽略查询参数与 hash）
   private urlsMatch(url1: string, url2: string): boolean {
     try {
       const parsed1 = new URL(url1);

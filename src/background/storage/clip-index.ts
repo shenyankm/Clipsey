@@ -3,10 +3,7 @@ import { createIndexKeys } from './utils/url-normalizer';
 
 export type ClipIndex = Map<string, Clip[]>;
 
-/**
- * 构建clip索引
- * 根据URL创建多级索引，提高查询效率
- */
+/** 构建剪辑索引：基于 URL 的多级键提升查询效率。 */
 export function buildClipIndex(clips: Clip[]): ClipIndex {
   const index: ClipIndex = new Map();
 
@@ -33,10 +30,7 @@ export function buildClipIndex(clips: Clip[]): ClipIndex {
   return index;
 }
 
-/**
- * 根据URL查找clips
- * 支持精确匹配和忽略查询参数的匹配
- */
+/** 按 URL 查找剪辑：支持精确与忽略查询参数的匹配。 */
 export function lookupClipsForUrl(index: ClipIndex, url: string): Clip[] {
   if (!index.size) {
     return [];

@@ -2,10 +2,7 @@ import DOMPurify from 'dompurify';
 import type { Clip } from '@/types/clip';
 import type { Config } from 'dompurify';
 
-/**
- * XSS防护：严格的HTML净化配置
- * 仅允许安全的标签和属性，移除所有脚本和事件处理器
- */
+/** XSS 防护：严格 HTML 净化配置（仅允许安全标签与属性，移除脚本与事件处理器）。 */
 const SANITIZE_CONFIG: Config = {
   ALLOWED_TAGS: [
     'p', 'br', 'strong', 'em', 'u', 'b', 'i', 's', 'del', 'ins',
@@ -24,11 +21,7 @@ const SANITIZE_CONFIG: Config = {
   RETURN_TRUSTED_TYPE: false,
 };
 
-/**
- * 净化HTML内容，防止XSS攻击
- * @param html - 待净化的HTML字符串
- * @returns 净化后的安全HTML
- */
+// 净化 HTML，防止 XSS（非法或异常时返回空字符串）
 function sanitizeHtml(html: string): string {
   if (!html || typeof html !== 'string') {
     return '';
@@ -43,11 +36,7 @@ function sanitizeHtml(html: string): string {
   }
 }
 
-/**
- * 将纯文本转换为HTML，确保所有特殊字符被正确转义
- * @param text - 待转换的文本
- * @returns 转义后的HTML字符串
- */
+// 纯文本转安全 HTML（严格转义所有特殊字符）
 function convertTextToHtml(text: string): string {
   if (!text || typeof text !== 'string') {
     return '';
@@ -68,11 +57,7 @@ function convertTextToHtml(text: string): string {
 
 const clipContentCache = new WeakMap<Clip, string>();
 
-/**
- * 获取剪辑的安全HTML内容（已净化）
- * @param clip - 剪辑对象
- * @returns 安全的HTML内容
- */
+// 获取剪辑的安全 HTML 内容（含缓存）
 export function getClipHtmlContent(clip: Clip): string {
   if (!clip || typeof clip !== 'object') {
     return '';

@@ -1,10 +1,4 @@
-/**
- * 颜色管理器:统一管理高亮颜色的读取、计算与样式注入。
- * 目标:
- * - 将颜色以 CSS 变量方式注入,避免在功能逻辑中硬编码颜色
- * - 提供内联/覆盖两种高亮颜色的计算方法,便于未来扩展
- * - 采用最佳实践配色方案,确保良好的阅读体验
- */
+/** 统一管理高亮颜色：通过 CSS 变量注入并提供内联/覆盖两种计算，默认采用舒适配色方案。 */
 import type { HighlightColorScheme, SettingsOptions } from '@/utils/settings-local';
 import type { MessageResponse } from '@/types/message';
 
@@ -40,12 +34,7 @@ export const HIGHLIGHT_OVERLAY_CLASS = 'clipsey-overlay-highlight';
 let styleInjected = false;
 let styleEl: HTMLStyleElement | null = null;
 
-/**
- * 将十六进制颜色转换为 RGBA 格式
- * @param hex 十六进制颜色值（如 #FFC107 或 #FC0）
- * @param alpha 不透明度 (0-1)
- * @returns RGBA 颜色字符串
- */
+// 十六进制转 RGBA（非法输入回退至默认值）
 function hexToRgba(hex: string, alpha: number): string {
   const normalized = hex?.replace('#', '').trim();
   if (!normalized || !/^([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(normalized)) {
@@ -95,10 +84,7 @@ function ensureStyleInjected(inlineColor: string, overlayColor: string): void {
   }
 }
 
-/**
- * 从设置中读取用户选择的高亮颜色方案
- * 在 content script 环境中直接使用 chrome.storage API
- */
+// 从设置读取用户选择的高亮配色（优先背景页消息，次选 storage.local）
 async function loadColorSchemeFromSettings(): Promise<HighlightColorScheme> {
   // 优先通过背景页消息获取（IndexedDB 持久化）
   try {
@@ -139,10 +125,7 @@ async function loadColorSchemeFromSettings(): Promise<HighlightColorScheme> {
   return DEFAULT_COLOR_SCHEME;
 }
 
-/**
- * 确保高亮颜色样式已注入到页面中
- * 动态从设置读取用户选择的配色方案
- */
+// 确保样式注入并按设置应用颜色
 export async function ensureHighlightColorsReady(): Promise<void> {
   // 从设置中读取颜色方案
   currentColorScheme = await loadColorSchemeFromSettings();
@@ -153,23 +136,17 @@ export async function ensureHighlightColorsReady(): Promise<void> {
   ensureStyleInjected(inline, overlay);
 }
 
-/**
- * 获取内联高亮颜色（用于文本选区的背景高亮）
- */
+// 获取内联高亮背景色
 export function getInlineHighlightColor(): string {
   return DEFAULT_INLINE_RGBA;
 }
 
-/**
- * 获取覆盖层高亮颜色（用于浮层遮罩的高亮）
- */
+// 获取覆盖层高亮色（用于遮罩层）
 export function getOverlayHighlightColor(): string {
   return DEFAULT_OVERLAY_RGBA;
 }
 
-/**
- * 获取所有可用的颜色方案
- */
+// 返回颜色方案列表（value/label/hex）
 export function getAvailableColorSchemes(): Array<{ value: HighlightColorScheme; label: string; hex: string }> {
   return Object.entries(COLOR_SCHEMES).map(([key, config]) => ({
     value: key as HighlightColorScheme,
@@ -178,9 +155,7 @@ export function getAvailableColorSchemes(): Array<{ value: HighlightColorScheme;
   }));
 }
 
-/**
- * 获取当前使用的颜色方案
- */
+// 返回当前颜色方案
 export function getCurrentColorScheme(): HighlightColorScheme {
   return currentColorScheme;
 }

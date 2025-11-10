@@ -1,29 +1,13 @@
-/**
- * 搜索查询类型
- */
+// 搜索查询类型
 export type SearchType = 'all' | 'title' | 'website' | 'content';
 
-/**
- * 解析后的搜索查询结果
- */
+// 解析后的搜索查询结构
 export interface ParsedSearchQuery {
   type: SearchType;
   keyword: string;
 }
 
-/**
- * 解析搜索查询字符串
- * 支持指令前缀：@title、@website、@content
- * 当仅输入指令无关键词时，视为空搜索（不过滤）
- * 
- * @param query - 搜索查询字符串
- * @returns 解析后的查询对象
- * 
- * @example
- * parseSearchQuery('@title 测试')  // { type: 'title', keyword: '测试' }
- * parseSearchQuery('@website')     // { type: 'all', keyword: '' }
- * parseSearchQuery('关键词')        // { type: 'all', keyword: '关键词' }
- */
+// 解析搜索查询（支持 @title/@website/@content 前缀；空指令视为不过滤）
 export function parseSearchQuery(query: string): ParsedSearchQuery {
   const trimmed = query.trim();
   
@@ -63,11 +47,7 @@ export function parseSearchQuery(query: string): ParsedSearchQuery {
   };
 }
 
-/**
- * 构建搜索提示文本
- * @param type - 搜索类型
- * @returns 搜索提示文本
- */
+// 根据搜索类型构建提示文案
 export function buildSearchHint(type: SearchType): string {
   const hints: Record<SearchType, string> = {
     all: '搜索标题、网站或内容',

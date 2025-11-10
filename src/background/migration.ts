@@ -1,16 +1,11 @@
-/**
- * 数据迁移工具
- * 用于从 chrome.storage.local 迁移到 IndexedDB
- */
+/** 数据迁移：将 chrome.storage.local 的数据迁移到 IndexedDB。 */
 
 import type { Clip } from '@/types/clip';
 import type { ErrorLogRecord } from '@/types/indexeddb';
 import { saveClips } from './storage';
 import { indexedDBManager } from './indexeddb';
 
-/**
- * 从 chrome.storage.local 迁移 clips 数据到 IndexedDB
- */
+// 迁移剪辑数据（chrome.storage.local -> IndexedDB）
 export async function migrateClipsFromChromeStorage(): Promise<{
   success: boolean;
   migratedCount: number;
@@ -49,9 +44,7 @@ export async function migrateClipsFromChromeStorage(): Promise<{
   }
 }
 
-/**
- * 从 chrome.storage.local 迁移错误日志到 IndexedDB
- */
+// 迁移错误日志（chrome.storage.local -> IndexedDB）
 export async function migrateErrorLogsFromChromeStorage(): Promise<{
   success: boolean;
   migratedCount: number;
@@ -91,9 +84,7 @@ export async function migrateErrorLogsFromChromeStorage(): Promise<{
   }
 }
 
-/**
- * 执行完整的数据迁移
- */
+// 执行完整迁移（剪辑与错误日志）
 export async function migrateAllData(): Promise<{
   clipsResult: { success: boolean; migratedCount: number; error?: string };
   errorLogsResult: { success: boolean; migratedCount: number; error?: string };

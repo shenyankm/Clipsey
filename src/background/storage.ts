@@ -23,26 +23,20 @@ async function ensureInitialized(): Promise<void> {
   await initAttempt;
 }
 
-/**
- * 获取所有clips
- */
+// 获取所有剪辑（缓存优先）
 export async function getClips(): Promise<Clip[]> {
   await ensureInitialized();
   return cacheManager.get(() => loadClipsFromStorage());
 }
 
-/**
- * 根据URL获取clips
- */
+// 按 URL 获取剪辑（使用缓存）
 export async function getClipsForUrl(url: string): Promise<Clip[]> {
   await ensureInitialized();
   await cacheManager.get(() => loadClipsFromStorage());
   return cacheManager.getByUrl(url);
 }
 
-/**
- * 保存clips
- */
+// 保存剪辑：清空旧库、批量写入并更新缓存与通知
 export async function saveClips(clips: Clip[]): Promise<void> {
   await ensureInitialized();
   
@@ -75,9 +69,7 @@ export async function saveClips(clips: Clip[]): Promise<void> {
   }
 }
 
-/**
- * 添加单个clip
- */
+// 添加单个剪辑（去重同高亮并限制总数）
 export async function addClip(clip: Clip): Promise<void> {
   await ensureInitialized();
   
@@ -121,17 +113,13 @@ export async function addClip(clip: Clip): Promise<void> {
   }
 }
 
-/**
- * 清空所有clips
- */
+// 清空所有剪辑
 export async function clearClips(): Promise<void> {
   await ensureInitialized();
   await saveClips([]);
 }
 
-/**
- * 从IndexedDB加载clips
- */
+// 从 IndexedDB 加载剪辑并标准化
 async function loadClipsFromStorage(): Promise<Clip[]> {
   try {
     const clips = await IndexedDBQuery.getAll('clips', {
@@ -145,17 +133,13 @@ async function loadClipsFromStorage(): Promise<Clip[]> {
   }
 }
 
-/**
- * 刷新缓存 - 从 IndexedDB 重新加载数据
- */
+// 刷新缓存：强制重载 IndexedDB 数据
 export async function refreshCache(): Promise<void> {
   cacheManager.clear();
   await cacheManager.get(() => loadClipsFromStorage());
 }
 
-/**
- * 获取存储统计信息
- */
+// 获取存储统计（数量、大小、最早/最新时间）
 export async function getStorageStats(): Promise<{
   totalClips: number;
   totalSize: number;

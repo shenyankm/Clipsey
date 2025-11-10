@@ -1,16 +1,12 @@
 // 文本搜索与范围定位的纯函数模块
 // 目标：在富文本结构中查找指定文本的 Range，支持跨节点与忽略空白差异
 
-/**
- * 规范化空白字符，将连续空白替换为单个空格
- */
+// 规范化空白：连续空白合并为单个空格
 export function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-/**
- * 将规范化文本中的索引映射回原始文本索引
- */
+// 将规范化文本索引映射回原始文本索引
 export function mapNormalizedIndexToOriginal(
   original: string,
   _normalized: string,
@@ -46,10 +42,7 @@ export function mapNormalizedIndexToOriginal(
   return originalIndex;
 }
 
-/**
- * 检查指定位置的文本范围是否已被高亮
- * 依据父级是否存在标记属性 `[data-clipsey-id]` 来判定
- */
+// 判断指定范围是否已高亮（父级存在 data-clipsey-id）
 export function isRangeHighlighted(textNodes: Text[], startIndex: number, length: number): boolean {
   let remaining = startIndex;
   let checkLength = length;
@@ -82,15 +75,7 @@ export function isRangeHighlighted(textNodes: Text[], startIndex: number, length
   return false;
 }
 
-/**
- * 在指定根节点下查找文本范围，支持跨多个文本节点与嵌套富文本结构。
- * 为避免破坏原有富文本结构，仅定位 Range，不做变更。
- *
- * @param root 搜索的根节点
- * @param text 要查找的文本
- * @param skipHighlighted 是否跳过已高亮的内容（默认 true）
- * @returns 找到的第一个未高亮的匹配范围，如果没有找到则返回 null
- */
+// 在根节点下查找文本 Range（跨节点、忽略空白；仅定位不修改），可跳过已高亮内容。
 export function findTextRangeInNode(root: Node, text: string, skipHighlighted = true): Range | null {
   if (!root) return null;
   const query = text.trim();

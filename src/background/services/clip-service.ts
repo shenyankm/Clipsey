@@ -1,10 +1,7 @@
 import type { Clip } from '@/types/clip';
 import { addClip, clearClips, getClips, getClipsForUrl, saveClips } from '@/background/storage';
 
-/**
- * ClipService 封装剪藏数据的核心业务逻辑。
- * 负责读/写/查询，并保持与原 storage.ts 的向后兼容接口。
- */
+/** 剪藏数据服务：封装读/写/查询并与 storage.ts 接口兼容。 */
 export class ClipService {
   async listAll(): Promise<Clip[]> {
     return getClips();

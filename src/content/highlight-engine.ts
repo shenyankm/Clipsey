@@ -16,21 +16,7 @@ type RemoteHighlight = {
   highlightStyle?: 'inline' | 'overlay';
 };
 
-/**
- * HighlightEngine - 高亮引擎
- * 
- * 职责：
- * 1. 流程编排：协调定位、渲染、缓存等模块
- * 2. 高亮激活：批量处理远程高亮数据
- * 3. 高亮管理：撤销、清除高亮
- * 4. 焦点定位：滚动到指定文本位置
- * 
- * 已拆分的模块：
- * - LocationStrategy: 多级定位策略
- * - HighlightCache: 缓存管理
- * - ScrollManager: 滚动管理
- * - painters: 渲染策略（inline/overlay）
- */
+/** 高亮引擎：编排定位/渲染/缓存，批量激活或管理高亮，并支持滚动定位。 */
 export class HighlightEngine {
   private cache: HighlightCache;
   private throttled = 16; // ms

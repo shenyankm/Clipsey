@@ -1,13 +1,9 @@
 import type { MessageResponse } from '@/types/message';
 import { ErrorHandler } from '@/utils/error-handler';
 
-/**
- * 统一的响应封装工具
- */
+// 响应封装工具
 export class ResponseBuilder {
-  /**
-   * 构建成功响应
-   */
+  // 构建成功响应
   static success<T = void>(data?: T): MessageResponse<T> {
     return {
       success: true,
@@ -15,9 +11,7 @@ export class ResponseBuilder {
     } as MessageResponse<T>;
   }
 
-  /**
-   * 构建错误响应
-   */
+  // 构建错误响应（统一错误处理）
   static error<T = void>(error: unknown, context?: string): MessageResponse<T> {
     const appError = ErrorHandler.handle(error, context);
     return {
@@ -26,9 +20,7 @@ export class ResponseBuilder {
     } as MessageResponse<T>;
   }
 
-  /**
-   * 构建验证失败响应
-   */
+  // 构建验证失败响应
   static validationError(message: string): MessageResponse {
     return {
       success: false,
@@ -37,9 +29,7 @@ export class ResponseBuilder {
   }
 }
 
-/**
- * 包装异步处理器，自动处理响应和错误
- */
+// 包装异步处理器并统一响应与错误
 export function wrapHandler<T = void>(
   handler: () => Promise<T>,
   context?: string

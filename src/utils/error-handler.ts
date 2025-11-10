@@ -20,9 +20,7 @@ export interface AppError {
 export class ErrorHandler {
   private static logErrors = true;
 
-  /**
-   * 统一错误处理入口
-   */
+  // 错误处理入口：解析、记录并返回统一的 AppError
   static handle(error: unknown, context?: string): AppError {
     const appError = this.parseError(error, context);
     
@@ -33,9 +31,7 @@ export class ErrorHandler {
     return appError;
   }
 
-  /**
-   * 解析错误对象
-   */
+  // 将未知错误解析为 AppError（支持 Error、字符串与其他类型）
   private static parseError(error: unknown, context?: string): AppError {
     if (this.isAppError(error)) {
       return error;
@@ -62,9 +58,7 @@ export class ErrorHandler {
     };
   }
 
-  /**
-   * 创建应用错误对象
-   */
+  // 从 Error 推断错误码并生成用户友好消息
   private static createAppError(error: Error, context?: string): AppError {
     const message = error.message || '未知错误';
     let code = ErrorCode.UNKNOWN_ERROR;
@@ -91,9 +85,7 @@ export class ErrorHandler {
     };
   }
 
-  /**
-   * 记录错误日志
-   */
+  // 控制台记录错误（含错误码、上下文与原始错误）
   private static logError(error: AppError): void {
     const logMessage = [
       `[${error.code}]`,
@@ -104,9 +96,7 @@ export class ErrorHandler {
     console.error(logMessage, error.originalError);
   }
 
-  /**
-   * 判断是否为应用错误对象
-   */
+  // 类型判断：是否为 AppError
   private static isAppError(error: unknown): error is AppError {
     return (
       typeof error === 'object' &&
@@ -117,9 +107,7 @@ export class ErrorHandler {
     );
   }
 
-  /**
-   * 判断是否为网络错误
-   */
+  // 关键字匹配：判断是否为网络错误
   private static isNetworkError(message: string): boolean {
     const networkKeywords = [
       'fetch',
@@ -131,9 +119,7 @@ export class ErrorHandler {
     return networkKeywords.some(keyword => lowerMessage.includes(keyword));
   }
 
-  /**
-   * 判断是否为权限错误
-   */
+  // 关键字匹配：判断是否为权限相关错误（含内容脚本注入与路径异常）
   private static isPermissionError(message: string): boolean {
     const permissionKeywords = [
       'cannot access',
@@ -156,9 +142,7 @@ export class ErrorHandler {
     return permissionKeywords.some(keyword => lowerMessage.includes(keyword));
   }
 
-  /**
-   * 判断是否为存储错误
-   */
+  // 关键字匹配：判断是否为存储相关错误
   private static isStorageError(message: string): boolean {
     const storageKeywords = [
       'storage',
@@ -170,9 +154,7 @@ export class ErrorHandler {
     return storageKeywords.some(keyword => lowerMessage.includes(keyword));
   }
 
-  /**
-   * 从错误对象中提取消息
-   */
+  // 提取错误的可读消息（支持多种对象形态）
   static getErrorMessage(error: unknown): string {
     if (!error) {
       return '未知错误';
@@ -196,9 +178,7 @@ export class ErrorHandler {
     return String(error);
   }
 
-  /**
-   * 包装异步函数，自动处理错误
-   */
+  // 异步函数包装：自动捕获并统一返回错误
   static async wrap<T>(
     fn: () => Promise<T>,
     context?: string
@@ -211,17 +191,13 @@ export class ErrorHandler {
     }
   }
 
-  /**
-   * 设置是否记录错误日志
-   */
+  // 开关：是否在控制台记录错误
   static setLogErrors(enabled: boolean): void {
     this.logErrors = enabled;
   }
 }
 
-/**
- * 类型守卫函数
- */
+// 类型守卫
 export function isError(value: unknown): value is Error {
   return value instanceof Error;
 }

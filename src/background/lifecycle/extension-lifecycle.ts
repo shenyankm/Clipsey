@@ -4,10 +4,7 @@ import { migrateSettingsToLocal } from '../migration-settings';
 import { contentScriptService } from '../services/content-script-service';
 import { ErrorHandler } from '@/utils/error-handler';
 
-/**
- * 扩展生命周期管理器
- * 负责处理扩展的安装、启动等生命周期事件
- */
+/** 扩展生命周期管理器：处理扩展安装与启动事件 */
 export class ExtensionLifecycle {
   /**
    * 处理扩展安装事件
