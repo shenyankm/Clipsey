@@ -1,6 +1,6 @@
 import type { Clip } from '@/types/clip';
 import { clipService } from '@/background/services/clip-service';
-import { createId } from '@/utils/helpers';
+import { createId, isSupportedHttpUrl } from '@/utils/helpers';
 import type { SaveClipPayload } from '@/types/message';
 
 export async function handleSaveClip(payload: SaveClipPayload): Promise<void> {
@@ -9,6 +9,10 @@ export async function handleSaveClip(payload: SaveClipPayload): Promise<void> {
   }
 
   const sourceUrl = payload.sourceUrl ?? '';
+  // 区域限制：仅允许在 http/https 普通网页上保存摘抄
+  if (!isSupportedHttpUrl(sourceUrl)) {
+    throw new Error('当前页面不支持摘抄，仅支持在第三方网站的 http/https 页面使用。');
+  }
   const highlightId = typeof payload.highlightId === 'string' && payload.highlightId 
     ? payload.highlightId 
     : undefined;

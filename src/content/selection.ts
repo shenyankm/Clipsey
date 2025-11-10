@@ -7,6 +7,7 @@ import type { MessageResponse } from '@/types/message';
 import { ErrorHandler } from '@/utils/error-handler';
 import type { SettingsOptions } from '@/utils/settings-local';
 import { ScrollManager } from '@/content/highlight/scroll-manager';
+import { isSupportedHttpUrl } from '@/utils/helpers';
 
 // 在内容脚本环境内联消息发送函数，避免打包为外部 ESM 导入
 function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> {
@@ -134,6 +135,14 @@ function extractSelectionHtml(selection: Selection | null): string | undefined {
 function handleRequestSelection(
   sendResponse: (response: { success: boolean; error?: string }) => void
 ): boolean {
+  // 区域限制：仅允许在 http/https 普通网页上摘抄
+  const currentUrl = window.location.href;
+  if (!isSupportedHttpUrl(currentUrl)) {
+    const msg = '当前页面不支持摘抄，仅支持在第三方网站的 http/https 页面使用。';
+    void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'REQUEST_SELECTION in content script' } });
+    sendResponse({ success: false, error: msg });
+    return false;
+  }
   const selection = window.getSelection();
   const textContent = selection?.toString().trim();
 

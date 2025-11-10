@@ -40,7 +40,7 @@ export class SelectionRequestManager {
       const tab = await chrome.tabs.get(tabId);
       const url = tab?.url;
       if (url && !isSupportedHttpUrl(url)) {
-        void this.showNotification('无法访问页面', '此页面不允许扩展脚本运行。');
+        void this.showNotification('当前页面不支持摘抄', '仅支持在第三方网站的 http/https 页面使用。');
         return;
       }
     } catch {
