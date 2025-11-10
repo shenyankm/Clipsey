@@ -1,24 +1,45 @@
 import { ErrorHandler } from '@/utils/error-handler';
 
 const CONTEXT_MENU_ID = 'clipsey-context-menu';
+const SUPPORTED_DOCUMENT_URL_PATTERNS = ['http://*/*', 'https://*/*'];
 
-/** 管理右键菜单（创建、兼容旧版残留 ID 的清理） */
+/** �����Ҽ��˵������������ݾɰ���� ID �������� */
 export class ContextMenuManager {
   async create(): Promise<void> {
-    // 清理旧版遗留的菜单 ID；忽略找不到项的错误
-    chrome.contextMenus.remove('page-clipper-context-menu', () => {
-      const removalError = chrome.runtime.lastError;
-      if (removalError && removalError.message && !removalError.message.includes('Cannot find menu item')) {
-        console.debug('移除旧上下文菜单时的非致命错误', removalError);
-      }
-    });
+    await this.cleanupLegacyMenus();
+    this.registerContextMenu();
+  }
 
-    // 创建新的上下文菜单
+  getMenuId(): string {
+    return CONTEXT_MENU_ID;
+  }
+
+  private async cleanupLegacyMenus(): Promise<void> {
+    await Promise.all([
+      this.removeMenuIfExists('page-clipper-context-menu'),
+      this.removeMenuIfExists(CONTEXT_MENU_ID)
+    ]);
+  }
+
+  private async removeMenuIfExists(menuId: string): Promise<void> {
+    await new Promise<void>(resolve => {
+      chrome.contextMenus.remove(menuId, () => {
+        const error = chrome.runtime.lastError;
+        if (error && error.message && !error.message.includes('Cannot find menu item')) {
+          console.debug(`[ContextMenu] Failed to remove menu ${menuId}`, error);
+        }
+        resolve();
+      });
+    });
+  }
+
+  private registerContextMenu(): void {
     chrome.contextMenus.create(
       {
         id: CONTEXT_MENU_ID,
-        title: '保存当前选中内容',
-        contexts: ['selection']
+        title: '���浱ǰѡ������',
+        contexts: ['selection'],
+        documentUrlPatterns: SUPPORTED_DOCUMENT_URL_PATTERNS
       },
       () => {
         const error = chrome.runtime.lastError;
@@ -29,11 +50,7 @@ export class ContextMenuManager {
       }
     );
   }
-
-  getMenuId(): string {
-    return CONTEXT_MENU_ID;
-  }
 }
 
-// 导出单例实例
+// ��������ʵ��
 export const contextMenuManager = new ContextMenuManager();
