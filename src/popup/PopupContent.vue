@@ -63,7 +63,7 @@
         >
           <template #description>
             <a-typography-text type="secondary">
-              在当前页面选中文本后右键点击<br />"Clip current selection" 即可保存摘要
+              在当前页面选中文本后右键点击<br />“保存当前选中内容”即可保存摘要
             </a-typography-text>
           </template>
         </a-empty>
@@ -140,12 +140,7 @@ async function getCurrentTabUrl(): Promise<void> {
   }
 }
 
-/**
- * 加载Clips数据
- * 优化:
- * 1. 支持静默刷新(不显示loader),用于监听到数据变化时的后台更新
- * 2. 强制刷新后端缓存，确保获取最新数据
- */
+/** 加载剪辑数据：支持静默刷新与缓存强制更新（默认显示加载状态） */
 async function loadClips(showLoader: boolean = true): Promise<void> {
   if (showLoader) {
     loading.value = true;

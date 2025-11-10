@@ -2,16 +2,10 @@ import { ErrorHandler } from '@/utils/error-handler';
 
 const CONTEXT_MENU_ID = 'clipsey-context-menu';
 
-/**
- * 上下文菜单管理器
- * 负责创建和管理Chrome扩展的右键菜单
- */
+/** 管理右键菜单（创建、兼容旧版残留 ID 的清理） */
 export class ContextMenuManager {
-  /**
-   * 创建上下文菜单
-   */
   async create(): Promise<void> {
-    // 清理旧版本遗留的上下文菜单标识
+    // 清理旧版遗留的菜单 ID；忽略找不到项的错误
     chrome.contextMenus.remove('page-clipper-context-menu', () => {
       const removalError = chrome.runtime.lastError;
       if (removalError && removalError.message && !removalError.message.includes('Cannot find menu item')) {
@@ -36,9 +30,6 @@ export class ContextMenuManager {
     );
   }
 
-  /**
-   * 获取上下文菜单ID
-   */
   getMenuId(): string {
     return CONTEXT_MENU_ID;
   }

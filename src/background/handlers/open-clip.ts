@@ -67,7 +67,7 @@ export async function handleOpenClip(clipId?: string): Promise<void> {
 
     chrome.tabs.onUpdated.addListener(listener);
 
-    // 超时保护，15秒后强制执行
+    // 超时保护：防止 onUpdated 未触发导致流程卡住，15 秒后强制执行
     setTimeout(() => {
       if (chrome.tabs.onUpdated.hasListener(listener)) {
         chrome.tabs.onUpdated.removeListener(listener);
@@ -78,7 +78,7 @@ export async function handleOpenClip(clipId?: string): Promise<void> {
 }
 
 /**
- * 判断两个URL是否指向同一页面（比较协议、主机名和路径）
+ * 比较协议、主机名与路径判断是否同一页面
  */
 function isSamePageUrl(url1: string, url2: string): boolean {
   try {

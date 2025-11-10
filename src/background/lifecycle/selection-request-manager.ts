@@ -7,10 +7,7 @@ const REQUEST_SELECTION_MAX_ATTEMPTS = 3;
 const REQUEST_SELECTION_RETRY_DELAY_MS = 200;
 const NOTIFICATION_ICON = chrome.runtime.getURL('assets/icon128.png');
 
-/**
- * 选区请求管理器
- * 负责处理右键菜单点击后的选区请求和保存
- */
+/** 处理右键菜单触发后的选区请求与保存（含系统页预检查、重试与通知） */
 export class SelectionRequestManager {
   /**
    * 处理右键菜单点击事件
@@ -35,7 +32,7 @@ export class SelectionRequestManager {
    * 向content script请求选区内容
    */
   private async requestSelection(tabId: number, attempt = 0): Promise<void> {
-    // 预检查：避免向受限页面（如 chrome://）发送消息
+    // 在系统页/非 http(s) 页面直接提示并终止请求
     try {
       const tab = await chrome.tabs.get(tabId);
       const url = tab?.url;
@@ -114,9 +111,6 @@ export class SelectionRequestManager {
     void this.showNotification('保存失败', response.error ?? '发生未知错误，请稍后重试。');
   }
 
-  /**
-   * 显示通知
-   */
   private async showNotification(title: string, message: string): Promise<void> {
     if (!chrome.notifications?.create) {
       console.warn('通知 API 不可用。');

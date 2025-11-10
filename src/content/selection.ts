@@ -110,8 +110,7 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
 }
 
 /**
- * 提取选区的HTML内容
- * 优化:保留完整的富文本结构信息
+ * 提取选区的 HTML，保留富文本结构（使用 Range.cloneContents + innerHTML）
  */
 function extractSelectionHtml(selection: Selection | null): string | undefined {
   if (!selection || selection.rangeCount === 0) {
@@ -264,8 +263,7 @@ function isElementVisible(el: HTMLElement): boolean {
 }
 
 /**
- * 创建高亮 span 元素
- * 优化:简化样式,使用CSS变量统一管理颜色
+ * 创建高亮包裹元素；样式由 color-manager 的 CSS 规则统一管理，仅设置类名与数据属性
  */
 function createHighlightSpanElement(highlightId: string): HTMLSpanElement {
   const span = document.createElement('span');
@@ -283,8 +281,7 @@ type HighlightSegment = {
 };
 
 /**
- * 收集需要高亮的文本节点片段
- * 优化:正确处理富文本结构,跨元素高亮
+ * 收集高亮的文本节点片段（支持富文本结构与跨元素）
  */
 function collectHighlightSegments(range: Range): HighlightSegment[] {
   const segments: HighlightSegment[] = [];
@@ -352,8 +349,7 @@ function collectHighlightSegments(range: Range): HighlightSegment[] {
 }
 
 /**
- * 应用高亮到所有收集的文本片段
- * 优化:支持富文本结构,跨元素高亮
+ * 将高亮应用到文本片段；若直接包裹失败（跨元素等），退化为提取内容再包裹
  */
 function applyHighlightSegments(range: Range, highlightId: string): HTMLSpanElement[] {
   const segments = collectHighlightSegments(range);

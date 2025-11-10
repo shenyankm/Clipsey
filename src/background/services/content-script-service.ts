@@ -1,5 +1,4 @@
-// WXT 构建输出的内容脚本实际路径为 content-scripts/content.js（见 .output/chrome-mv3*/content-scripts/content.js）
-// 旧路径 'scripts/content.js' 会导致注入失败，从而在背景页抛出错误并出现“接收端不存在”等问题。
+// 内容脚本实际路径为 content-scripts/content.js（WXT 构建）；使用旧路径会导致注入失败并出现“接收端不存在”等错误。
 const CONTENT_SCRIPT_FILE = 'content-scripts/content.js';
 
 export type MessageResponse<T = unknown> = {
@@ -13,24 +12,16 @@ export type MessageResponse<T = unknown> = {
  * 注：WXT 框架会自动处理 content script 的注册，无需手动调用 registerContentScripts
  */
 export class ContentScriptService {
-  /**
-   * 注册内容脚本（仅用于向后兼容，WXT 会自动处理）
-   * @deprecated WXT 框架已自动处理 content script 注册，此方法仅保留以防意外
-   */
+  // 为兼容保留，通常无需调用
+  // @deprecated WXT 会自动注册 content script
   async registerContentScript(): Promise<void> {
-    // WXT 框架已自动处理 content script 注册
-    // 此方法保留以防在某些边缘情况下需要手动重新注册
     if (import.meta.env.DEV) {
-      console.log('[ContentScriptService] WXT handles content script registration automatically');
+      console.log('[ContentScriptService] WXT 自动注册内容脚本');
     }
-    // 不再执行手动注册逻辑
   }
 
   /**
-   * 注入内容脚本。
-   * 注意:由于内容脚本已通过 registerContentScript 注册,
-   * 此方法主要用于处理已经打开的标签页(扩展安装前)。
-   * 为防止重复注入,首先检测脚本是否已存在。
+   * 注入内容脚本：先探测是否已存在以避免重复；注入后短暂等待初始化；系统页错误按类型处理。
    */
   async injectContentScript(tabId: number): Promise<boolean> {
     // 首先检测内容脚本是否已经存在

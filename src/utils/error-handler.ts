@@ -1,6 +1,4 @@
-/**
- * 统一错误处理器 - 集中管理所有错误的捕获、日志和用户提示
- */
+/** 统一错误处理与用户提示（区分用户可读信息与原始错误） */
 
 export enum ErrorCode {
   NETWORK_ERROR = 'NETWORK_ERROR',
