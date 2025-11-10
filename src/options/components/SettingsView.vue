@@ -74,7 +74,6 @@
 import { onMounted, reactive, ref, watch } from 'vue';
 import ClipManager from './ClipManager.vue';
 import { readSettingsLocal, writeSettingsLocal } from '@/utils/settings-local';
-// Ant Design Vue 组件通过全局注册使用，无需逐一导入
 
 interface OptionsForm {
 
