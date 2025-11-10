@@ -1,11 +1,6 @@
-/**
- * URL标准化工具
- * 用于URL匹配和索引构建
- */
+/** URL 标准化：用于 URL 匹配与索引构建。 */
 
-/**
- * 标准化路径
- */
+/** 标准化路径：去除末尾斜杠并保留根路径。 */
 export function normalizePath(pathname: string): string {
   if (!pathname || pathname === '/') {
     return '/';
@@ -15,9 +10,7 @@ export function normalizePath(pathname: string): string {
   return trimmed || '/';
 }
 
-/**
- * 标准化查询参数
- */
+/** 标准化查询参数：排序键值并序列化为稳定字符串。 */
 export function normalizeSearch(search: string): string {
   if (!search || search === '?') {
     return '';
@@ -43,17 +36,12 @@ export function normalizeSearch(search: string): string {
   return serialized ? `?${serialized}` : '';
 }
 
-/**
- * 检查是否支持的协议
- */
+/** 协议校验：仅支持 http/https。 */
 export function isSupportedProtocol(protocol: string): boolean {
   return protocol === 'http:' || protocol === 'https:';
 }
 
-/**
- * 创建索引键
- * 返回用于匹配的URL键数组（包含和不包含查询参数）
- */
+/** 构建索引键：返回包含与不包含查询参数的 URL 键。 */
 export function createIndexKeys(url: string): string[] {
   let parsed: URL | null = null;
   try {

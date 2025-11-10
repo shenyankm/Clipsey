@@ -1,7 +1,4 @@
-/**
- * 基础设置迁移：从 IndexedDB(settings) 迁移到 chrome.storage.local
- * 在安装或启动阶段执行，确保用户无感知。
- */
+/** 设置迁移：将 IndexedDB(settings) 迁移到 chrome.storage.local，安装或启动阶段无感执行。 */
 import { indexedDBManager } from '@/background/indexeddb';
 import { settingsService } from '@/background/services/settings-service';
 import { SETTINGS_LOCAL_KEY, DEFAULT_SETTINGS } from '@/utils/settings-local';

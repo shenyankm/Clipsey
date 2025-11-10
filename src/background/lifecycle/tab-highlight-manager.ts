@@ -10,13 +10,10 @@ const HIGHLIGHT_MAX_ATTEMPTS = 8;
 const HIGHLIGHT_RETRY_DELAY_MS = 600;
 const HIGHLIGHT_INITIAL_DELAY_MS = 800;
 
-/**
- * 标签页高亮管理器
- * 负责在标签页加载时自动激活相关摘要的高亮
- */
+/** 标签页高亮：在页面加载完成后自动激活相关摘要的高亮。 */
 export class TabHighlightManager {
   /**
-   * 处理标签页更新事件
+   * 处理标签页更新事件。
    */
   async handleTabUpdate(tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab): Promise<void> {
     try {
@@ -32,9 +29,7 @@ export class TabHighlightManager {
     }
   }
 
-  /**
-   * 注册标签页更新监听器
-   */
+  /** 注册标签页更新监听器。 */
   registerListener(): void {
     const listener = (tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => {
       void this.handleTabUpdate(tabId, changeInfo, tab);
@@ -48,9 +43,7 @@ export class TabHighlightManager {
     });
   }
 
-  /**
-   * 激活页面高亮
-   */
+  /** 激活页面高亮。 */
   private async activatePageHighlights(tabId: number, url: string): Promise<void> {
     // 跳过不支持的URL
     if (!isSupportedHttpUrl(url)) {
@@ -86,9 +79,7 @@ export class TabHighlightManager {
     console.warn(`[Highlight] Failed to activate highlights after ${HIGHLIGHT_MAX_ATTEMPTS} attempts`);
   }
 
-  /**
-   * 尝试激活高亮
-   */
+  /** 尝试激活高亮。 */
   private async attemptActivateHighlights(tabId: number, highlights: HighlightPayload[]): Promise<boolean> {
     const sendHighlightRequest = async (): Promise<boolean> => {
       try {
@@ -138,9 +129,7 @@ export class TabHighlightManager {
     }
   }
 
-  /**
-   * 从Clips收集高亮载荷
-   */
+  /** 从剪辑集合收集高亮载荷。 */
   private collectHighlightPayloads(clips: Clip[]): HighlightPayload[] {
     const seen = new Set<string>();
     const highlights: HighlightPayload[] = [];

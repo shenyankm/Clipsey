@@ -7,10 +7,10 @@ const REQUEST_SELECTION_MAX_ATTEMPTS = 3;
 const REQUEST_SELECTION_RETRY_DELAY_MS = 200;
 const NOTIFICATION_ICON = chrome.runtime.getURL('assets/icon128.png');
 
-/** 处理右键菜单触发后的选区请求与保存（含系统页预检查、重试与通知） */
+/** 选区请求管理：右键触发后请求并保存选区，含系统页预检、重试与通知。 */
 export class SelectionRequestManager {
   /**
-   * 处理右键菜单点击事件
+   * 处理右键菜单点击事件。
    */
   async handleContextMenuClick(info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab): Promise<void> {
     if (!tab?.id) {
@@ -29,7 +29,7 @@ export class SelectionRequestManager {
   }
 
   /**
-   * 向content script请求选区内容
+   * 向 content script 请求选区内容。
    */
   private async requestSelection(tabId: number, attempt = 0): Promise<void> {
     // 在系统页/非 http(s) 页面直接提示并终止请求
@@ -90,7 +90,7 @@ export class SelectionRequestManager {
   }
 
   /**
-   * 处理选区请求响应
+   * 处理选区请求响应。
    */
   private handleSelectionResponse(response: MessageResponse<unknown> | undefined): void {
     if (!response) {

@@ -38,12 +38,7 @@ function normalizeSort(query: SearchQuery): { indexName?: string; direction: 'ne
   return { indexName, direction };
 }
 
-/**
- * 搜索服务
- * 提供分页搜索能力：
- * - 无关键词：直接按索引分页获取（更高性能）
- * - 有关键词：游标过滤匹配字段，跳过 offset，仅收集 pageSize 条，统计总匹配数
- */
+/** 搜索服务：支持索引分页与关键词过滤，优先无关键词走高效索引分页。 */
 export class SearchService {
   async search(query: SearchQuery): Promise<SearchResult> {
     const page = Math.max(1, (query.page ?? 1) | 0);

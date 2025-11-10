@@ -1,14 +1,9 @@
 import type { Clip } from '@/types/clip';
 
-/**
- * 数据变更监听器类型
- */
+/** 数据变更监听器类型。 */
 type ChangeListener = (changes: any, areaName: string) => void;
 
-/**
- * 同步管理器
- * 负责跨页面数据同步（使用BroadcastChannel）
- */
+/** 同步管理器：使用 BroadcastChannel 跨页面同步剪辑数据。 */
 export class SyncManager {
   private changeListeners: ChangeListener[] = [];
   private syncChannel: BroadcastChannel | null = null;
@@ -17,9 +12,7 @@ export class SyncManager {
     this.initSyncChannel();
   }
 
-  /**
-   * 初始化同步通道
-   */
+  /** 初始化同步通道。 */
   private initSyncChannel(): void {
     try {
       this.syncChannel = new BroadcastChannel('clipsey-storage-sync');
@@ -28,16 +21,12 @@ export class SyncManager {
     }
   }
 
-  /**
-   * 添加变更监听器
-   */
+  /** 添加变更监听器。 */
   addListener(callback: ChangeListener): void {
     this.changeListeners.push(callback);
   }
 
-  /**
-   * 移除变更监听器
-   */
+  /** 移除变更监听器。 */
   removeListener(callback: ChangeListener): void {
     const index = this.changeListeners.indexOf(callback);
     if (index > -1) {
@@ -45,9 +34,7 @@ export class SyncManager {
     }
   }
 
-  /**
-   * 通知数据变更
-   */
+  /** 通知数据变更并触发跨页面同步。 */
   notifyChange(oldValue: Clip[], newValue: Clip[]): void {
     const changes = {
       clips: {
@@ -86,9 +73,7 @@ export class SyncManager {
     this.broadcastChange(oldValue, newValue);
   }
 
-  /**
-   * 广播变更到其他页面
-   */
+  /** 广播变更到其他页面。 */
   private broadcastChange(oldValue: Clip[], newValue: Clip[]): void {
     if (!this.syncChannel) return;
 
@@ -108,9 +93,7 @@ export class SyncManager {
     }
   }
 
-  /**
-   * 关闭同步管理器
-   */
+  /** 关闭同步管理器并清理资源。 */
   close(): void {
     if (this.syncChannel) {
       this.syncChannel.close();

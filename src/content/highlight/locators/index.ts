@@ -14,19 +14,10 @@ export interface LocateOptions {
   contextAfter?: string;
 }
 
-/**
- * 多级定位策略管理器
- * 按优先级尝试不同的定位方法，使用第一个成功的结果
- * 
- * 优先级顺序：
- * 1. textOffset（最精确）
- * 2. anchorSelector（缩小搜索范围）
- * 3. context（上下文匹配）
- * 4. fulltext（全文搜索，后备方案）
- */
+/** 定位策略：按 textOffset → 选择器 → 上下文 → 全文 的优先级依次尝试并返回首个成功结果。 */
 export class LocationStrategy {
   /**
-   * 执行定位策略链
+   * 执行定位策略链。
    */
   static locate(options: LocateOptions): Range | null {
     const { text, textOffset, anchorSelector, contextBefore, contextAfter } = options;

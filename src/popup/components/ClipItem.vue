@@ -58,11 +58,7 @@ function toggleExpand(): void {
 }
 
 async function handleOpen(): Promise<void> {
-  /**
-   * 定位到剪辑在页面中的位置：通过后台消息在当前标签页中高亮并滚动到对应位置
-   * - 无来源链接时提示用户
-   * - 打开过程中显示 loading 状态
-   */
+  /** 定位剪辑：通过后台消息在当前页高亮并滚动到位置；无来源链接则提示，过程显示加载状态。 */
   if (opening.value) return;
   if (!props.clip.sourceUrl) {
     message.warning('暂无可用的来源链接');

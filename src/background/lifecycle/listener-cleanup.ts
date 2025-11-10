@@ -1,20 +1,13 @@
-/**
- * 监听器清理管理器
- * 防止内存泄漏,统一管理所有监听器的清理函数
- */
+/** 监听器清理：统一管理清理函数，防止内存泄漏。 */
 export class ListenerManager {
   private listeners: Set<() => void> = new Set();
 
-  /**
-   * 添加清理函数
-   */
+  /** 添加清理函数。 */
   addCleanup(cleanup: () => void): void {
     this.listeners.add(cleanup);
   }
 
-  /**
-   * 执行所有清理函数
-   */
+  /** 执行所有清理函数并清空注册。 */
   cleanup(): void {
     for (const cleanup of this.listeners) {
       try {
@@ -26,16 +19,12 @@ export class ListenerManager {
     this.listeners.clear();
   }
 
-  /**
-   * 移除特定的清理函数
-   */
+  /** 移除指定清理函数。 */
   removeCleanup(cleanup: () => void): void {
     this.listeners.delete(cleanup);
   }
 
-  /**
-   * 获取当前注册的清理函数数量
-   */
+  /** 获取当前清理函数数量。 */
   get size(): number {
     return this.listeners.size;
   }

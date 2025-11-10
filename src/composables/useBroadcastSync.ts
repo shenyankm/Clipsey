@@ -7,13 +7,7 @@ export interface SyncMessage {
   newCount?: number;
 }
 
-/**
- * BroadcastChannel同步组合式函数
- * 统一管理跨页面的数据同步逻辑
- * 
- * @param channelName - BroadcastChannel频道名称
- * @param onMessage - 接收到消息时的回调函数
- */
+/** 页面间同步：通过 BroadcastChannel 监听剪辑变更并回调处理。 */
 export function useBroadcastSync(
   channelName: string,
   onMessage: (data: SyncMessage) => void

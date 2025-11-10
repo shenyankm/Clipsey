@@ -1,13 +1,9 @@
 import { detectTopObstructionHeight, scheduleFallbackScrolls } from './viewport';
 
-/**
- * 滚动管理器
- * 负责将高亮范围滚动到可视区域
- */
+/** 滚动管理器：将高亮范围滚动至可视区域并考虑顶部遮挡。 */
 export class ScrollManager {
   /**
-   * 将指定的 Range 滚动到视口中
-   * 考虑页面顶部的固定元素（如导航栏）
+   * 滚动至视口：考虑顶部固定元素的遮挡（如导航栏）。
    */
   static scrollIntoView(range: Range): void {
     try {

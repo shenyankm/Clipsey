@@ -109,9 +109,7 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
   });
 }
 
-/**
- * 提取选区的 HTML，保留富文本结构（使用 Range.cloneContents + innerHTML）
- */
+/** 提取选区 HTML：使用 Range.cloneContents + innerHTML 保留富文本结构。 */
 function extractSelectionHtml(selection: Selection | null): string | undefined {
   if (!selection || selection.rangeCount === 0) {
     return undefined;

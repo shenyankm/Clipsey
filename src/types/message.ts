@@ -1,6 +1,4 @@
-/**
- * 消息类型定义 - 统一管理所有消息通信的类型
- */
+/** 消息类型：统一管理扩展内的消息通信类型。 */
 
 export interface MessageResponse<T = unknown> {
   success: boolean;

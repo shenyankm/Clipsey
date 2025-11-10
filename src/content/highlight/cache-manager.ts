@@ -1,7 +1,4 @@
-/**
- * 高亮缓存管理器
- * 负责管理高亮元素的内存引用、去重和清理
- */
+/** 高亮缓存：管理内存引用、去重与清理。 */
 export class HighlightCache {
   private activeSpans: Map<string, HTMLElement[]> = new Map();
   private readonly maxHighlights: number;
@@ -10,19 +7,14 @@ export class HighlightCache {
     this.maxHighlights = maxHighlights;
   }
 
-  /**
-   * 添加高亮元素到缓存
-   */
+  /** 添加高亮元素到缓存。 */
   add(id: string, spans: HTMLElement[]): void {
     if (spans.length > 0) {
       this.activeSpans.set(id, spans);
     }
   }
 
-  /**
-   * 检查高亮是否已存在
-   * 同时检查内存中的引用和 DOM 中的实际元素
-   */
+  /** 检查高亮是否已存在：同时校验内存引用与 DOM 实际元素。 */
   has(id: string): boolean {
     // 检查内存中是否已有
     if (this.activeSpans.has(id)) {
@@ -48,9 +40,7 @@ export class HighlightCache {
     return false;
   }
 
-  /**
-   * 移除指定高亮
-   */
+  /** 移除指定高亮。 */
   remove(id: string): boolean {
     const spans = this.activeSpans.get(id);
     if (!spans) return false;
@@ -62,9 +52,7 @@ export class HighlightCache {
     return true;
   }
 
-  /**
-   * 清空所有高亮
-   */
+  /** 清空所有高亮。 */
   clear(): void {
     for (const spans of this.activeSpans.values()) {
       for (const span of spans) {
@@ -74,16 +62,12 @@ export class HighlightCache {
     this.activeSpans.clear();
   }
 
-  /**
-   * 检查是否需要清理旧高亮
-   */
+  /** 是否需要清理旧高亮。 */
   shouldCleanup(): boolean {
     return this.activeSpans.size >= this.maxHighlights;
   }
 
-  /**
-   * 清理最旧的高亮（FIFO策略）
-   */
+  /** 清理最旧高亮：按 FIFO 删除指定数量。 */
   cleanupOldest(count: number): void {
     const keys = Array.from(this.activeSpans.keys());
     const toRemove = keys.slice(0, count);
@@ -93,16 +77,12 @@ export class HighlightCache {
     }
   }
 
-  /**
-   * 获取当前高亮数量
-   */
+  /** 获取当前高亮数量。 */
   size(): number {
     return this.activeSpans.size;
   }
 
-  /**
-   * 从 DOM 中移除高亮元素
-   */
+  /** 从 DOM 中移除高亮元素。 */
   private removeSpanFromDOM(span: HTMLElement): void {
     try {
       const parent = span.parentNode;
@@ -116,9 +96,7 @@ export class HighlightCache {
     }
   }
 
-  /**
-   * CSS 选择器转义
-   */
+  /** CSS 选择器转义。 */
   private escapeCssSelector(str: string): string {
     return str.replace(/[!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~]/g, '\\$&');
   }
