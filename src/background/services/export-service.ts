@@ -3,14 +3,9 @@ import type { ErrorLogRecord } from '@/types/indexeddb';
 import { indexedDBManager } from '@/background/indexeddb';
 import { IndexedDBQuery } from '@/background/indexeddb-query';
 
-/**
- * 导入导出服务
- * 负责数据的备份和恢复
- */
+/** 导入导出服务：负责数据备份与恢复。 */
 export class ExportService {
-  /**
-   * 导出所有数据（用于备份）
-   */
+  /** 导出所有数据（用于备份）。 */
   async exportAll(): Promise<{
     clips: Clip[];
     errorLogs: ErrorLogRecord[];
@@ -31,9 +26,7 @@ export class ExportService {
     };
   }
 
-  /**
-   * 导入数据（用于恢复备份）
-   */
+  /** 导入数据（用于恢复备份）。 */
   async importAll(data: {
     clips?: Clip[];
     errorLogs?: ErrorLogRecord[];
@@ -68,9 +61,7 @@ export class ExportService {
     return { clipsImported, errorLogsImported };
   }
 
-  /**
-   * 获取错误日志列表
-   */
+  /** 获取错误日志列表。 */
   async getErrorLogs(options: {
     limit?: number;
     offset?: number;
@@ -85,9 +76,7 @@ export class ExportService {
     });
   }
 
-  /**
-   * 清空错误日志
-   */
+  /** 清空错误日志。 */
   async clearErrorLogs(): Promise<void> {
     await indexedDBManager.init();
     await indexedDBManager.clear('errorLogs');

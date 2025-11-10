@@ -77,9 +77,7 @@ export async function handleOpenClip(clipId?: string): Promise<void> {
   }
 }
 
-/**
- * 比较协议、主机名与路径判断是否同一页面
- */
+/** 比较协议、主机名与路径，判断是否同一页面。 */
 function isSamePageUrl(url1: string, url2: string): boolean {
   try {
     const parsed1 = new URL(url1);

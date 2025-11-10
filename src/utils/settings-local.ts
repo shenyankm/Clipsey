@@ -1,10 +1,4 @@
-/**
- * 基础设置本地存储服务（chrome.storage.local）
- * 目标：
- * - 统一管理设置项的读/写/监听
- * - 保持与内容脚本、选项页、背景页的一致接口
- * - 提供默认值与错误回退
- */
+/** 设置本地存储：统一读/写/监听接口，提供默认值与错误回退（基于 chrome.storage.local）。 */
 
 export type LanguageOption = 'zh-CN' | 'zh-TW' | 'en-US';
 export type HighlightColorScheme = 'amber' | 'green' | 'blue';
@@ -27,9 +21,7 @@ export const DEFAULT_SETTINGS: SettingsOptions = {
   schemaVersion: 1
 };
 
-/**
- * 读取基础设置（带默认值与错误回退）
- */
+/** 读取设置：带默认值与错误回退。 */
 export async function readSettingsLocal(): Promise<SettingsOptions> {
   try {
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
@@ -43,9 +35,7 @@ export async function readSettingsLocal(): Promise<SettingsOptions> {
   return { ...DEFAULT_SETTINGS };
 }
 
-/**
- * 写入基础设置（全量或部分覆盖），自动合并默认值
- */
+/** 写入设置：支持部分覆盖并自动合并默认值。 */
 export async function writeSettingsLocal(partial: Partial<SettingsOptions>): Promise<void> {
   try {
     const current = await readSettingsLocal();
@@ -58,9 +48,7 @@ export async function writeSettingsLocal(partial: Partial<SettingsOptions>): Pro
   }
 }
 
-/**
- * 监听设置变化（仅监听 chrome.storage.local 区域）
- */
+/** 监听设置变化：仅监听 chrome.storage.local 区域。 */
 export function watchSettingsLocal(
   listener: (newValue: SettingsOptions, oldValue?: SettingsOptions) => void
 ): () => void {
@@ -97,9 +85,7 @@ export function watchSettingsLocal(
   };
 }
 
-/**
- * 合并默认值并保证结构完整
- */
+/** 合并默认值：保证设置结构完整。 */
 function mergeWithDefaults(raw?: Partial<SettingsOptions>): SettingsOptions {
   const base = { ...DEFAULT_SETTINGS };
   if (!raw) return base;

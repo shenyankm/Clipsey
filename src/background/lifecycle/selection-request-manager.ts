@@ -9,9 +9,7 @@ const NOTIFICATION_ICON = chrome.runtime.getURL('assets/icon128.png');
 
 /** 选区请求管理：右键触发后请求并保存选区，含系统页预检、重试与通知。 */
 export class SelectionRequestManager {
-  /**
-   * 处理右键菜单点击事件。
-   */
+  /** 处理右键菜单点击事件。 */
   async handleContextMenuClick(info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab): Promise<void> {
     if (!tab?.id) {
       return;
@@ -28,9 +26,7 @@ export class SelectionRequestManager {
     });
   }
 
-  /**
-   * 向 content script 请求选区内容。
-   */
+  /** 请求选区内容：向内容脚本发送消息，含重试与注入处理。 */
   private async requestSelection(tabId: number, attempt = 0): Promise<void> {
     // 在系统页/非 http(s) 页面直接提示并终止请求
     try {
@@ -89,9 +85,7 @@ export class SelectionRequestManager {
     }
   }
 
-  /**
-   * 处理选区请求响应。
-   */
+  /** 处理选区请求响应。 */
   private handleSelectionResponse(response: MessageResponse<unknown> | undefined): void {
     if (!response) {
       void this.showNotification('保存失败', '发生未知错误，请稍后重试。');

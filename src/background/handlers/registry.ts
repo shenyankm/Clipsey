@@ -14,37 +14,27 @@ import {
   isImportDataPayload
 } from './middleware/validator';
 
-/**
- * 消息处理器类型定义
- */
+/** 消息处理器类型定义。 */
 type MessageHandler = (
   message: AppMessage,
   sender: chrome.runtime.MessageSender
 ) => Promise<MessageResponse>;
 
-/**
- * 消息处理器注册表
- */
+/** 消息处理器注册表。 */
 class HandlerRegistry {
   private handlers = new Map<string, MessageHandler>();
 
-  /**
-   * 注册消息处理器
-   */
+  /** 注册消息处理器。 */
   register(type: string, handler: MessageHandler): void {
     this.handlers.set(type, handler);
   }
 
-  /**
-   * 获取消息处理器
-   */
+  /** 获取消息处理器。 */
   get(type: string): MessageHandler | undefined {
     return this.handlers.get(type);
   }
 
-  /**
-   * 检查是否存在处理器
-   */
+  /** 检查是否存在处理器。 */
   has(type: string): boolean {
     return this.handlers.has(type);
   }

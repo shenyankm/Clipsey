@@ -1,9 +1,6 @@
 import { createTextNodeWalker } from '../dom-utils';
 
-/**
- * 基于文档偏移量定位文本范围
- * 这是最精确的定位方式
- */
+/** 基于文档偏移量定位文本范围（精确定位）。 */
 export function locateByOffset(offset: number, length: number): Range | null {
   try {
     let remaining = offset;

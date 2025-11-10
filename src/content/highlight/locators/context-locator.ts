@@ -1,9 +1,6 @@
 import { createTextNodeWalker } from '../dom-utils';
 
-/**
- * 通过上下文匹配查找文本范围
- * 用于提高富文本结构中的定位精度
- */
+/** 通过上下文匹配查找文本范围，提高富文本中的定位精度。 */
 export function locateByContext(
   text: string,
   contextBefore?: string,
