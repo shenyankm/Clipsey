@@ -3,7 +3,7 @@ import { ErrorHandler } from '@/utils/error-handler';
 const CONTEXT_MENU_ID = 'clipsey-context-menu';
 const SUPPORTED_DOCUMENT_URL_PATTERNS = ['http://*/*', 'https://*/*'];
 
-/** �����Ҽ��˵������������ݾɰ���� ID �������� */
+/** 管理右键菜单并暴露菜单 ID 等辅助方法 */
 export class ContextMenuManager {
   async create(): Promise<void> {
     await this.cleanupLegacyMenus();
@@ -37,7 +37,7 @@ export class ContextMenuManager {
     chrome.contextMenus.create(
       {
         id: CONTEXT_MENU_ID,
-        title: '���浱ǰѡ������',
+        title: '保存当前选中内容',
         contexts: ['selection'],
         documentUrlPatterns: SUPPORTED_DOCUMENT_URL_PATTERNS
       },
@@ -52,5 +52,5 @@ export class ContextMenuManager {
   }
 }
 
-// ��������ʵ��
+// 导出单例
 export const contextMenuManager = new ContextMenuManager();
