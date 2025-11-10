@@ -1,10 +1,6 @@
 import type { AppMessage, MessageResponse } from '@/types/message';
 
-/**
- * 通用的 runtime 消息发送封装
- * @param message 任意消息对象
- * @returns Promise包裹的响应
- */
+// 封装 runtime 消息发送，统一错误处理
 export function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> {
   return new Promise((resolve, reject) => {
     try {
@@ -21,28 +17,17 @@ export function sendMessage<TResponse = unknown>(message: unknown): Promise<TRes
   });
 }
 
-/**
- * 检查是否在 Chrome 扩展环境中
- */
+// 判断是否运行于 Chrome 扩展环境
 export function isChromeExtensionEnv(): boolean {
   return typeof chrome !== 'undefined' && typeof chrome.runtime !== 'undefined';
 }
 
-/**
- * 类型安全的 runtime 消息发送封装
- * @param message 应用消息对象
- * @returns Promise<MessageResponse<TData>>
- */
+// 类型安全的 runtime 消息发送
 export function sendRuntimeMessage<TData = unknown>(message: AppMessage): Promise<MessageResponse<TData>> {
   return sendMessage<MessageResponse<TData>>(message);
 }
 
-/**
- * 类型安全的 tab 消息发送封装
- * @param tabId 标签页ID
- * @param message 应用消息对象
- * @returns Promise<MessageResponse<TData>>
- */
+// 向指定标签页发送应用消息（统一错误处理）
 export function sendTabMessage<TData = unknown>(tabId: number, message: AppMessage): Promise<MessageResponse<TData>> {
   return new Promise((resolve, reject) => {
     try {

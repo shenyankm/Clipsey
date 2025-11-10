@@ -3,13 +3,9 @@ import { IndexedDBQuery } from './indexeddb-query';
 import { getStorageStats } from './storage';
 import type { Clip } from '@/types/clip';
 
-/**
- * 开发工具类，提供调试和测试功能
- */
+// 开发工具：提供调试与测试辅助
 export class DevTools {
-  /**
-   * 在控制台中暴露开发工具
-   */
+  // 在控制台暴露 ClipseyDevTools（开发调试用）
   static exposeToConsole(): void {
     if (typeof window !== 'undefined') {
       (window as any).ClipseyDevTools = {
@@ -46,9 +42,7 @@ export class DevTools {
     }
   }
 
-  /**
-   * 生成测试clips
-   */
+  // 生成测试 Clips 数据
   static async generateTestClips(count: number): Promise<Clip[]> {
     const clips: Clip[] = [];
     const domains = ['example.com', 'test.org', 'demo.net', 'sample.io'];
@@ -72,9 +66,7 @@ export class DevTools {
     return clips;
   }
 
-  /**
-   * 生成大量测试数据
-   */
+  // 生成大量测试数据（分批写入）
   static async generateBulkTestData(count: number): Promise<void> {
     console.log(`🔄 Generating ${count} test clips...`);
     
@@ -90,9 +82,7 @@ export class DevTools {
     console.log(`✅ Generated ${count} test clips successfully`);
   }
 
-  /**
-   * 获取调试信息
-  */
+  // 获取调试信息快照
   static async getDebugInfo(): Promise<object> {
     try {
       const stats = await getStorageStats();
@@ -117,9 +107,7 @@ export class DevTools {
     }
   }
 
-  /**
-   * 性能测量
-   */
+  // 简单性能测量：写入/读取/索引查询/计数
   static async measurePerformance(): Promise<object> {
     console.log('📊 Measuring performance...');
     
@@ -163,9 +151,7 @@ export class DevTools {
     return results;
   }
 
-  /**
-   * 存储分析
-   */
+  // 存储分析：URL/域名分布与内容长度统计
   static async analyzeStorage(): Promise<object> {
     try {
       const stats = await getStorageStats();
@@ -214,9 +200,7 @@ export class DevTools {
     }
   }
 
-  /**
-   * 重置所有数据
-   */
+  // 重置所有数据（清空 clips/settings/metadata）
   static async resetAllData(): Promise<void> {
     console.log('🗑️ Resetting all data...');
     

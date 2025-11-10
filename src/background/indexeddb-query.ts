@@ -7,13 +7,8 @@ import {
   type TransactionMode
 } from '@/types/indexeddb';
 
-/**
- * IndexedDB 高级查询和批量操作
- */
+// IndexedDB 查询与批量操作封装
 export class IndexedDBQuery {
-  /**
-   * 查询所有记录
-   */
   static async getAll<K extends keyof DBSchema>(
     storeName: K,
     options: QueryOptions = {}
@@ -52,14 +47,14 @@ export class IndexedDBQuery {
               return;
             }
 
-            // 跳过 offset 数量的记录
+            // 跳过 offset 指定数量的记录
             if (skipped < offset) {
               skipped++;
               cursor.continue();
               return;
             }
 
-            // 检查是否达到限制
+            // 到达 limit 限制时结束
             if (limit && count >= limit) {
               resolve(results);
               return;
@@ -82,9 +77,6 @@ export class IndexedDBQuery {
     );
   }
 
-  /**
-   * 根据索引查询记录
-   */
   static async getByIndex<K extends keyof DBSchema>(
     storeName: K,
     indexName: string,
@@ -98,9 +90,6 @@ export class IndexedDBQuery {
     });
   }
 
-  /**
-   * 分页查询
-   */
   static async paginate<K extends keyof DBSchema>(
     storeName: K,
     page: number,
@@ -134,9 +123,6 @@ export class IndexedDBQuery {
     };
   }
 
-  /**
-   * 批量添加记录
-   */
   static async bulkAdd<K extends keyof DBSchema>(
     storeName: K,
     records: DBSchema[K]['value'][],
@@ -146,7 +132,7 @@ export class IndexedDBQuery {
     const results: DBSchema[K]['key'][] = [];
     const errors: Error[] = [];
 
-    // 分批处理
+    // 分批处理，尽量避免单事务数据量过大
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
       
@@ -171,9 +157,6 @@ export class IndexedDBQuery {
     return results;
   }
 
-  /**
-   * 批量更新记录
-   */
   static async bulkPut<K extends keyof DBSchema>(
     storeName: K,
     records: DBSchema[K]['value'][],
@@ -207,9 +190,6 @@ export class IndexedDBQuery {
     return results;
   }
 
-  /**
-   * 批量删除记录
-   */
   static async bulkDelete<K extends keyof DBSchema>(
     storeName: K,
     keys: DBSchema[K]['key'][],
@@ -234,9 +214,6 @@ export class IndexedDBQuery {
     }
   }
 
-  /**
-   * 处理批量操作
-   */
   private static async processBatch<K extends keyof DBSchema>(
     storeName: K,
     records: DBSchema[K]['value'][],
@@ -284,9 +261,6 @@ export class IndexedDBQuery {
     );
   }
 
-  /**
-   * 处理批量删除
-   */
   private static async deleteBatch<K extends keyof DBSchema>(
     storeName: K,
     keys: DBSchema[K]['key'][],
@@ -331,9 +305,6 @@ export class IndexedDBQuery {
     );
   }
 
-  /**
-   * 范围查询
-   */
   static async getRange<K extends keyof DBSchema>(
     storeName: K,
     range: IDBKeyRange,
@@ -345,9 +316,6 @@ export class IndexedDBQuery {
     });
   }
 
-  /**
-   * 创建键范围
-   */
   static createRange(
     lower?: IDBValidKey,
     upper?: IDBValidKey,
@@ -365,9 +333,6 @@ export class IndexedDBQuery {
     }
   }
 
-  /**
-   * 搜索记录（模糊匹配）
-   */
   static async search<K extends keyof DBSchema>(
     storeName: K,
     searchTerm: string,
@@ -388,9 +353,6 @@ export class IndexedDBQuery {
     });
   }
 
-  /**
-   * 获取唯一值
-   */
   static async getDistinct<K extends keyof DBSchema>(
     storeName: K,
     field: keyof DBSchema[K]['value'],

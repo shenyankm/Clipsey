@@ -9,9 +9,7 @@ import {
   type StoreConfig
 } from '@/types/indexeddb';
 
-/**
- * IndexedDB 操作层基础封装
- */
+// IndexedDB 操作层：连接、升级、事务与基础 CRUD 封装
 export class IndexedDB {
   private db: IDBDatabase | null = null;
   private dbPromise: Promise<IDBDatabase> | null = null;
@@ -26,23 +24,14 @@ export class IndexedDB {
     return instance;
   }
 
-  /**
-   * 检查数据库是否已初始化
-   */
   isInitialized(): boolean {
     return this.db !== null;
   }
 
-  /**
-   * 公开的初始化方法
-   */
   async init(): Promise<void> {
     await this.initializeDB();
   }
 
-  /**
-   * 初始化数据库连接
-   */
   private async initializeDB(): Promise<void> {
     if (this.dbPromise) {
       return this.dbPromise.then(() => {});
@@ -52,9 +41,7 @@ export class IndexedDB {
     await this.dbPromise;
   }
 
-  /**
-   * 打开数据库
-   */
+  // 打开数据库并处理版本升级
   private openDatabase(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_CONFIG.name, DB_CONFIG.version);
@@ -76,9 +63,7 @@ export class IndexedDB {
     });
   }
 
-  /**
-   * 数据库升级处理
-   */
+  // 升级时删除配置外旧 store，并按 STORE_CONFIGS 重建索引结构
   private upgradeDatabase(db: IDBDatabase, oldVersion: number, newVersion: number): void {
     console.log(`Upgrading database from version ${oldVersion} to ${newVersion}`);
 
@@ -96,9 +81,7 @@ export class IndexedDB {
     });
   }
 
-  /**
-   * 创建 Object Store
-   */
+  // 确保 store 结构与配置一致：如已存在则删除后重建索引
   private createObjectStore(db: IDBDatabase, config: StoreConfig): void {
     // 如果 store 已存在，先删除
     if (db.objectStoreNames.contains(config.name)) {
@@ -123,9 +106,7 @@ export class IndexedDB {
     console.log(`Created object store: ${config.name} with ${config.indexes.length} indexes`);
   }
 
-  /**
-   * 设置错误处理器
-   */
+  // 数据库错误与版本变更的统一处理
   private setupErrorHandlers(): void {
     if (!this.db) return;
 
@@ -141,9 +122,6 @@ export class IndexedDB {
     };
   }
 
-  /**
-   * 获取数据库实例
-   */
   private async getDB(): Promise<IDBDatabase> {
     if (this.db && this.db.version === DB_CONFIG.version) {
       return this.db;
@@ -156,9 +134,6 @@ export class IndexedDB {
     return this.dbPromise;
   }
 
-  /**
-   * 创建事务
-   */
   private async createTransaction(
     storeNames: string | string[],
     mode: TransactionMode = 'readonly'
@@ -183,9 +158,7 @@ export class IndexedDB {
     });
   }
 
-  /**
-   * 执行事务操作
-   */
+  // 统一事务包装：执行操作并等待 oncomplete，发生异常时主动 abort
   async executeTransaction<T>(
     storeNames: string | string[],
     mode: TransactionMode,
@@ -210,9 +183,6 @@ export class IndexedDB {
     }
   }
 
-  /**
-   * 添加单条记录
-   */
   async add<K extends keyof DBSchema>(
     storeName: K,
     data: DBSchema[K]['value']
@@ -238,9 +208,6 @@ export class IndexedDB {
     });
   }
 
-  /**
-   * 更新或添加记录
-   */
   async put<K extends keyof DBSchema>(
     storeName: K,
     data: DBSchema[K]['value']
@@ -266,9 +233,6 @@ export class IndexedDB {
     });
   }
 
-  /**
-   * 获取单条记录
-   */
   async get<K extends keyof DBSchema>(
     storeName: K,
     key: DBSchema[K]['key']
@@ -294,9 +258,6 @@ export class IndexedDB {
     });
   }
 
-  /**
-   * 删除记录
-   */
   async delete<K extends keyof DBSchema>(
     storeName: K,
     key: DBSchema[K]['key']
@@ -322,9 +283,6 @@ export class IndexedDB {
     });
   }
 
-  /**
-   * 清空 object store
-   */
   async clear<K extends keyof DBSchema>(storeName: K): Promise<void> {
     return this.executeTransaction(storeName as string, 'readwrite', async (transaction) => {
       const store = transaction.objectStore(storeName as string);
@@ -347,9 +305,6 @@ export class IndexedDB {
     });
   }
 
-  /**
-   * 获取记录数量
-   */
   async count<K extends keyof DBSchema>(
     storeName: K,
     query?: IDBValidKey | IDBKeyRange
@@ -375,9 +330,7 @@ export class IndexedDB {
     });
   }
 
-  /**
-   * 关闭数据库连接
-   */
+  // 关闭数据库连接
   close(): void {
     if (this.db) {
       this.db.close();
@@ -386,17 +339,13 @@ export class IndexedDB {
     }
   }
 
-  /**
-   * 删除数据库（实例方法）
-   */
+  // 删除数据库（实例）
   async deleteDatabase(): Promise<void> {
     this.close();
     return IndexedDB.deleteDatabase();
   }
 
-  /**
-   * 删除数据库（静态方法）
-   */
+  // 删除数据库（静态）
   static async deleteDatabase(): Promise<void> {
     return new Promise((resolve, reject) => {
       const request = indexedDB.deleteDatabase(DB_CONFIG.name);
@@ -411,9 +360,6 @@ export class IndexedDB {
     });
   }
 
-  /**
-   * 获取所有记录
-   */
   async getAllData<K extends keyof DBSchema>(
     storeName: K,
     query?: IDBValidKey | IDBKeyRange
@@ -439,9 +385,6 @@ export class IndexedDB {
     });
   }
 
-  /**
-   * 删除记录
-   */
   async deleteData<K extends keyof DBSchema>(
     storeName: K,
     key: DBSchema[K]['key']
