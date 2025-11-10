@@ -8,7 +8,7 @@ export default defineConfig({
   manifest: {
     name: 'Clipsey',
     short_name: 'Clipsey',
-    description: 'Clipsey 是一款轻量的网页摘录与高亮工具,支持选中内容保存、来源定位、颜色标注、弹窗检索与管理。',
+    description: '一款轻量级网页摘录与高亮工具，支持选中内容保存、自动记录来源、多色标注与快捷检索，助你高效整理信息。',
     version: '1.0.0',
     permissions: [
       'contextMenus',
