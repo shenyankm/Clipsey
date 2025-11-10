@@ -5,7 +5,7 @@ import type { MessageResponse } from '@/types/message';
 
 const REQUEST_SELECTION_MAX_ATTEMPTS = 3;
 const REQUEST_SELECTION_RETRY_DELAY_MS = 200;
-const NOTIFICATION_ICON = chrome.runtime.getURL('assets/icon128.png');
+const NOTIFICATION_ICON = chrome.runtime.getURL('icon128.png');
 
 /** 选区请求管理：右键触发后请求并保存选区，含系统页预检、重试与通知。 */
 export class SelectionRequestManager {
