@@ -1,5 +1,6 @@
 <template>
-  <a-card size="small" hoverable @click="toggleExpand" style="cursor: pointer;">
+  <!-- 移除 hover 阴影以实现更扁平化的视觉效果 -->
+  <a-card size="small" @click="toggleExpand" style="cursor: pointer;">
     <a-space direction="vertical" style="width: 100%;" :size="8">
       <!-- 摘要内容 -->
       <template v-if="hasSummary">
@@ -87,6 +88,15 @@ async function handleOpen(): Promise<void> {
 </script>
 
 <style scoped>
+/* 卡片扁平化：确保无阴影（包括悬停态） */
+:deep(.ant-card) {
+  box-shadow: none !important;
+}
+
+:deep(.ant-card-hoverable:hover) {
+  box-shadow: none !important;
+}
+
 .summary-content {
   word-break: break-word;
   line-height: 1.6;
