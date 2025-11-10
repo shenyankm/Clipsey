@@ -128,8 +128,8 @@ const texts = {
 
     autoHighlightPageSummary: '页面摘要自动高亮',
     autoHighlightPageSummaryDescription: '自动高亮页面中的摘要内容',
-    autoLocateFirstSummary: '自动定位首个摘要位置',
-    autoLocateFirstSummaryDescription: '页面加载后自动滚动到第一个摘要位置',
+    autoLocateFirstSummary: '定位末端摘要',
+    autoLocateFirstSummaryDescription: '自动定位到页面中存在的最后一个摘要位置',
 
   
   contentManagerTitle: '内容管理',

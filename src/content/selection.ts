@@ -1,10 +1,12 @@
 import type { Clip } from '@/types/clip';
 import { HighlightEngine } from '@/content/highlight-engine';
-import { ensureHighlightColorsReady, HIGHLIGHT_INLINE_CLASS } from '@/content/color-manager';
+import { ensureHighlightColorsReady, HIGHLIGHT_INLINE_CLASS, HIGHLIGHT_OVERLAY_CLASS } from '@/content/color-manager';
 import { clearUnderlines } from '@/content/highlight/underline';
 import { captureHighlightMetadata } from '@/content/highlight/metadata';
 import type { MessageResponse } from '@/types/message';
 import { ErrorHandler } from '@/utils/error-handler';
+import type { SettingsOptions } from '@/utils/settings-local';
+import { ScrollManager } from '@/content/highlight/scroll-manager';
 
 // 在内容脚本环境内联消息发送函数，避免打包为外部 ESM 导入
 function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> {
@@ -54,6 +56,7 @@ type RemoteHighlight = {
 const INLINE_HIGHLIGHT_CLASS = HIGHLIGHT_INLINE_CLASS;
 
 const __engine = new HighlightEngine();
+let __autoLocatePerformed = false;
 
 if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
   window.__PAGE_CLIPPER_CONTENT_INITIALIZED__ = true;
@@ -82,7 +85,14 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
         const remoteHighlights = normalizeIncomingHighlights(message?.payload);
         void __engine
           .activateHighlights(remoteHighlights)
-          .then(success => sendResponse({ success } satisfies MessageResponse))
+          .then(async success => {
+            sendResponse({ success } satisfies MessageResponse);
+            try {
+              await tryAutoLocateLastSummaryIfEnabled(success);
+            } catch {
+              // 忽略自动定位中的任何错误，避免影响主流程
+            }
+          })
           .catch(error => {
             const msg = ErrorHandler.getErrorMessage(error);
             void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'ACTIVATE_HIGHLIGHTS in content script' } });
@@ -189,6 +199,59 @@ function generateHighlightId(): string {
   }
 
   return 'highlight-' + Math.random().toString(36).slice(2, 11);
+}
+
+/**
+ * 根据设置项在高亮激活后自动定位到“最后一个摘要位置”
+ */
+async function tryAutoLocateLastSummaryIfEnabled(success: boolean): Promise<void> {
+  if (!success) return;
+  if (__autoLocatePerformed) return;
+
+  // 读取设置项
+  let settings: SettingsOptions | undefined;
+  try {
+    settings = await sendMessage<SettingsOptions>({ type: 'REQUEST_SETTINGS' });
+  } catch {
+    // 读取失败时使用默认策略：不自动定位
+    return;
+  }
+
+  if (!settings?.autoLocateFirstSummary) return;
+
+  // 收集所有可能的摘要高亮元素（内联与覆盖）
+  const inlineNodes = Array.from(document.querySelectorAll<HTMLElement>(`.${HIGHLIGHT_INLINE_CLASS}`));
+  const overlayNodes = Array.from(document.querySelectorAll<HTMLElement>(`.${HIGHLIGHT_OVERLAY_CLASS}`));
+  const candidates = [...inlineNodes, ...overlayNodes].filter(el => isElementVisible(el));
+
+  if (!candidates.length) return;
+
+  // 选择页面中位置最靠后的元素（以视口中的 top 坐标为排序依据）
+  const sorted = candidates
+    .map(el => ({ el, rect: el.getBoundingClientRect() }))
+    .sort((a, b) => a.rect.top - b.rect.top);
+
+  const last = sorted[sorted.length - 1]?.el;
+  if (!last) return;
+
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(last);
+    ScrollManager.scrollIntoView(range);
+    __autoLocatePerformed = true;
+  } catch {
+    // 忽略滚动错误
+  }
+}
+
+function isElementVisible(el: HTMLElement): boolean {
+  if (!el.isConnected) return false;
+  const style = window.getComputedStyle(el);
+  if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity || '1') === 0) {
+    return false;
+  }
+  const rect = el.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
 }
 
 /**
