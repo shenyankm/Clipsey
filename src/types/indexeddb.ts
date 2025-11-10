@@ -3,7 +3,7 @@ import type { Clip } from './clip';
 // IndexedDB 数据库配置
 export const DB_CONFIG = {
   name: 'ClipseyDB',
-  version: 2, // 升级版本以添加 errorLogs store
+  version: 2,
   stores: {
     clips: 'clips',
     settings: 'settings',
