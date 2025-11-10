@@ -12,9 +12,7 @@ const HIGHLIGHT_INITIAL_DELAY_MS = 800;
 
 /** 标签页高亮：在页面加载完成后自动激活相关摘要的高亮。 */
 export class TabHighlightManager {
-  /**
-   * 处理标签页更新事件。
-   */
+  /** 处理标签页更新事件。 */
   async handleTabUpdate(tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab): Promise<void> {
     try {
       const url = tab?.url;

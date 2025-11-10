@@ -178,9 +178,7 @@ function clipHasRichContent(clip: Clip): boolean {
 
 
 function getDomainFromUrl(url: string | undefined): string {
-  /**
-   * 从 URL 提取顶级域名（去掉 www 前缀），用于在表格中展示来源站点
-   */
+  /** 从URL提取顶级域名（去掉www前缀），用于表格展示来源站点。 */
   if (!url) {
     return '';
   }
@@ -213,9 +211,7 @@ watch(currentPage, () => {
   void performSearch(currentPage.value, pageSize);
 });
 
-/**
- * 刷新Clips列表
- */
+/** 刷新摘抄列表。 */
 async function refreshClips(showMessage = true) {
   await performSearch(currentPage.value, pageSize);
   if (showMessage) {
@@ -223,9 +219,7 @@ async function refreshClips(showMessage = true) {
   }
 }
 
-/**
- * 删除Clip
- */
+/** 删除摘抄。 */
 async function deleteClip(id: string) {
   const success = await deleteClipAction(id);
   if (success) {
@@ -234,17 +228,13 @@ async function deleteClip(id: string) {
   }
 }
 
-/**
- * 打开Clip详情弹窗
- */
+/** 打开摘抄详情弹窗。 */
 function openClipDetail(clip: Clip) {
   selectedClip.value = clip;
   showModal.value = true;
 }
 
-/**
- * 初始化组件
- */
+/** 初始化组件并执行首次搜索。 */
 onMounted(() => {
   void performSearch(currentPage.value, pageSize);
 });
