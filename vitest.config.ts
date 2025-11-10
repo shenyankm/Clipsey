@@ -29,6 +29,5 @@ export default defineConfig({
       ]
     }
   },
-  // 复用 WXT 的 Vite 配置
   ...wxtConfig.vite?.()
 });
