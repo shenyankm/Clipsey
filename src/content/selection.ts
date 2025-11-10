@@ -1,7 +1,6 @@
 import type { Clip } from '@/types/clip';
 import { HighlightEngine } from '@/content/highlight-engine';
 import { ensureHighlightColorsReady, HIGHLIGHT_INLINE_CLASS, HIGHLIGHT_OVERLAY_CLASS } from '@/content/color-manager';
-import { clearUnderlines } from '@/content/highlight/underline';
 import { captureHighlightMetadata } from '@/content/highlight/metadata';
 import type { MessageResponse } from '@/types/message';
 import { ErrorHandler } from '@/utils/error-handler';
@@ -171,7 +170,6 @@ function handleRequestSelection(
   }
 
   selection.removeAllRanges();
-  clearUnderlines();
 
   const metadata = captureHighlightMetadata(metadataRange, highlightSpan, highlightId);
 
