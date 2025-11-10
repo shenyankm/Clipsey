@@ -207,9 +207,7 @@ function generateHighlightId(): string {
   return 'highlight-' + Math.random().toString(36).slice(2, 11);
 }
 
-/**
- * 根据设置项在高亮激活后自动定位到“最后一个摘要位置”
- */
+/** 自动定位：高亮激活后根据设置跳转到最后一个摘要位置。 */
 async function tryAutoLocateLastSummaryIfEnabled(success: boolean): Promise<void> {
   if (!success) return;
   if (__autoLocatePerformed) return;
@@ -260,9 +258,7 @@ function isElementVisible(el: HTMLElement): boolean {
   return rect.width > 0 && rect.height > 0;
 }
 
-/**
- * 创建高亮包裹元素；样式由 color-manager 的 CSS 规则统一管理，仅设置类名与数据属性
- */
+/** 创建高亮包裹元素：仅设置类名与数据属性，样式由 color-manager 管理。 */
 function createHighlightSpanElement(highlightId: string): HTMLSpanElement {
   const span = document.createElement('span');
   span.className = INLINE_HIGHLIGHT_CLASS;
@@ -278,9 +274,7 @@ type HighlightSegment = {
   end: number;
 };
 
-/**
- * 收集高亮的文本节点片段（支持富文本结构与跨元素）
- */
+/** 收集高亮文本片段：支持富文本与跨元素。 */
 function collectHighlightSegments(range: Range): HighlightSegment[] {
   const segments: HighlightSegment[] = [];
   const root = range.commonAncestorContainer;
@@ -346,9 +340,7 @@ function collectHighlightSegments(range: Range): HighlightSegment[] {
   return segments;
 }
 
-/**
- * 将高亮应用到文本片段；若直接包裹失败（跨元素等），退化为提取内容再包裹
- */
+/** 应用高亮：直接包裹失败时退化为提取内容再包裹。 */
 function applyHighlightSegments(range: Range, highlightId: string): HTMLSpanElement[] {
   const segments = collectHighlightSegments(range);
   const created: HTMLSpanElement[] = [];

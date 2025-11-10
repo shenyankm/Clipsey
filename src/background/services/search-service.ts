@@ -21,9 +21,7 @@ export interface SearchResult {
   pageSize: number;
 }
 
-/**
- * 标准化排序选项
- */
+/** 标准化排序选项。 */
 function normalizeSort(query: SearchQuery): { indexName?: string; direction: 'next' | 'prev' } {
   const sortBy = query.sortBy ?? 'createdAt';
   const sortOrder = query.sortOrder ?? 'desc';
@@ -57,9 +55,7 @@ export class SearchService {
     return this.searchWithKeyword(keyword, type, page, pageSize, indexName, direction);
   }
 
-  /**
-   * 无关键词的分页查询
-   */
+  /** 无关键词的分页查询。 */
   private async paginateWithoutKeyword(
     page: number,
     pageSize: number,
@@ -73,9 +69,7 @@ export class SearchService {
     return { items: data as Clip[], total, page, pageSize };
   }
 
-  /**
-   * 带关键词的搜索
-   */
+  /** 带关键词的搜索。 */
   private async searchWithKeyword(
     keyword: string,
     type: SearchType,
@@ -122,9 +116,7 @@ export class SearchService {
     return { items, total, page, pageSize };
   }
 
-  /**
-   * 检查记录是否匹配搜索条件
-   */
+  /** 检查记录是否匹配搜索条件。 */
   private matchesSearch(record: Clip, type: SearchType, lowerKeyword: string): boolean {
     const title = (record.title ?? '').toLowerCase();
     const url = (record.sourceUrl ?? '').toLowerCase();

@@ -3,9 +3,7 @@ import { locateBySelector } from './selector-locator';
 import { locateByContext } from './context-locator';
 import { findTextRangeInNode } from '../text-search';
 
-/**
- * 定位策略配置
- */
+/** 定位策略配置：描述定位所需参数。 */
 export interface LocateOptions {
   text: string;
   textOffset?: number;
@@ -16,9 +14,7 @@ export interface LocateOptions {
 
 /** 定位策略：按 textOffset → 选择器 → 上下文 → 全文 的优先级依次尝试并返回首个成功结果。 */
 export class LocationStrategy {
-  /**
-   * 执行定位策略链。
-   */
+  /** 执行定位策略链。 */
   static locate(options: LocateOptions): Range | null {
     const { text, textOffset, anchorSelector, contextBefore, contextAfter } = options;
     

@@ -3,10 +3,7 @@ import { hashString } from '../utils/hash';
 
 const MAX_CLIP_ENTRIES = 200;
 
-/**
- * 标准化clips数据
- * 去重、验证必填字段、限制数量
- */
+/** 标准化剪辑数据：去重、验证必填字段、限制数量。 */
 export function normalizeClips(clips: Clip[]): Clip[] {
   const limited = clips.slice(0, MAX_CLIP_ENTRIES);
   const normalized: Clip[] = [];
@@ -68,9 +65,7 @@ export function normalizeClips(clips: Clip[]): Clip[] {
   return normalized;
 }
 
-/**
- * 创建备用ID
- */
+/** 创建备用 ID。 */
 function createFallbackId(clip: Clip): string {
   if (clip.highlightId) {
     return clip.highlightId;
