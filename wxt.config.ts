@@ -1,6 +1,5 @@
 import { defineConfig } from 'wxt';
 
-// https://wxt.dev/api/config.html
 export default defineConfig({
   modules: ['@wxt-dev/module-vue'],
   srcDir: 'src',
@@ -35,10 +34,6 @@ export default defineConfig({
         '128': '/icon128.png'
       }
     },
-    // 配置选项页面，使用 options_ui 并强制在新标签页打开
-    // 说明：部分浏览器版本在调用 chrome.runtime.openOptionsPage 时，
-    // 若未正确声明 options 页面，可能回退到扩展详情页。
-    // 使用 options_ui.open_in_tab 可以明确行为，避免跳转到扩展详情页。
     options_ui: {
       page: 'options.html',
       open_in_tab: true
@@ -51,7 +46,6 @@ export default defineConfig({
         '@': '/src'
       }
     }
-    // 注：manualChunks 与 WXT 的 inlineDynamicImports 冲突，由 WXT 自动处理代码分割
   }),
 
   hooks: {
