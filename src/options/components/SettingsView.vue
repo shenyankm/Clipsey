@@ -65,36 +65,47 @@
 
         <a-tab-pane key="about" :tab="t('menuAbout')">
           <div class="tab-section about-section">
-            <div class="about-hero">
-              <InfoCircleOutlined class="about-hero__icon" />
-              <div>
-                <a-typography-title :level="5">{{ t('aboutTitle') }}</a-typography-title>
-                <a-typography-text type="secondary">{{ t('aboutDescription') }}</a-typography-text>
-              </div>
-            </div>
-            <a-divider />
-            <div class="about-block">
-              <a-typography-text strong>{{ t('contactEmailLabel') }}</a-typography-text>
-              <a href="mailto:support@clipsey.app" class="contact-link">
-                <MailOutlined />
-                <span>support@clipsey.app</span>
-              </a>
-            </div>
-            <div class="about-block">
-              <a-typography-text strong>{{ t('communityLabel') }}</a-typography-text>
-              <a-space direction="vertical" size="middle">
-                <div
-                  v-for="item in communityLinks"
-                  :key="item.label"
-                  class="contact-row"
-                >
-                  <component :is="item.icon" class="contact-row__icon" />
-                  <div>
-                    <div class="contact-row__label">{{ item.label }}</div>
-                    <a-typography-text>{{ item.value }}</a-typography-text>
-                  </div>
+            <!-- 关于信息主区域 -->
+            <div class="about-container">
+              <!-- 关于标题与描述 -->
+              <div class="about-header">
+                <div class="about-header__content">
+                  <a-typography-title :level="4" class="about-header__title">{{ t('aboutTitle') }}</a-typography-title>
+                  <a-typography-text type="secondary" class="about-header__desc">{{ t('aboutDescription') }}</a-typography-text>
                 </div>
-              </a-space>
+              </div>
+              
+              <a-divider class="about-divider" />
+              
+              <!-- 联系信息区域 -->
+              <div class="about-contacts">
+                <!-- 邮箱联系 -->
+                <div class="contact-section">
+                  <a-typography-text strong class="contact-section__title">{{ t('contactEmailLabel') }}</a-typography-text>
+                  <a href="mailto:shenyankm@gmail.com" class="contact-link">
+                    <MailOutlined class="contact-link__icon" />
+                    <span>shenyankm@gmail.com</span>
+                  </a>
+                </div>
+                
+                <!-- 社区交流 -->
+                <div class="contact-section">
+                  <a-typography-text strong class="contact-section__title">{{ t('communityLabel') }}</a-typography-text>
+                  <a-space direction="vertical" size="small" class="community-list">
+                    <div
+                      v-for="item in communityLinks"
+                      :key="item.label"
+                      class="community-item"
+                    >
+                      <component :is="item.icon" class="community-item__icon" />
+                      <div class="community-item__content">
+                        <div class="community-item__label">{{ item.label }}</div>
+                        <a-typography-text class="community-item__value">{{ item.value }}</a-typography-text>
+                      </div>
+                    </div>
+                  </a-space>
+                </div>
+              </div>
             </div>
           </div>
         </a-tab-pane>
@@ -112,7 +123,7 @@ import {
   HIGHLIGHT_COLOR_OPTIONS,
   type SettingsOptions,
 } from '@/utils/settings-local';
-import { MailOutlined, QqOutlined, WechatOutlined, InfoCircleOutlined } from '@ant-design/icons-vue';
+import { MailOutlined, QqOutlined } from '@ant-design/icons-vue';
 
 const ClipManager = defineAsyncComponent(() => import('./ClipManager.vue'));
 
@@ -141,15 +152,14 @@ const languageOptions = [
 const highlightColorOptions = HIGHLIGHT_COLOR_OPTIONS;
 
 const communityLinks: CommunityContact[] = [
-  { label: 'QQ 交流群', value: '123456789', icon: QqOutlined },
-  { label: '微信群', value: 'Clipsey好友群', icon: WechatOutlined }
+  { label: 'QQ 交流群', value: '2155061751', icon: QqOutlined }
 ];
 
 const texts = {
   title: 'Clipsey 设置',
   menuBasic: '基础设置',
   menuContent: '摘要管理',
-  menuAbout: '关于 Clipsey',
+  menuAbout: '关于',
   displayLanguage: '界面语言',
   highlightColor: '高亮主题色',
   languageZhCN: '简体中文',
@@ -159,7 +169,7 @@ const texts = {
   autoLocateFirstSummaryDescription: '进入页面后立即滚动并定位到第一条摘要，减少手动查找。',
   basicSettingsTitle: '通用偏好',
   basicSettingsDescription: '在此配置界面语言、主题色以及自动高亮体验，提升日常使用效率。',
-  aboutTitle: '关于 Clipsey',
+  aboutTitle: '关于',
   aboutDescription: 'Clipsey 是一款专注网页摘录与回溯的浏览器扩展，帮助你快速保存灵感、同步高亮并一键定位原文。',
   contactEmailLabel: '联系邮箱',
   communityLabel: '交流群'
@@ -329,8 +339,83 @@ watch(
   color: #1677ff;
 }
 
-.about-block + .about-block {
-  margin-top: 16px;
+.about-header {
+  margin-bottom: 24px;
+}
+
+.about-header__content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.about-header__title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.about-header__desc {
+  line-height: 1.6;
+}
+
+.about-divider {
+  margin: 24px 0;
+}
+
+.about-contacts {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.contact-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.contact-section__title {
+  font-size: 14px;
+  color: #000000d9;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.community-list {
+  width: 100%;
+}
+
+.community-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.community-item__icon {
+  font-size: 18px;
+  color: #1677ff;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.community-item__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.community-item__label {
+  font-weight: 500;
+  color: #000000d9;
+  font-size: 14px;
+}
+
+.community-item__value {
+  font-size: 13px;
+  color: #8c8c8c;
 }
 
 .contact-link {
@@ -338,20 +423,20 @@ watch(
   align-items: center;
   gap: 8px;
   color: #1677ff;
+  text-decoration: none;
+  transition: color 0.3s ease;
 }
 
-.contact-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.contact-link:hover {
+  color: #40a9ff;
+  text-decoration: underline;
 }
 
-.contact-row__icon {
-  font-size: 20px;
-  color: #1677ff;
+.contact-link__icon {
+  font-size: 16px;
 }
 
-.contact-row__label {
-  font-weight: 500;
+.about-block + .about-block {
+  margin-top: 16px;
 }
 </style>

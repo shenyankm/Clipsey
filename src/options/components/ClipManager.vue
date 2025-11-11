@@ -123,7 +123,7 @@ const selectedClipCreatedAt = computed(() => {
 type SortDirection = 'asc' | 'desc';
 const DEFAULT_SORT_COLUMN: SortBy = 'createdAt';
 const DEFAULT_SORT_ORDER: SortDirection = 'desc';
-const SORTABLE_COLUMNS: SortBy[] = ['title', 'sourceUrl', 'textContent', 'createdAt'];
+const SORTABLE_COLUMNS: SortBy[] = ['title', 'sourceUrl', 'textContent'];
 
 const sortColumn = ref<SortBy>(DEFAULT_SORT_COLUMN);
 const sortOrder = ref<SortDirection>(DEFAULT_SORT_ORDER);
@@ -196,9 +196,7 @@ const columns = computed(() => [
     title: '创建时间',
     dataIndex: 'createdAt',
     key: 'createdAt',
-    width: 180,
-    sorter: true,
-    sortOrder: sortColumn.value === 'createdAt' ? (sortOrder.value === 'asc' ? 'ascend' : 'descend') : undefined
+    width: 180
   },
   {
     title: '操作',
