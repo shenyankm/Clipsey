@@ -1,3 +1,4 @@
+import { browser } from 'wxt/browser';
 // 内容脚本实际路径为 content-scripts/content.js（WXT 构建）；使用旧路径会导致注入失败并出现“接收端不存在”等错误。
 const CONTENT_SCRIPT_FILE = 'content-scripts/content.js';
 
@@ -34,7 +35,7 @@ export class ContentScriptService {
 
     // 内容脚本不存在,执行注入
     try {
-      await chrome.scripting.executeScript({
+      await browser.scripting.executeScript({
         target: { tabId },
         files: [CONTENT_SCRIPT_FILE]
       });
@@ -56,22 +57,7 @@ export class ContentScriptService {
     }
   }
 
-  async sendMessageToTab<T = unknown>(tabId: number, message: unknown): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-      try {
-        chrome.tabs.sendMessage(tabId, message, response => {
-          if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
-            return;
-          }
-
-          resolve(response as T);
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
+  async sendMessageToTab<T = unknown>(tabId: number, message: unknown): Promise<T> {    return browser.tabs.sendMessage(tabId, message) as Promise<T>;  }
 
   isMissingReceiverError(error: unknown): boolean {
     if (!error || typeof error !== 'object') {
@@ -133,3 +119,5 @@ export class ContentScriptService {
 }
 
 export const contentScriptService = new ContentScriptService();
+
+

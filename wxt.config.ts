@@ -1,15 +1,30 @@
 import { defineConfig } from 'wxt';
+import packageData from './package.json' assert { type: 'json' };
+
+type PackageMeta = {
+  name: string;
+  version?: string;
+  description?: string;
+  displayName?: string;
+};
+
+const packageJson = packageData as PackageMeta;
+
+const APP_NAME = packageJson.displayName ?? packageJson.name ?? 'Clipsey';
+const APP_DESCRIPTION =
+  packageJson.description?.trim() ??
+  '一款专注网页摘录的工具，支持选区存档、自动记录来源、颜色注释与快捷键等高效信息管理体验。';
 
 export default defineConfig({
   modules: ['@wxt-dev/module-vue'],
   srcDir: 'src',
   outDir: '.output',
   
-  manifest: {
-    name: 'Clipsey',
-    short_name: 'Clipsey',
-    description: '一款轻量级网页摘录与高亮工具，支持选中内容保存、自动记录来源、多色标注与快捷检索，助你高效整理信息。',
-    version: '1.0.0',
+  manifest: async () => ({
+    name: APP_NAME,
+    short_name: APP_NAME,
+    description: APP_DESCRIPTION,
+    version: packageJson.version ?? '1.0.0',
     permissions: [
       'contextMenus',
       'storage',
@@ -33,12 +48,8 @@ export default defineConfig({
         '48': 'icon48.png',
         '128': 'icon128.png'
       }
-    },
-    options_ui: {
-      page: 'options.html',
-      open_in_tab: true
     }
-  },
+  }),
   
   vite: () => ({
     resolve: {
@@ -50,7 +61,7 @@ export default defineConfig({
 
   hooks: {
     'build:done': async () => {
-      console.log('✅ 构建完成！');
+      console.log('✅ 构建完成');
     }
   }
 });

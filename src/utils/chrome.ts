@@ -1,45 +1,30 @@
+import { browser } from 'wxt/browser';
 import type { AppMessage, MessageResponse } from '@/types/message';
 
-// 封装 runtime 消息发送，统一错误处理
+function ensureRuntime(): void {
+  if (typeof browser === 'undefined' || !browser.runtime) {
+    throw new Error('WebExtension runtime is not available.');
+  }
+}
+
+// 包装 runtime 消息发送，统一 Promise 化
 export function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> {
-  return new Promise((resolve, reject) => {
-    try {
-      chrome.runtime.sendMessage(message, response => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-          return;
-        }
-        resolve(response as TResponse);
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
+  ensureRuntime();
+  return browser.runtime.sendMessage(message) as Promise<TResponse>;
 }
 
-// 判断是否运行于 Chrome 扩展环境
+// 判断是否运行在扩展环境（兼容历史命名）
 export function isChromeExtensionEnv(): boolean {
-  return typeof chrome !== 'undefined' && typeof chrome.runtime !== 'undefined';
+  return typeof browser !== 'undefined' && typeof browser.runtime !== 'undefined';
 }
 
-// 类型安全的 runtime 消息发送
+// 发送包含类型约束的 runtime 消息
 export function sendRuntimeMessage<TData = unknown>(message: AppMessage): Promise<MessageResponse<TData>> {
   return sendMessage<MessageResponse<TData>>(message);
 }
 
-// 向指定标签页发送应用消息（统一错误处理）
+// 对指定标签发送消息
 export function sendTabMessage<TData = unknown>(tabId: number, message: AppMessage): Promise<MessageResponse<TData>> {
-  return new Promise((resolve, reject) => {
-    try {
-      chrome.tabs.sendMessage(tabId, message, response => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-          return;
-        }
-        resolve(response as MessageResponse<TData>);
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
+  ensureRuntime();
+  return browser.tabs.sendMessage(tabId, message) as Promise<MessageResponse<TData>>;
 }

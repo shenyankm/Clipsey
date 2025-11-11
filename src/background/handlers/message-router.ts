@@ -1,31 +1,32 @@
+import { browser } from 'wxt/browser';
 import { isValidMessage } from './middleware/validator';
 import { ResponseBuilder } from './middleware/response';
 import { registry } from './registry';
 
-/** 注册消息路由器：通过注册表将消息分发给处理器（策略模式）。 */
+/** 注册消息路由：统一以 Promise 形式处理 */
 export function registerMessageRouter(): void {
-  chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
-    // 验证消息格式
+  browser.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
     if (!isValidMessage(message)) {
       sendResponse(ResponseBuilder.validationError('Invalid message format'));
-      return false;
+      return;
     }
 
-    // 查找对应的处理器
     const handler = registry.get(message.type);
     if (!handler) {
       sendResponse(ResponseBuilder.validationError(`Unknown message type: ${message.type}`));
-      return false;
+      return;
     }
 
-    // 异步执行处理器
     handler(message, sender)
-      .then(response => sendResponse(response))
+      .then(response => {
+        sendResponse(response);
+      })
       .catch(error => {
         console.error(`[Message Router] Handler error for ${message.type}:`, error);
         sendResponse(ResponseBuilder.error(error, `Handle ${message.type}`));
       });
 
-    return true; // 保持消息通道开启以支持异步响应
+    // 返回 true，通知浏览器异步调用 sendResponse。
+    return true;
   });
 }

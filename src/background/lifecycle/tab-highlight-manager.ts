@@ -1,3 +1,4 @@
+import { browser } from 'wxt/browser';
 import { getClipsForUrl } from '../storage';
 import { contentScriptService } from '../services/content-script-service';
 import { ErrorHandler } from '@/utils/error-handler';
@@ -10,10 +11,14 @@ const HIGHLIGHT_MAX_ATTEMPTS = 8;
 const HIGHLIGHT_RETRY_DELAY_MS = 600;
 const HIGHLIGHT_INITIAL_DELAY_MS = 800;
 
+type TabUpdateListener = Parameters<typeof browser.tabs.onUpdated.addListener>[0];
+type TabChangeInfo = TabUpdateListener extends (...args: infer Args) => any ? Args[1] : never;
+type TabInfo = TabUpdateListener extends (...args: infer Args) => any ? Args[2] : never;
+
 /** 标签页高亮：在页面加载完成后自动激活相关摘要的高亮。 */
 export class TabHighlightManager {
   /** 处理标签页更新事件。 */
-  async handleTabUpdate(tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab): Promise<void> {
+  async handleTabUpdate(tabId: number, changeInfo: TabChangeInfo, tab: TabInfo): Promise<void> {
     try {
       const url = tab?.url;
       if (!url || changeInfo.status !== 'complete') {
@@ -29,15 +34,15 @@ export class TabHighlightManager {
 
   /** 注册标签页更新监听器。 */
   registerListener(): void {
-    const listener = (tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => {
+    const listener: TabUpdateListener = (tabId, changeInfo, tab) => {
       void this.handleTabUpdate(tabId, changeInfo, tab);
     };
 
-    chrome.tabs.onUpdated.addListener(listener);
+    browser.tabs.onUpdated.addListener(listener);
 
     // 注册清理函数
     listenerManager.addCleanup(() => {
-      chrome.tabs.onUpdated.removeListener(listener);
+      browser.tabs.onUpdated.removeListener(listener);
     });
   }
 
@@ -162,3 +167,4 @@ export class TabHighlightManager {
 
 // 导出单例实例
 export const tabHighlightManager = new TabHighlightManager();
+

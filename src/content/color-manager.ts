@@ -1,4 +1,5 @@
 /** 统一管理高亮颜色：通过 CSS 变量注入并提供内联/覆盖两种计算，默认采用舒适配色方案。 */
+import { browser } from 'wxt/browser';
 import type { HighlightColorScheme, SettingsOptions } from '@/utils/settings-local';
 import type { MessageResponse } from '@/types/message';
 
@@ -88,10 +89,10 @@ function ensureStyleInjected(inlineColor: string, overlayColor: string): void {
 async function loadColorSchemeFromSettings(): Promise<HighlightColorScheme> {
   // 优先通过背景页消息获取（IndexedDB 持久化）
   try {
-    if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+    if (typeof browser !== 'undefined' && browser.runtime?.sendMessage) {
       const response = await new Promise<MessageResponse<SettingsOptions>>((resolve) => {
         try {
-          chrome.runtime.sendMessage({ type: 'REQUEST_SETTINGS' }, (res) => {
+          browser.runtime.sendMessage({ type: 'REQUEST_SETTINGS' }, (res) => {
             resolve((res as MessageResponse<SettingsOptions>) || { success: false });
           });
         } catch {
@@ -100,18 +101,18 @@ async function loadColorSchemeFromSettings(): Promise<HighlightColorScheme> {
       });
 
       const scheme = response?.data?.highlightColor;
-      if (scheme && COLOR_SCHEMES[scheme]) {
-        return scheme;
+      if (scheme && COLOR_SCHEMES[scheme as HighlightColorScheme]) {
+        return scheme as HighlightColorScheme;
       }
     }
   } catch {
-    // 忽略，回退到 chrome.storage.local
+    // 忽略，回退到 browser.storage.local
   }
 
-  // 其次尝试从 chrome.storage.local 读取镜像设置（选项页保存时同步写入）
+  // 其次尝试从 browser.storage.local 读取镜像设置（选项页保存时同步写入）
   try {
-    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-      const items = await chrome.storage.local.get('clipsey-options');
+    if (typeof browser !== 'undefined' && browser.storage?.local) {
+      const items = await browser.storage.local.get('clipsey-options');
       const settings = items['clipsey-options'] as { highlightColor?: HighlightColorScheme } | undefined;
       const scheme = settings?.highlightColor;
       if (scheme && COLOR_SCHEMES[scheme]) {
@@ -119,7 +120,7 @@ async function loadColorSchemeFromSettings(): Promise<HighlightColorScheme> {
       }
     }
   } catch (error) {
-    console.warn('Failed to load highlight color from chrome.storage.local:', error);
+    console.warn('Failed to load highlight color from browser.storage.local:', error);
   }
 
   return DEFAULT_COLOR_SCHEME;
@@ -129,7 +130,8 @@ async function loadColorSchemeFromSettings(): Promise<HighlightColorScheme> {
 export async function ensureHighlightColorsReady(): Promise<void> {
   // 从设置中读取颜色方案
   currentColorScheme = await loadColorSchemeFromSettings();
-  const hexColor = COLOR_SCHEMES[currentColorScheme].hex;
+  const scheme = currentColorScheme as keyof typeof COLOR_SCHEMES;
+  const hexColor = COLOR_SCHEMES[scheme].hex;
   
   const inline = hexToRgba(hexColor, 0.3);
   const overlay = hexToRgba(hexColor, 0.2);
@@ -160,10 +162,10 @@ export function getCurrentColorScheme(): HighlightColorScheme {
   return currentColorScheme;
 }
 
-// 监听设置变化，动态更新颜色（依赖 options 页同步写入 chrome.storage.local）
+// 监听设置变化，动态更新颜色（依赖 options 页同步写入 browser.storage.local）
 try {
-  if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
-    chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (typeof browser !== 'undefined' && browser.storage?.onChanged) {
+    browser.storage.onChanged.addListener((changes, areaName) => {
       if (areaName !== 'local') return;
       const changed = changes['clipsey-options'];
       if (!changed) return;
@@ -171,7 +173,8 @@ try {
       const scheme = newVal?.highlightColor;
       if (scheme && COLOR_SCHEMES[scheme]) {
         currentColorScheme = scheme;
-        const hexColor = COLOR_SCHEMES[scheme].hex;
+        const schemeKey = scheme as keyof typeof COLOR_SCHEMES;
+        const hexColor = COLOR_SCHEMES[schemeKey].hex;
         const inline = hexToRgba(hexColor, 0.3);
         const overlay = hexToRgba(hexColor, 0.2);
         ensureStyleInjected(inline, overlay);

@@ -1,3 +1,5 @@
+import 'webextension-polyfill';
+import { browser } from 'wxt/browser';
 import { registerMessageRouter } from '@/background/handlers/message-router';
 import { extensionLifecycle } from '@/background/lifecycle/extension-lifecycle';
 import { contextMenuManager } from '@/background/lifecycle/context-menu-manager';
@@ -7,27 +9,27 @@ import { listenerManager } from '@/background/lifecycle/listener-cleanup';
 
 export default defineBackground(() => {
 
-  // 初始化生命周期管理器
-  chrome.runtime.onInstalled.addListener(async () => {
+  // 安装或更新阶段
+  browser.runtime.onInstalled.addListener(async () => {
     await extensionLifecycle.onInstalled();
     await contextMenuManager.create();
   });
 
-  chrome.runtime.onStartup.addListener(async () => {
+  browser.runtime.onStartup.addListener(async () => {
     await extensionLifecycle.onStartup();
   });
 
-  // 注册上下文菜单点击处理
-  chrome.contextMenus.onClicked.addListener((info, tab) => {
+  // 统一处理右键菜单
+  browser.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId !== contextMenuManager.getMenuId() || !tab) {
       return;
     }
     void selectionRequestManager.handleContextMenuClick(info, tab);
   });
 
-  // 使用消息路由处理所有 runtime 消息
+  // 注册消息路由
   registerMessageRouter();
 
-  // 注册标签页更新监听器
+  // 监听标签页变更
   tabHighlightManager.registerListener();
 });

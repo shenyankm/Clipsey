@@ -1,3 +1,4 @@
+import { browser } from 'wxt/browser';
 import type { Clip } from '@/types/clip';
 import { clipService } from '@/background/services/clip-service';
 import { contentScriptService } from '@/background/services/content-script-service';
@@ -26,7 +27,7 @@ export async function handleOpenClip(clipId?: string): Promise<void> {
   }
 
   // 获取当前活动标签页
-  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (!activeTab?.id) {
     throw new Error('无法获取当前标签页');
   }
@@ -44,7 +45,7 @@ export async function handleOpenClip(clipId?: string): Promise<void> {
     }
   } else {
     // 需要导航到目标页面，在当前标签页中跳转
-    await chrome.tabs.update(tabId, { url: clip.sourceUrl });
+    await browser.tabs.update(tabId, { url: clip.sourceUrl });
     
     // 等待页面加载完成后定位
     const scheduleFocus = () => {
@@ -55,22 +56,22 @@ export async function handleOpenClip(clipId?: string): Promise<void> {
     };
 
     // 监听标签页更新事件
-    const listener: Parameters<typeof chrome.tabs.onUpdated.addListener>[0] = (updatedTabId, changeInfo) => {
+    const listener: Parameters<typeof browser.tabs.onUpdated.addListener>[0] = (updatedTabId, changeInfo) => {
       if (updatedTabId !== tabId) {
         return;
       }
       if (changeInfo.status === 'complete') {
-        chrome.tabs.onUpdated.removeListener(listener);
+        browser.tabs.onUpdated.removeListener(listener);
         setTimeout(scheduleFocus, 300);
       }
     };
 
-    chrome.tabs.onUpdated.addListener(listener);
+    browser.tabs.onUpdated.addListener(listener);
 
     // 超时保护：防止 onUpdated 未触发导致流程卡住，15 秒后强制执行
     setTimeout(() => {
-      if (chrome.tabs.onUpdated.hasListener(listener)) {
-        chrome.tabs.onUpdated.removeListener(listener);
+      if (browser.tabs.onUpdated.hasListener(listener)) {
+        browser.tabs.onUpdated.removeListener(listener);
         setTimeout(scheduleFocus, 500);
       }
     }, 15000);
@@ -99,7 +100,7 @@ async function attemptFocusClip(tabId: number, clip: Clip): Promise<void> {
 
   // 检查标签页是否仍然存在
   try {
-    await chrome.tabs.get(tabId);
+    await browser.tabs.get(tabId);
   } catch (error) {
     // 标签页已关闭或不存在，静默返回
     return;
@@ -109,7 +110,7 @@ async function attemptFocusClip(tabId: number, clip: Clip): Promise<void> {
   for (let attempt = 0; attempt < FOCUS_MAX_ATTEMPTS; attempt += 1) {
     // 每次尝试前检查标签页是否仍然存在
     try {
-      await chrome.tabs.get(tabId);
+      await browser.tabs.get(tabId);
     } catch (error) {
       // 标签页已关闭，停止尝试
       return;
@@ -148,3 +149,4 @@ async function attemptFocusClip(tabId: number, clip: Clip): Promise<void> {
     await delay(FOCUS_RETRY_DELAY_MS);
   }
 }
+

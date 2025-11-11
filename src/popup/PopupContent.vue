@@ -76,6 +76,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { message, Empty } from 'ant-design-vue';
 import { SettingOutlined, ReloadOutlined } from '@ant-design/icons-vue';
+import { browser } from 'wxt/browser';
 import type { Clip } from '@/types/clip';
 import ClipList from './components/ClipList.vue';
 import { sendMessage, isChromeExtensionEnv } from '@/utils/chrome';
@@ -129,8 +130,8 @@ const displayUrl = computed(() => {
 
 async function getCurrentTabUrl(): Promise<void> {
   try {
-    if (chromeEnv && chrome.tabs) {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (chromeEnv && browser.tabs) {
+      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
       if (tab?.url) {
         currentUrl.value = tab.url;
       }
@@ -180,17 +181,17 @@ async function loadClips(showLoader: boolean = true): Promise<void> {
 function openSettings(): void {
   try {
     // 统一使用显式 URL，避免极端情况下 openOptionsPage 回退到扩展详情页
-    const url = chrome.runtime.getURL('options.html');
+    const url = browser.runtime.getURL('/options.html');
 
     // 在扩展环境下优先通过 tabs.create 新开标签页，体验更稳定
-    if (chromeEnv && chrome.tabs?.create) {
-      chrome.tabs.create({ url });
+    if (chromeEnv && browser.tabs?.create) {
+      browser.tabs.create({ url });
       return;
     }
 
     // 其次尝试 openOptionsPage（某些浏览器版本兼容性存在差异）
-    if (chromeEnv && chrome.runtime?.openOptionsPage) {
-      chrome.runtime.openOptionsPage();
+    if (chromeEnv && browser.runtime?.openOptionsPage) {
+      browser.runtime.openOptionsPage();
       return;
     }
 
@@ -252,3 +253,4 @@ onMounted(async () => {
   background: #8c8c8c;
 }
 </style>
+

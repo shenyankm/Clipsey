@@ -1,3 +1,4 @@
+import { browser } from 'wxt/browser';
 import { contentScriptService } from '../services/content-script-service';
 import { ErrorHandler } from '@/utils/error-handler';
 import { delay, isSupportedHttpUrl } from '@/utils/helpers';
@@ -5,12 +6,16 @@ import type { MessageResponse } from '@/types/message';
 
 const REQUEST_SELECTION_MAX_ATTEMPTS = 3;
 const REQUEST_SELECTION_RETRY_DELAY_MS = 200;
-const NOTIFICATION_ICON = chrome.runtime.getURL('icon128.png');
+const NOTIFICATION_ICON = browser.runtime.getURL('/icon128.png');
+
+type ContextMenuListener = Parameters<typeof browser.contextMenus.onClicked.addListener>[0];
+type ContextMenuClickInfo = ContextMenuListener extends (...args: infer Args) => any ? Args[0] : never;
+type ContextMenuTab = ContextMenuListener extends (...args: infer Args) => any ? Args[1] : never;
 
 /** 选区请求管理：右键触发后请求并保存选区，含系统页预检、重试与通知。 */
 export class SelectionRequestManager {
   /** 处理右键菜单点击事件。 */
-  async handleContextMenuClick(info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab): Promise<void> {
+  async handleContextMenuClick(info: ContextMenuClickInfo, tab?: ContextMenuTab): Promise<void> {
     if (!tab?.id) {
       return;
     }
@@ -30,7 +35,7 @@ export class SelectionRequestManager {
   private async requestSelection(tabId: number, attempt = 0): Promise<void> {
     // 在系统页/非 http(s) 页面直接提示并终止请求
     try {
-      const tab = await chrome.tabs.get(tabId);
+      const tab = await browser.tabs.get(tabId);
       const url = tab?.url;
       if (url && !isSupportedHttpUrl(url)) {
         void this.showNotification('当前页面不支持摘抄', '仅支持在第三方网站的 http/https 页面使用。');
@@ -106,13 +111,13 @@ export class SelectionRequestManager {
   }
 
   private async showNotification(title: string, message: string): Promise<void> {
-    if (!chrome.notifications?.create) {
+    if (!browser.notifications?.create) {
       console.warn('通知 API 不可用。');
       return;
     }
 
     try {
-      await chrome.notifications.create({
+      await browser.notifications.create({
         type: 'basic',
         title,
         message,
@@ -127,3 +132,4 @@ export class SelectionRequestManager {
 
 // 导出单例实例
 export const selectionRequestManager = new SelectionRequestManager();
+

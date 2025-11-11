@@ -1,4 +1,5 @@
-/** 设置本地存储：统一读/写/监听接口，提供默认值与错误回退（基于 chrome.storage.local）。 */
+/** 设置本地存储：统一读/写/监听接口，提供默认值与错误回退（基于 browser.storage.local）。 */
+import { browser } from 'wxt/browser';
 
 export type LanguageOption = 'zh-CN' | 'zh-TW' | 'en-US';
 export type HighlightColorScheme = 'amber' | 'green' | 'blue';
@@ -24,8 +25,8 @@ export const DEFAULT_SETTINGS: SettingsOptions = {
 /** 读取设置：带默认值与错误回退。 */
 export async function readSettingsLocal(): Promise<SettingsOptions> {
   try {
-    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-      const items = await chrome.storage.local.get(SETTINGS_LOCAL_KEY);
+    if (browser.storage?.local) {
+      const items = await browser.storage.local.get(SETTINGS_LOCAL_KEY);
       const raw = items[SETTINGS_LOCAL_KEY] as Partial<SettingsOptions> | undefined;
       return mergeWithDefaults(raw);
     }
@@ -40,19 +41,23 @@ export async function writeSettingsLocal(partial: Partial<SettingsOptions>): Pro
   try {
     const current = await readSettingsLocal();
     const next = { ...current, ...partial } satisfies SettingsOptions;
-    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-      await chrome.storage.local.set({ [SETTINGS_LOCAL_KEY]: next });
+    if (browser.storage?.local) {
+      await browser.storage.local.set({ [SETTINGS_LOCAL_KEY]: next });
     }
   } catch (error) {
     console.warn('[SettingsLocal] Failed to write settings:', error);
   }
 }
 
-/** 监听设置变化：仅监听 chrome.storage.local 区域。 */
+/** 监听设置变化：仅监听 browser.storage.local 区域。 */
 export function watchSettingsLocal(
   listener: (newValue: SettingsOptions, oldValue?: SettingsOptions) => void
 ): () => void {
-  const handler = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
+  type StorageChangeListener = Parameters<typeof browser.storage.onChanged.addListener>[0];
+  type StorageChanges = StorageChangeListener extends (...args: infer Args) => any ? Args[0] : never;
+  type StorageArea = StorageChangeListener extends (...args: infer Args) => any ? Args[1] : never;
+
+  const handler: StorageChangeListener = (changes: StorageChanges, areaName: StorageArea) => {
     if (areaName !== 'local') return;
     const change = changes[SETTINGS_LOCAL_KEY];
     if (!change) return;
@@ -66,8 +71,8 @@ export function watchSettingsLocal(
   };
 
   try {
-    if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
-      chrome.storage.onChanged.addListener(handler);
+    if (browser.storage?.onChanged) {
+      browser.storage.onChanged.addListener(handler);
     }
   } catch {
     // ignore
@@ -76,8 +81,8 @@ export function watchSettingsLocal(
   // 返回取消监听的函数
   return () => {
     try {
-      if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
-        chrome.storage.onChanged.removeListener(handler);
+      if (browser.storage?.onChanged) {
+        browser.storage.onChanged.removeListener(handler);
       }
     } catch {
       // ignore
@@ -97,3 +102,6 @@ function mergeWithDefaults(raw?: Partial<SettingsOptions>): SettingsOptions {
     schemaVersion: typeof raw.schemaVersion === 'number' ? raw.schemaVersion : base.schemaVersion
   } satisfies SettingsOptions;
 }
+
+
+

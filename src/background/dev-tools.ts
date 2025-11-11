@@ -1,3 +1,4 @@
+import { browser } from 'wxt/browser';
 import { indexedDBManager } from './indexeddb';
 import { IndexedDBQuery } from './indexeddb-query';
 import { getStorageStats } from './storage';
@@ -96,7 +97,7 @@ export class DevTools {
         browser: {
           userAgent: navigator.userAgent,
           indexedDBSupported: 'indexedDB' in window,
-          chromeStorageSupported: typeof chrome !== 'undefined' && !!chrome.storage
+          chromeStorageSupported: typeof browser !== 'undefined' && !!browser.storage
         }
       };
     } catch (error) {

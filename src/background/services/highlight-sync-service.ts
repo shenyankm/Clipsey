@@ -1,9 +1,10 @@
+import { browser } from 'wxt/browser';
 /** 高亮同步服务：剪辑删除后刷新对应页面的高亮状态。 */
 export class HighlightSyncService {
   // 刷新指定 URL 的页面高亮（用于剪辑删除后的同步）
   async refreshPageHighlights(url: string): Promise<void> {
     try {
-      const tabs = await chrome.tabs.query({});
+      const tabs = await browser.tabs.query({});
       
       for (const tab of tabs) {
         if (!tab.id || !tab.url) continue;
@@ -36,7 +37,7 @@ export class HighlightSyncService {
           highlightStyle: clip.highlightStyle
         }));
       
-      await chrome.tabs.sendMessage(tabId, {
+      await browser.tabs.sendMessage(tabId, {
         type: 'ACTIVATE_HIGHLIGHTS',
         payload: { highlights }
       });
@@ -59,3 +60,4 @@ export class HighlightSyncService {
 
 // 导出单例实例
 export const highlightSyncService = new HighlightSyncService();
+

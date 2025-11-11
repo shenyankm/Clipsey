@@ -1,4 +1,5 @@
 import type { AppMessage, MessageResponse } from '@/types/message';
+import type { WxtBrowser } from 'wxt/browser';
 import type { SettingsOptions } from '@/utils/settings-local';
 import { handleSaveClip } from './save-clip';
 import { handleRequestClips } from './request-clips';
@@ -14,11 +15,17 @@ import {
   isImportDataPayload
 } from './middleware/validator';
 
-/** 消息处理器类型定义。 */
-type MessageHandler = (
-  message: AppMessage,
-  sender: chrome.runtime.MessageSender
-) => Promise<MessageResponse>;
+type RuntimeMessageListener = Parameters<WxtBrowser['runtime']['onMessage']['addListener']>[0];
+type RuntimeMessageSender = RuntimeMessageListener extends (
+  message: any,
+  sender: infer Sender,
+  ...args: any[]
+) => any
+  ? Sender
+  : never;
+
+/** ��Ϣ���������Ͷ��塣 */
+type MessageHandler = (message: AppMessage, sender: RuntimeMessageSender) => Promise<MessageResponse>;
 
 /** 消息处理器注册表。 */
 class HandlerRegistry {
@@ -94,3 +101,4 @@ registry.register('IMPORT_DATA', async (message) => {
 registry.register('REFRESH_CACHE', async () => {
   return wrapHandler(() => refreshClipsCache(), 'Refresh cache');
 });
+

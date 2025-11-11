@@ -1,3 +1,5 @@
+import 'webextension-polyfill';
+import { browser } from 'wxt/browser';
 import type { Clip } from '@/types/clip';
 import { HighlightEngine } from '@/content/highlight-engine';
 import { ensureHighlightColorsReady, HIGHLIGHT_INLINE_CLASS, HIGHLIGHT_OVERLAY_CLASS } from '@/content/color-manager';
@@ -7,25 +9,7 @@ import { ErrorHandler } from '@/utils/error-handler';
 import type { SettingsOptions } from '@/utils/settings-local';
 import { ScrollManager } from '@/content/highlight/scroll-manager';
 import { isSupportedHttpUrl } from '@/utils/helpers';
-
-// 在内容脚本环境内联消息发送函数，避免打包为外部 ESM 导入
-function sendMessage<TResponse = unknown>(message: unknown): Promise<TResponse> {
-  return new Promise((resolve, reject) => {
-    try {
-      chrome.runtime.sendMessage(message, response => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-          return;
-        }
-        resolve(response as TResponse);
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
-
-// 复用工具函数 delay，避免重复定义
+import { sendMessage } from '@/utils/chrome';
 
 declare global {
   interface Window {
@@ -63,7 +47,8 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
   // 初始化时确保颜色已注入
   void ensureHighlightColorsReady();
 
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  type RuntimeMessageListener = Parameters<typeof browser.runtime.onMessage.addListener>[0];
+  const runtimeMessageListener: RuntimeMessageListener = (message, _sender, sendResponse) => {
     switch (message?.type) {
       case 'PING':
         // 用于检测内容脚本是否已加载
@@ -105,7 +90,7 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
     }
 
     return undefined;
-  });
+  };
 }
 
 /** 提取选区 HTML：使用 Range.cloneContents + innerHTML 保留富文本结构。 */
@@ -465,6 +450,14 @@ function normalizeIncomingHighlights(payload: unknown): RemoteHighlight[] {
 
   return normalized;
 }
+
+
+
+
+
+
+
+
 
 
 
