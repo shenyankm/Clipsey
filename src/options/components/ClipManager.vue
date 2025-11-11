@@ -97,6 +97,7 @@ import { useClipSearch } from '../composables/useClipSearch';
 import { useClipPagination } from '../composables/useClipPagination';
 import { useClipCRUD } from '../composables/useClipCRUD';
 import { useBroadcastSync } from '@/composables/useBroadcastSync';
+import type { SortBy } from '@/background/services/search-service';
 
 // 使用组合式函数
 const { searchQuery, searchResults, searchTotal, performSearch } = useClipSearch();
@@ -112,15 +113,49 @@ const showModal = ref(false);
 const selectedClip = ref<Clip | null>(null);
 const pageSize = 20;
 
-// 排序状态管理
-const sortColumn = ref<string>('createdAt');
-const sortOrder = ref<'asc' | 'desc'>('desc');
+type SortDirection = 'asc' | 'desc';
+const DEFAULT_SORT_COLUMN: SortBy = 'createdAt';
+const DEFAULT_SORT_ORDER: SortDirection = 'desc';
+const SORTABLE_COLUMNS: SortBy[] = ['title', 'sourceUrl', 'textContent', 'createdAt'];
 
-// Table 变更处理（排序）
+const sortColumn = ref<SortBy>(DEFAULT_SORT_COLUMN);
+const sortOrder = ref<SortDirection>(DEFAULT_SORT_ORDER);
+
+function isSortableColumn(key: unknown): key is SortBy {
+  return typeof key === 'string' && SORTABLE_COLUMNS.includes(key as SortBy);
+}
+
+function getSortOptions() {
+  return {
+    sortBy: sortColumn.value,
+    sortOrder: sortOrder.value
+  } as const;
+}
+
+function resetPageAndSearch(): void {
+  if (currentPage.value !== 1) {
+    currentPage.value = 1;
+  } else {
+    void performSearch(currentPage.value, pageSize, getSortOptions());
+  }
+}
+
+// Table 事件：根据排序状态触发查询
 function handleTableChange(_pagination: any, _filters: any, sorter: any) {
-  if (sorter && sorter.columnKey) {
-    sortColumn.value = sorter.columnKey;
+  if (!sorter) {
+    return;
+  }
+
+  const columnKey = sorter.columnKey ?? sorter.field;
+  if (isSortableColumn(columnKey) && sorter.order) {
+    sortColumn.value = columnKey;
     sortOrder.value = sorter.order === 'ascend' ? 'asc' : 'desc';
+  } else if (isSortableColumn(columnKey) && !sorter.order) {
+    sortColumn.value = columnKey;
+    sortOrder.value = DEFAULT_SORT_ORDER;
+  } else {
+    sortColumn.value = DEFAULT_SORT_COLUMN;
+    sortOrder.value = DEFAULT_SORT_ORDER;
   }
 }
 
@@ -196,24 +231,22 @@ function getDomainFromUrl(url: string | undefined): string {
 
 // 监听搜索查询变化
 watch(searchQuery, () => {
-  currentPage.value = 1;
-  void performSearch(currentPage.value, pageSize);
+  resetPageAndSearch();
 });
 
 // 监听排序变化
 watch([sortColumn, sortOrder], () => {
-  currentPage.value = 1;
-  void performSearch(currentPage.value, pageSize);
+  resetPageAndSearch();
 });
 
 // 监听分页变化
 watch(currentPage, () => {
-  void performSearch(currentPage.value, pageSize);
+  void performSearch(currentPage.value, pageSize, getSortOptions());
 });
 
 /** 刷新摘抄列表。 */
 async function refreshClips(showMessage = true) {
-  await performSearch(currentPage.value, pageSize);
+  await performSearch(currentPage.value, pageSize, getSortOptions());
   if (showMessage) {
     message.success('已刷新');
   }
@@ -224,7 +257,7 @@ async function deleteClip(id: string) {
   const success = await deleteClipAction(id);
   if (success) {
     // 删除成功后重新搜索
-    await performSearch(currentPage.value, pageSize);
+    await performSearch(currentPage.value, pageSize, getSortOptions());
   }
 }
 
@@ -236,7 +269,7 @@ function openClipDetail(clip: Clip) {
 
 /** 初始化组件并执行首次搜索。 */
 onMounted(() => {
-  void performSearch(currentPage.value, pageSize);
+  void performSearch(currentPage.value, pageSize, getSortOptions());
 });
 
 // Table 唯一键

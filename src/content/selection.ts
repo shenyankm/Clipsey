@@ -91,6 +91,8 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
 
     return undefined;
   };
+
+  browser.runtime.onMessage.addListener(runtimeMessageListener);
 }
 
 /** 提取选区 HTML：使用 Range.cloneContents + innerHTML 保留富文本结构。 */

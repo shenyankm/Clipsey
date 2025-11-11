@@ -1,10 +1,15 @@
 <template>
   <a-config-provider>
-    <a-card :bordered="false" size="small">
+    <a-card :bordered="false" class="settings-card">
       <a-tabs v-model:activeKey="activeItem">
         <a-tab-pane key="basic" :tab="t('menuBasic')">
-          <a-card size="small" title="基础设置">
-            <a-form layout="vertical">
+          <div class="tab-section">
+            <a-typography-title :level="5">{{ t('basicSettingsTitle') }}</a-typography-title>
+            <a-typography-text type="secondary">
+              {{ t('basicSettingsDescription') }}
+            </a-typography-text>
+            <a-divider />
+            <a-form layout="vertical" class="settings-form">
               <a-form-item :label="t('displayLanguage')">
                 <a-select 
                   v-model:value="form.language" 
@@ -20,17 +25,8 @@
                   style="width: 280px;"
                 >
                   <template #option="{ label, hex }">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                      <span 
-                        :style="{ 
-                          display: 'inline-block', 
-                          width: '16px', 
-                          height: '16px', 
-                          backgroundColor: hex,
-                          borderRadius: '2px',
-                          opacity: 0.6
-                        }"
-                      ></span>
+                    <div class="color-option">
+                      <span class="color-preview" :style="{ backgroundColor: hex }"></span>
                       <span>{{ label }}</span>
                     </div>
                   </template>
@@ -39,31 +35,67 @@
               
               <a-divider />
               
-              <a-form-item>
-                <a-space direction="vertical" size="middle" style="width: 100%;">
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                      <div style="font-weight: 500;">{{ t('autoHighlightPageSummary') }}</div>
-                      <div style="color: #8c8c8c; font-size: 12px; margin-top: 4px;">{{ t('autoHighlightPageSummaryDescription') }}</div>
-                    </div>
-                    <a-switch v-model:checked="form.autoHighlightPageSummary" />
+              <a-space direction="vertical" size="large" style="width: 100%;">
+                <div class="toggle-row">
+                  <div>
+                    <div class="toggle-row__title">{{ t('autoHighlightPageSummary') }}</div>
+                    <div class="toggle-row__desc">{{ t('autoHighlightPageSummaryDescription') }}</div>
                   </div>
-                  
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                      <div style="font-weight: 500;">{{ t('autoLocateFirstSummary') }}</div>
-                      <div style="color: #8c8c8c; font-size: 12px; margin-top: 4px;">{{ t('autoLocateFirstSummaryDescription') }}</div>
-                    </div>
-                    <a-switch v-model:checked="form.autoLocateFirstSummary" />
+                  <a-switch v-model:checked="form.autoHighlightPageSummary" />
+                </div>
+                
+                <div class="toggle-row">
+                  <div>
+                    <div class="toggle-row__title">{{ t('autoLocateFirstSummary') }}</div>
+                    <div class="toggle-row__desc">{{ t('autoLocateFirstSummaryDescription') }}</div>
                   </div>
-                </a-space>
-              </a-form-item>
+                  <a-switch v-model:checked="form.autoLocateFirstSummary" />
+                </div>
+              </a-space>
             </a-form>
-          </a-card>
+          </div>
         </a-tab-pane>
 
         <a-tab-pane key="content" :tab="t('menuContent')">
-          <ClipManager />
+          <div class="tab-section">
+            <ClipManager />
+          </div>
+        </a-tab-pane>
+
+        <a-tab-pane key="about" :tab="t('menuAbout')">
+          <div class="tab-section about-section">
+            <div class="about-hero">
+              <InfoCircleOutlined class="about-hero__icon" />
+              <div>
+                <a-typography-title :level="5">{{ t('aboutTitle') }}</a-typography-title>
+                <a-typography-text type="secondary">{{ t('aboutDescription') }}</a-typography-text>
+              </div>
+            </div>
+            <a-divider />
+            <div class="about-block">
+              <a-typography-text strong>{{ t('contactEmailLabel') }}</a-typography-text>
+              <a href="mailto:support@clipsey.app" class="contact-link">
+                <MailOutlined />
+                <span>support@clipsey.app</span>
+              </a>
+            </div>
+            <div class="about-block">
+              <a-typography-text strong>{{ t('communityLabel') }}</a-typography-text>
+              <a-space direction="vertical" size="middle">
+                <div
+                  v-for="item in communityLinks"
+                  :key="item.label"
+                  class="contact-row"
+                >
+                  <component :is="item.icon" class="contact-row__icon" />
+                  <div>
+                    <div class="contact-row__label">{{ item.label }}</div>
+                    <a-typography-text>{{ item.value }}</a-typography-text>
+                  </div>
+                </div>
+              </a-space>
+            </div>
+          </div>
         </a-tab-pane>
       </a-tabs>
     </a-card>
@@ -71,12 +103,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue';
+import { onMounted, reactive, ref, watch, type Component } from 'vue';
 import ClipManager from './ClipManager.vue';
 import { readSettingsLocal, writeSettingsLocal } from '@/utils/settings-local';
+import { MailOutlined, QqOutlined, WechatOutlined, InfoCircleOutlined } from '@ant-design/icons-vue';
 
 interface OptionsForm {
-
   language: 'zh-CN' | 'zh-TW' | 'en-US';
   highlightColor: 'amber' | 'green' | 'blue';
   autoHighlightPageSummary: boolean;
@@ -85,8 +117,15 @@ interface OptionsForm {
 
 type StoredOptions = Omit<OptionsForm, 'language'> & { language?: string };
 
-const DEFAULT_OPTIONS: OptionsForm = {
+type TabKey = 'basic' | 'content' | 'about';
 
+type CommunityContact = {
+  label: string;
+  value: string;
+  icon: Component;
+};
+
+const DEFAULT_OPTIONS: OptionsForm = {
   language: 'zh-CN',
   highlightColor: 'amber',
   autoHighlightPageSummary: true,
@@ -94,49 +133,46 @@ const DEFAULT_OPTIONS: OptionsForm = {
 };
 
 const form = reactive<OptionsForm>({ ...DEFAULT_OPTIONS });
-
-
-// 使用 Ant Design Vue 全局 message（如需）
-
-const activeItem = ref<'basic' | 'content'>('basic');
+const activeItem = ref<TabKey>('basic');
 
 const languageOptions = [
   { label: '简体中文', value: 'zh-CN' },
   { label: '繁體中文', value: 'zh-TW' },
-  { label: 'English', value: 'en-US' },
+  { label: '英文（English）', value: 'en-US' },
 ];
 
 const highlightColorOptions = [
   { label: '琥珀色', value: 'amber', hex: '#FFC107' },
-  { label: '青绿色', value: 'green', hex: '#81C784' },
-  { label: '天蓝色', value: 'blue', hex: '#64B5F6' },
+  { label: '青草绿', value: 'green', hex: '#81C784' },
+  { label: '湖水蓝', value: 'blue', hex: '#64B5F6' },
 ];
 
-// Ant Design Vue 的 locale 暂不使用（当前页面未涉及日期等组件），后续如需要可在 ConfigProvider 中配置。
+const communityLinks: CommunityContact[] = [
+  { label: 'QQ 交流群', value: '123456789', icon: QqOutlined },
+  { label: '微信群', value: 'Clipsey好友群', icon: WechatOutlined }
+];
 
 const texts = {
   title: 'Clipsey 设置',
   menuBasic: '基础设置',
   menuContent: '摘要管理',
-
-  displayLanguage: '显示语言',
-  highlightColor: '内容高亮颜色',
+  menuAbout: '关于 Clipsey',
+  displayLanguage: '界面语言',
+  highlightColor: '高亮主题色',
   languageZhCN: '简体中文',
   languageZhTW: '繁體中文',
-  languageEnUS: 'English',
-
-    autoHighlightPageSummary: '页面摘要自动高亮',
-    autoHighlightPageSummaryDescription: '自动高亮页面中的摘要内容',
-    autoLocateFirstSummary: '定位末端摘要',
-    autoLocateFirstSummaryDescription: '自动定位到页面中存在的最后一个摘要位置',
-
-  
-  contentManagerTitle: '内容管理',
-  contentManagerDescription: '管理剪辑内容的保存策略和存储空间。',
-  contentManagerSync: '同步与备份',
-  contentManagerSyncDescription: '开启同步后，可在多端统一管理收藏内容，并保持收藏记录一致。',
-  contentManagerTips: '更多内容管理功能正在规划中，敬请期待。',
-} as const;
+  languageEnUS: '英文（English）',
+  autoHighlightPageSummary: '自动高亮页面摘要',
+  autoHighlightPageSummaryDescription: '打开含有已保存摘要的页面时自动恢复高亮，便于浏览定位。',
+  autoLocateFirstSummary: '进入页面时定位首条摘要',
+  autoLocateFirstSummaryDescription: '进入页面后立即滚动并定位到第一条摘要，减少手动查找。',
+  basicSettingsTitle: '通用偏好',
+  basicSettingsDescription: '在此配置界面语言、主题色以及自动高亮体验，提升日常使用效率。',
+  aboutTitle: '关于 Clipsey',
+  aboutDescription: 'Clipsey 是一款专注网页摘录与回溯的浏览器扩展，帮助你快速保存灵感、同步高亮并一键定位原文。',
+  contactEmailLabel: '联系邮箱',
+  communityLabel: '交流群'
+};
 
 type TextKey = keyof typeof texts;
 
@@ -144,11 +180,8 @@ function t(key: TextKey) {
   return texts[key];
 }
 
-function mergeStoredOptions(
-  current: Partial<StoredOptions> = {}
-): OptionsForm {
+function mergeStoredOptions(current: Partial<StoredOptions> = {}): OptionsForm {
   const mergedOptions: OptionsForm = { ...DEFAULT_OPTIONS };
-
   if (current.language !== undefined) {
     mergedOptions.language = current.language as OptionsForm['language'];
   }
@@ -161,16 +194,13 @@ function mergeStoredOptions(
   if (current.autoLocateFirstSummary !== undefined) {
     mergedOptions.autoLocateFirstSummary = current.autoLocateFirstSummary;
   }
-
   return mergedOptions;
 }
 
 onMounted(async () => {
-  // 优先从 URL 或本地存储恢复上次访问的标签页,确保刷新后仍停留在"摘要管理"等当前页面
   const initial = restoreActiveTabFromUrl() ?? restoreActiveTabFromStorage() ?? 'basic';
   activeItem.value = initial;
 
-  // 监听标签页变化，同步到 URL 与本地存储，保证刷新后定位当前页面
   watch(activeItem, (val) => {
     persistActiveTabToUrl(val);
     persistActiveTabToStorage(val);
@@ -179,8 +209,6 @@ onMounted(async () => {
   const stored = await getSettings();
   Object.assign(form, stored);
 });
-
-
 
 async function getSettings(): Promise<OptionsForm> {
   try {
@@ -192,20 +220,18 @@ async function getSettings(): Promise<OptionsForm> {
   }
 }
 
-// ---------------- 路由状态保持：刷新后仍停留在当前标签页 ----------------
 const TAB_PARAM = 'tab';
 const ACTIVE_TAB_KEY = 'options.activeTab';
 
-function isValidTab(tab: string | null | undefined): tab is 'basic' | 'content' {
-  return tab === 'basic' || tab === 'content';
+function isValidTab(tab: string | null | undefined): tab is TabKey {
+  return tab === 'basic' || tab === 'content' || tab === 'about';
 }
 
-function restoreActiveTabFromUrl(): 'basic' | 'content' | null {
+function restoreActiveTabFromUrl(): TabKey | null {
   try {
     const url = new URL(window.location.href);
     const fromQuery = url.searchParams.get(TAB_PARAM);
     if (isValidTab(fromQuery)) return fromQuery;
-    // 兼容 hash 方式：#tab=content
     if (url.hash) {
       const hash = url.hash.replace(/^#/, '');
       const params = new URLSearchParams(hash);
@@ -216,16 +242,15 @@ function restoreActiveTabFromUrl(): 'basic' | 'content' | null {
   return null;
 }
 
-function persistActiveTabToUrl(tab: 'basic' | 'content'): void {
+function persistActiveTabToUrl(tab: TabKey): void {
   try {
     const url = new URL(window.location.href);
     url.searchParams.set(TAB_PARAM, tab);
-    // 使用 replaceState 避免污染历史栈，刷新时浏览器会保留当前 URL
     window.history.replaceState(null, '', url.toString());
   } catch {}
 }
 
-function restoreActiveTabFromStorage(): 'basic' | 'content' | null {
+function restoreActiveTabFromStorage(): TabKey | null {
   try {
     const saved = localStorage.getItem(ACTIVE_TAB_KEY);
     if (isValidTab(saved)) return saved;
@@ -233,13 +258,12 @@ function restoreActiveTabFromStorage(): 'basic' | 'content' | null {
   return null;
 }
 
-function persistActiveTabToStorage(tab: 'basic' | 'content'): void {
+function persistActiveTabToStorage(tab: TabKey): void {
   try {
     localStorage.setItem(ACTIVE_TAB_KEY, tab);
   } catch {}
 }
 
-// Watch form changes and auto-save
 watch(
   () => [form.language, form.highlightColor, form.autoHighlightPageSummary, form.autoLocateFirstSummary],
   async () => {
@@ -259,11 +283,82 @@ watch(
 </script>
 
 <style scoped>
-.ant-card {
-  transition: all 0.3s ease;
+.settings-card {
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
 }
 
-.ant-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+.tab-section {
+  background: #fff;
+  padding: 24px;
+  border-radius: 8px;
+}
+
+.color-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.color-preview {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  display: inline-block;
+  opacity: 0.8;
+}
+
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.toggle-row__title {
+  font-weight: 500;
+}
+
+.toggle-row__desc {
+  font-size: 12px;
+  color: #8c8c8c;
+  margin-top: 4px;
+}
+
+.about-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.about-hero__icon {
+  font-size: 28px;
+  color: #1677ff;
+}
+
+.about-block + .about-block {
+  margin-top: 16px;
+}
+
+.contact-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #1677ff;
+}
+
+.contact-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.contact-row__icon {
+  font-size: 20px;
+  color: #1677ff;
+}
+
+.contact-row__label {
+  font-weight: 500;
 }
 </style>

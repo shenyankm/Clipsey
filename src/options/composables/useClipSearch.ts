@@ -1,9 +1,12 @@
 import { ref, watch } from 'vue';
 import { parseSearchQuery } from '@/utils/search/query-parser';
 import { searchClips } from '@/background/api';
+import type { SearchQuery } from '@/background/services/search-service';
 import type { Clip } from '@/types/clip';
 
 /** 剪辑搜索组合：支持全文与指令 @title/@website/@content。 */
+type SortOptions = Pick<SearchQuery, 'sortBy' | 'sortOrder'>;
+
 export function useClipSearch() {
   const searchQuery = ref('');
   const searchResults = ref<Clip[]>([]);
@@ -11,7 +14,11 @@ export function useClipSearch() {
   const isSearching = ref(false);
 
   // 执行搜索并更新结果与总数
-  async function performSearch(page: number, pageSize: number): Promise<void> {
+  async function performSearch(
+    page: number,
+    pageSize: number,
+    sortOptions: SortOptions = {}
+  ): Promise<void> {
     const parsed = parseSearchQuery(searchQuery.value);
     
     isSearching.value = true;
@@ -20,7 +27,8 @@ export function useClipSearch() {
         keyword: parsed.keyword,
         type: parsed.type,
         page,
-        pageSize
+        pageSize,
+        ...sortOptions
       });
       
       searchResults.value = result.items;
