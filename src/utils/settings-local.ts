@@ -1,7 +1,7 @@
 /** 设置本地存储：统一读/写/监听接口，提供默认值与错误回退（基于 browser.storage.local）。 */
 import { browser } from 'wxt/browser';
 
-export type LanguageOption = 'zh-CN' | 'zh-TW' | 'en-US';
+export type LanguageOption = 'zh-CN'; // 现在只支持简体中文
 export type HighlightColorScheme = 'amber' | 'green' | 'blue';
 
 export interface SettingsOptions {
@@ -95,13 +95,10 @@ function mergeWithDefaults(raw?: Partial<SettingsOptions>): SettingsOptions {
   const base = { ...DEFAULT_SETTINGS };
   if (!raw) return base;
   return {
-    language: (raw.language ?? base.language) as LanguageOption,
+    language: base.language, // 语言现在固定为 zh-CN
     highlightColor: (raw.highlightColor ?? base.highlightColor) as HighlightColorScheme,
     autoHighlightPageSummary: raw.autoHighlightPageSummary ?? base.autoHighlightPageSummary,
     autoLocateFirstSummary: raw.autoLocateFirstSummary ?? base.autoLocateFirstSummary,
     schemaVersion: typeof raw.schemaVersion === 'number' ? raw.schemaVersion : base.schemaVersion
   } satisfies SettingsOptions;
 }
-
-
-

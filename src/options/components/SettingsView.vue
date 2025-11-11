@@ -15,6 +15,7 @@
                   v-model:value="form.language" 
                   :options="languageOptions" 
                   style="width: 280px;"
+                  disabled
                 />
               </a-form-item>
               
@@ -109,7 +110,7 @@ import { readSettingsLocal, writeSettingsLocal } from '@/utils/settings-local';
 import { MailOutlined, QqOutlined, WechatOutlined, InfoCircleOutlined } from '@ant-design/icons-vue';
 
 interface OptionsForm {
-  language: 'zh-CN' | 'zh-TW' | 'en-US';
+  language: 'zh-CN';
   highlightColor: 'amber' | 'green' | 'blue';
   autoHighlightPageSummary: boolean;
   autoLocateFirstSummary: boolean;
@@ -137,8 +138,6 @@ const activeItem = ref<TabKey>('basic');
 
 const languageOptions = [
   { label: '简体中文', value: 'zh-CN' },
-  { label: '繁體中文', value: 'zh-TW' },
-  { label: '英文（English）', value: 'en-US' },
 ];
 
 const highlightColorOptions = [
@@ -160,8 +159,6 @@ const texts = {
   displayLanguage: '界面语言',
   highlightColor: '高亮主题色',
   languageZhCN: '简体中文',
-  languageZhTW: '繁體中文',
-  languageEnUS: '英文（English）',
   autoHighlightPageSummary: '自动高亮页面摘要',
   autoHighlightPageSummaryDescription: '打开含有已保存摘要的页面时自动恢复高亮，便于浏览定位。',
   autoLocateFirstSummary: '进入页面时定位首条摘要',
@@ -182,9 +179,6 @@ function t(key: TextKey) {
 
 function mergeStoredOptions(current: Partial<StoredOptions> = {}): OptionsForm {
   const mergedOptions: OptionsForm = { ...DEFAULT_OPTIONS };
-  if (current.language !== undefined) {
-    mergedOptions.language = current.language as OptionsForm['language'];
-  }
   if (current.highlightColor !== undefined) {
     mergedOptions.highlightColor = current.highlightColor as OptionsForm['highlightColor'];
   }
@@ -265,11 +259,10 @@ function persistActiveTabToStorage(tab: TabKey): void {
 }
 
 watch(
-  () => [form.language, form.highlightColor, form.autoHighlightPageSummary, form.autoLocateFirstSummary],
+  () => [form.highlightColor, form.autoHighlightPageSummary, form.autoLocateFirstSummary],
   async () => {
     try {
       await writeSettingsLocal({
-        language: form.language,
         highlightColor: form.highlightColor,
         autoHighlightPageSummary: form.autoHighlightPageSummary,
         autoLocateFirstSummary: form.autoLocateFirstSummary,
