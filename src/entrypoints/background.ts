@@ -1,4 +1,3 @@
-import 'webextension-polyfill';
 import { browser } from 'wxt/browser';
 import { registerMessageRouter } from '@/background/handlers/message-router';
 import { extensionLifecycle } from '@/background/lifecycle/extension-lifecycle';

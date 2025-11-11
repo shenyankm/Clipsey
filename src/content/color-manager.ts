@@ -1,28 +1,18 @@
 /** 统一管理高亮颜色：通过 CSS 变量注入并提供内联/覆盖两种计算，默认采用舒适配色方案。 */
 import { browser } from 'wxt/browser';
-import type { HighlightColorScheme, SettingsOptions } from '@/utils/settings-local';
+import {
+  DEFAULT_SETTINGS,
+  HIGHLIGHT_COLOR_SCHEMES,
+  watchSettingsLocal,
+  type HighlightColorScheme,
+  type SettingsOptions,
+} from '@/utils/settings-local';
 import type { MessageResponse } from '@/types/message';
 
 // 预设的高亮颜色方案（类型从 utils 引入）
 
-// 高亮配色方案定义
-const COLOR_SCHEMES: Record<HighlightColorScheme, { hex: string; name: string }> = {
-  amber: {
-    hex: '#FFC107',
-    name: '琥珀色' // Material Design Amber 500 - 经典高亮颜色
-  },
-  green: {
-    hex: '#81C784',
-    name: '青绿色' // Material Design Green 300 - 柔和护眼
-  },
-  blue: {
-    hex: '#64B5F6',
-    name: '天蓝色' // Material Design Blue 300 - 清新舒适
-  }
-};
-
 // 默认配色方案
-const DEFAULT_COLOR_SCHEME: HighlightColorScheme = 'amber';
+const DEFAULT_COLOR_SCHEME: HighlightColorScheme = DEFAULT_SETTINGS.highlightColor;
 const DEFAULT_INLINE_RGBA = 'rgba(255, 193, 7, 0.3)';
 const DEFAULT_OVERLAY_RGBA = 'rgba(255, 193, 7, 0.2)';
 
@@ -34,6 +24,11 @@ export const HIGHLIGHT_OVERLAY_CLASS = 'clipsey-overlay-highlight';
 
 let styleInjected = false;
 let styleEl: HTMLStyleElement | null = null;
+
+function getSchemeHex(scheme?: HighlightColorScheme): string {
+  const candidate = scheme && HIGHLIGHT_COLOR_SCHEMES[scheme] ? scheme : DEFAULT_COLOR_SCHEME;
+  return HIGHLIGHT_COLOR_SCHEMES[candidate]?.hex ?? HIGHLIGHT_COLOR_SCHEMES[DEFAULT_COLOR_SCHEME].hex;
+}
 
 // 十六进制转 RGBA（非法输入回退至默认值）
 function hexToRgba(hex: string, alpha: number): string {
@@ -50,6 +45,13 @@ function hexToRgba(hex: string, alpha: number): string {
   const b = parseInt(full.slice(4, 6), 16);
   const a = Math.max(0, Math.min(1, alpha));
   return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+function applyColorScheme(scheme: HighlightColorScheme): void {
+  const hexColor = getSchemeHex(scheme);
+  const inline = hexToRgba(hexColor, 0.3);
+  const overlay = hexToRgba(hexColor, 0.2);
+  ensureStyleInjected(inline, overlay);
 }
 
 function ensureStyleInjected(inlineColor: string, overlayColor: string): void {
@@ -101,7 +103,7 @@ async function loadColorSchemeFromSettings(): Promise<HighlightColorScheme> {
       });
 
       const scheme = response?.data?.highlightColor;
-      if (scheme && COLOR_SCHEMES[scheme as HighlightColorScheme]) {
+      if (scheme && HIGHLIGHT_COLOR_SCHEMES[scheme as HighlightColorScheme]) {
         return scheme as HighlightColorScheme;
       }
     }
@@ -115,7 +117,7 @@ async function loadColorSchemeFromSettings(): Promise<HighlightColorScheme> {
       const items = await browser.storage.local.get('clipsey-options');
       const settings = items['clipsey-options'] as { highlightColor?: HighlightColorScheme } | undefined;
       const scheme = settings?.highlightColor;
-      if (scheme && COLOR_SCHEMES[scheme]) {
+      if (scheme && HIGHLIGHT_COLOR_SCHEMES[scheme]) {
         return scheme;
       }
     }
@@ -130,12 +132,7 @@ async function loadColorSchemeFromSettings(): Promise<HighlightColorScheme> {
 export async function ensureHighlightColorsReady(): Promise<void> {
   // 从设置中读取颜色方案
   currentColorScheme = await loadColorSchemeFromSettings();
-  const scheme = currentColorScheme as keyof typeof COLOR_SCHEMES;
-  const hexColor = COLOR_SCHEMES[scheme].hex;
-  
-  const inline = hexToRgba(hexColor, 0.3);
-  const overlay = hexToRgba(hexColor, 0.2);
-  ensureStyleInjected(inline, overlay);
+  applyColorScheme(currentColorScheme);
 }
 
 // 获取内联高亮背景色
@@ -150,9 +147,9 @@ export function getOverlayHighlightColor(): string {
 
 // 返回颜色方案列表（value/label/hex）
 export function getAvailableColorSchemes(): Array<{ value: HighlightColorScheme; label: string; hex: string }> {
-  return Object.entries(COLOR_SCHEMES).map(([key, config]) => ({
+  return Object.entries(HIGHLIGHT_COLOR_SCHEMES).map(([key, config]) => ({
     value: key as HighlightColorScheme,
-    label: config.name,
+    label: config.label,
     hex: config.hex
   }));
 }
@@ -164,23 +161,13 @@ export function getCurrentColorScheme(): HighlightColorScheme {
 
 // 监听设置变化，动态更新颜色（依赖 options 页同步写入 browser.storage.local）
 try {
-  if (typeof browser !== 'undefined' && browser.storage?.onChanged) {
-    browser.storage.onChanged.addListener((changes, areaName) => {
-      if (areaName !== 'local') return;
-      const changed = changes['clipsey-options'];
-      if (!changed) return;
-      const newVal = changed.newValue as { highlightColor?: HighlightColorScheme } | undefined;
-      const scheme = newVal?.highlightColor;
-      if (scheme && COLOR_SCHEMES[scheme]) {
-        currentColorScheme = scheme;
-        const schemeKey = scheme as keyof typeof COLOR_SCHEMES;
-        const hexColor = COLOR_SCHEMES[schemeKey].hex;
-        const inline = hexToRgba(hexColor, 0.3);
-        const overlay = hexToRgba(hexColor, 0.2);
-        ensureStyleInjected(inline, overlay);
-      }
-    });
-  }
+  watchSettingsLocal((newValue) => {
+    if (!newValue.highlightColor) {
+      return;
+    }
+    currentColorScheme = newValue.highlightColor;
+    applyColorScheme(currentColorScheme);
+  });
 } catch {
-  
+  // ignore
 }

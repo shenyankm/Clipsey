@@ -106,17 +106,19 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch, type Component } from 'vue';
 import ClipManager from './ClipManager.vue';
-import { readSettingsLocal, writeSettingsLocal } from '@/utils/settings-local';
+import {
+  readSettingsLocal,
+  writeSettingsLocal,
+  DEFAULT_SETTINGS,
+  HIGHLIGHT_COLOR_OPTIONS,
+  type SettingsOptions,
+} from '@/utils/settings-local';
 import { MailOutlined, QqOutlined, WechatOutlined, InfoCircleOutlined } from '@ant-design/icons-vue';
 
-interface OptionsForm {
-  language: 'zh-CN';
-  highlightColor: 'amber' | 'green' | 'blue';
-  autoHighlightPageSummary: boolean;
-  autoLocateFirstSummary: boolean;
-}
-
-type StoredOptions = Omit<OptionsForm, 'language'> & { language?: string };
+type OptionsForm = Pick<
+  SettingsOptions,
+  'language' | 'highlightColor' | 'autoHighlightPageSummary' | 'autoLocateFirstSummary'
+>;
 
 type TabKey = 'basic' | 'content' | 'about';
 
@@ -126,12 +128,7 @@ type CommunityContact = {
   icon: Component;
 };
 
-const DEFAULT_OPTIONS: OptionsForm = {
-  language: 'zh-CN',
-  highlightColor: 'amber',
-  autoHighlightPageSummary: true,
-  autoLocateFirstSummary: true,
-};
+const DEFAULT_OPTIONS: OptionsForm = createOptionsForm(DEFAULT_SETTINGS);
 
 const form = reactive<OptionsForm>({ ...DEFAULT_OPTIONS });
 const activeItem = ref<TabKey>('basic');
@@ -140,11 +137,7 @@ const languageOptions = [
   { label: '简体中文', value: 'zh-CN' },
 ];
 
-const highlightColorOptions = [
-  { label: '琥珀色', value: 'amber', hex: '#FFC107' },
-  { label: '青草绿', value: 'green', hex: '#81C784' },
-  { label: '湖水蓝', value: 'blue', hex: '#64B5F6' },
-];
+const highlightColorOptions = HIGHLIGHT_COLOR_OPTIONS;
 
 const communityLinks: CommunityContact[] = [
   { label: 'QQ 交流群', value: '123456789', icon: QqOutlined },
@@ -177,18 +170,24 @@ function t(key: TextKey) {
   return texts[key];
 }
 
-function mergeStoredOptions(current: Partial<StoredOptions> = {}): OptionsForm {
-  const mergedOptions: OptionsForm = { ...DEFAULT_OPTIONS };
-  if (current.highlightColor !== undefined) {
-    mergedOptions.highlightColor = current.highlightColor as OptionsForm['highlightColor'];
+function createOptionsForm(current?: Partial<SettingsOptions>): OptionsForm {
+  const base: OptionsForm = {
+    language: DEFAULT_SETTINGS.language,
+    highlightColor: DEFAULT_SETTINGS.highlightColor,
+    autoHighlightPageSummary: DEFAULT_SETTINGS.autoHighlightPageSummary,
+    autoLocateFirstSummary: DEFAULT_SETTINGS.autoLocateFirstSummary,
+  };
+  const merged: OptionsForm = { ...base };
+  if (!current) return merged;
+  if (current.language) merged.language = current.language;
+  if (current.highlightColor) merged.highlightColor = current.highlightColor;
+  if (typeof current.autoHighlightPageSummary === 'boolean') {
+    merged.autoHighlightPageSummary = current.autoHighlightPageSummary;
   }
-  if (current.autoHighlightPageSummary !== undefined) {
-    mergedOptions.autoHighlightPageSummary = current.autoHighlightPageSummary;
+  if (typeof current.autoLocateFirstSummary === 'boolean') {
+    merged.autoLocateFirstSummary = current.autoLocateFirstSummary;
   }
-  if (current.autoLocateFirstSummary !== undefined) {
-    mergedOptions.autoLocateFirstSummary = current.autoLocateFirstSummary;
-  }
-  return mergedOptions;
+  return merged;
 }
 
 onMounted(async () => {
@@ -207,7 +206,7 @@ onMounted(async () => {
 async function getSettings(): Promise<OptionsForm> {
   try {
     const stored = await readSettingsLocal();
-    return mergeStoredOptions(stored ?? {} as Partial<StoredOptions>);
+    return createOptionsForm(stored);
   } catch (error) {
     console.warn('Failed to load settings from IndexedDB:', error);
     return { ...DEFAULT_OPTIONS };

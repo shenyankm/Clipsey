@@ -33,10 +33,6 @@ export default defineConfig({
       'activeTab',
       'tabs'
     ],
-    host_permissions: [
-      'https://*/*',
-      'http://*/*'
-    ],
     icons: {
       '16': 'icon16.png',
       '48': 'icon48.png',

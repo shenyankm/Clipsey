@@ -1,8 +1,19 @@
-/** 设置本地存储：统一读/写/监听接口，提供默认值与错误回退（基于 browser.storage.local）。 */
+/** 管理本地存储的统一读/写/监听接口，提供默认值并包裹 browser.storage.local */
 import { browser } from 'wxt/browser';
 
-export type LanguageOption = 'zh-CN'; // 现在只支持简体中文
+export type LanguageOption = 'zh-CN'; // 当前仅支持简体中文
 export type HighlightColorScheme = 'amber' | 'green' | 'blue';
+
+type HighlightColorConfig = {
+  label: string;
+  hex: string;
+};
+
+export const HIGHLIGHT_COLOR_SCHEMES: Record<HighlightColorScheme, HighlightColorConfig> = {
+  amber: { label: '琥珀色', hex: '#FFC107' },
+  green: { label: '青草绿', hex: '#81C784' },
+  blue: { label: '湖水蓝', hex: '#64B5F6' }
+} as const;
 
 export interface SettingsOptions {
   language: LanguageOption;
@@ -22,7 +33,15 @@ export const DEFAULT_SETTINGS: SettingsOptions = {
   schemaVersion: 1
 };
 
-/** 读取设置：带默认值与错误回退。 */
+export const HIGHLIGHT_COLOR_OPTIONS = Object.entries(HIGHLIGHT_COLOR_SCHEMES).map(
+  ([value, config]) => ({
+    label: config.label,
+    value: value as HighlightColorScheme,
+    hex: config.hex
+  })
+);
+
+/** 读取设置，始终返回带默认值的结构 */
 export async function readSettingsLocal(): Promise<SettingsOptions> {
   try {
     if (browser.storage?.local) {
@@ -36,7 +55,7 @@ export async function readSettingsLocal(): Promise<SettingsOptions> {
   return { ...DEFAULT_SETTINGS };
 }
 
-/** 写入设置：支持部分覆盖并自动合并默认值。 */
+/** 写入设置，支持传入部分字段自动与默认值合并 */
 export async function writeSettingsLocal(partial: Partial<SettingsOptions>): Promise<void> {
   try {
     const current = await readSettingsLocal();
@@ -49,7 +68,7 @@ export async function writeSettingsLocal(partial: Partial<SettingsOptions>): Pro
   }
 }
 
-/** 监听设置变化：仅监听 browser.storage.local 区域。 */
+/** 监听设置变更，回调总能拿到完整的 SettingsOptions */
 export function watchSettingsLocal(
   listener: (newValue: SettingsOptions, oldValue?: SettingsOptions) => void
 ): () => void {
@@ -78,7 +97,7 @@ export function watchSettingsLocal(
     // ignore
   }
 
-  // 返回取消监听的函数
+  // 返回移除监听的函数
   return () => {
     try {
       if (browser.storage?.onChanged) {
@@ -90,12 +109,12 @@ export function watchSettingsLocal(
   };
 }
 
-/** 合并默认值：保证设置结构完整。 */
+/** 合并默认值，确保结构完整 */
 function mergeWithDefaults(raw?: Partial<SettingsOptions>): SettingsOptions {
   const base = { ...DEFAULT_SETTINGS };
   if (!raw) return base;
   return {
-    language: base.language, // 语言现在固定为 zh-CN
+    language: base.language, // 语言暂时固定为 zh-CN
     highlightColor: (raw.highlightColor ?? base.highlightColor) as HighlightColorScheme,
     autoHighlightPageSummary: raw.autoHighlightPageSummary ?? base.autoHighlightPageSummary,
     autoLocateFirstSummary: raw.autoLocateFirstSummary ?? base.autoLocateFirstSummary,
