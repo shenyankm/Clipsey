@@ -82,6 +82,8 @@
         <div v-if="selectedClip && clipHasRichContent(selectedClip)" v-html="resolveClipHtml(selectedClip)"></div>
         <a-typography-text v-else-if="selectedClip">{{ selectedClip.textContent || '暂无内容' }}</a-typography-text>
         <a-typography-text v-else>暂无内容</a-typography-text>
+        <a-typography-text strong>创建时间:</a-typography-text>
+        <a-typography-text>{{ selectedClipCreatedAt }}</a-typography-text>
       </a-space>
     </a-modal>
   </a-space>
@@ -112,6 +114,11 @@ useBroadcastSync('clipsey-storage-sync', () => {
 const showModal = ref(false);
 const selectedClip = ref<Clip | null>(null);
 const pageSize = 20;
+
+const selectedClipCreatedAt = computed(() => {
+  const createdAt = selectedClip.value?.createdAt;
+  return createdAt ? formatDateForTable(createdAt) : '未知';
+});
 
 type SortDirection = 'asc' | 'desc';
 const DEFAULT_SORT_COLUMN: SortBy = 'createdAt';

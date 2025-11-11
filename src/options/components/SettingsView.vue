@@ -104,8 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch, type Component } from 'vue';
-import ClipManager from './ClipManager.vue';
+import { defineAsyncComponent, onMounted, reactive, ref, watch, type Component } from 'vue';
 import {
   readSettingsLocal,
   writeSettingsLocal,
@@ -114,6 +113,8 @@ import {
   type SettingsOptions,
 } from '@/utils/settings-local';
 import { MailOutlined, QqOutlined, WechatOutlined, InfoCircleOutlined } from '@ant-design/icons-vue';
+
+const ClipManager = defineAsyncComponent(() => import('./ClipManager.vue'));
 
 type OptionsForm = Pick<
   SettingsOptions,

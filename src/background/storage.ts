@@ -6,6 +6,8 @@ import { cacheManager } from './storage/cache-manager';
 import { syncManager, storage } from './storage/sync-manager';
 import { normalizeClips } from './storage/utils/clip-normalizer';
 
+const MAX_CLIP_ENTRIES = 200;
+
 let initAttempt: Promise<void> | null = null;
 
 async function ensureInitialized(): Promise<void> {
@@ -79,31 +81,17 @@ export async function addClip(clip: Clip): Promise<void> {
   }
 
   try {
-    const existing = await getClips();
-    
-    // 如果有highlightId，移除重复的highlight
-    const filtered = normalizedClip.highlightId
-      ? existing.filter(
-          entry =>
-            !(
-              entry.highlightId &&
-              entry.highlightId === normalizedClip.highlightId &&
-              entry.sourceUrl === normalizedClip.sourceUrl
-            )
-        )
-      : existing;
+    const oldClips = await getClips();
 
-    // 添加新clip到开头
-    filtered.unshift({ ...normalizedClip });
-    
-    // 限制数量
-    const MAX_CLIP_ENTRIES = 200;
-    if (filtered.length > MAX_CLIP_ENTRIES) {
-      filtered.length = MAX_CLIP_ENTRIES;
-    }
-    
-    await saveClips(filtered);
-    
+    await indexedDBManager.executeTransaction('clips', 'readwrite', async (transaction) => {
+      const store = transaction.objectStore('clips');
+      await deleteDuplicateHighlights(store, normalizedClip);
+      await putClipRecord(store, normalizedClip);
+      await trimClipsToLimit(store, MAX_CLIP_ENTRIES);
+    });
+
+    const newClips = await reloadCacheFromStorage();
+    syncManager.notifyChange(oldClips, newClips);
   } catch (error) {
     throw new IndexedDBError(
       'Failed to add clip',
@@ -133,10 +121,84 @@ async function loadClipsFromStorage(): Promise<Clip[]> {
   }
 }
 
+async function reloadCacheFromStorage(): Promise<Clip[]> {
+  const clips = await loadClipsFromStorage();
+  cacheManager.update(clips);
+  return clips;
+}
+
+async function deleteDuplicateHighlights(store: IDBObjectStore, clip: Clip): Promise<void> {
+  if (!clip.highlightId) {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const index = store.index('highlightId');
+    const request = index.openCursor(IDBKeyRange.only(clip.highlightId));
+
+    request.onsuccess = () => {
+      const cursor = request.result as IDBCursorWithValue | null;
+      if (!cursor) {
+        resolve();
+        return;
+      }
+
+      const value = cursor.value as Clip;
+      if (value.sourceUrl === clip.sourceUrl && value.id !== clip.id) {
+        cursor.delete();
+      }
+      cursor.continue();
+    };
+
+    request.onerror = () => reject(request.error ?? new Error('Failed to dedupe highlights'));
+  });
+}
+
+async function putClipRecord(store: IDBObjectStore, clip: Clip): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const request = store.put(clip);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error ?? new Error('Failed to write clip'));
+  });
+}
+
+async function trimClipsToLimit(store: IDBObjectStore, limit: number): Promise<void> {
+  const total = await new Promise<number>((resolve, reject) => {
+    const countRequest = store.count();
+    countRequest.onsuccess = () => resolve(countRequest.result);
+    countRequest.onerror = () => reject(countRequest.error ?? new Error('Failed to count clips'));
+  });
+
+  if (total <= limit) {
+    return;
+  }
+
+  const deleteCount = total - limit;
+  await new Promise<void>((resolve, reject) => {
+    const index = store.index('createdAt');
+    let removed = 0;
+    const request = index.openCursor(undefined, 'next');
+
+    request.onsuccess = () => {
+      const cursor = request.result as IDBCursorWithValue | null;
+      if (!cursor || removed >= deleteCount) {
+        resolve();
+        return;
+      }
+
+      cursor.delete();
+      removed += 1;
+      cursor.continue();
+    };
+
+    request.onerror = () => reject(request.error ?? new Error('Failed to trim clips'));
+  });
+}
+
 // 刷新缓存：强制重载 IndexedDB 数据
-export async function refreshCache(): Promise<void> {
+export async function refreshCache(): Promise<Clip[]> {
   cacheManager.clear();
-  await cacheManager.get(() => loadClipsFromStorage());
+  return cacheManager.get(() => loadClipsFromStorage());
 }
 
 // 获取存储统计（数量、大小、最早/最新时间）
@@ -174,3 +236,7 @@ export async function getStorageStats(): Promise<{
 
 // 导出IndexedDBQuery和storage API
 export { IndexedDBQuery, storage };
+
+
+
+

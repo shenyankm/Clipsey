@@ -1,5 +1,4 @@
 import type { Clip } from '@/types/clip';
-import { indexedDBManager } from '@/background/indexeddb';
 import { IndexedDBQuery } from '@/background/indexeddb-query';
 
 export type SearchType = 'all' | 'title' | 'website' | 'content';
@@ -21,11 +20,10 @@ export interface SearchResult {
   pageSize: number;
 }
 
-/** 标准化排序选项。 */
+/** 规范化排序选项。 */
 function normalizeSort(query: SearchQuery): { indexName?: string; direction: 'next' | 'prev' } {
   const sortBy = query.sortBy ?? 'createdAt';
   const sortOrder = query.sortOrder ?? 'desc';
-  // 仅在存在索引时使用索引排序；title 无索引，回退为 createdAt
   const indexMap: Record<Exclude<SortBy, 'title'>, string> = {
     createdAt: 'createdAt',
     sourceUrl: 'sourceUrl',
@@ -36,7 +34,7 @@ function normalizeSort(query: SearchQuery): { indexName?: string; direction: 'ne
   return { indexName, direction };
 }
 
-/** 搜索服务：支持索引分页与关键词过滤，优先无关键词走高效索引分页。 */
+/** 搜索服务：支持无关键字分页与关键字过滤。 */
 export class SearchService {
   async search(query: SearchQuery): Promise<SearchResult> {
     const page = Math.max(1, (query.page ?? 1) | 0);
@@ -46,16 +44,16 @@ export class SearchService {
 
     const { indexName, direction } = normalizeSort(query);
 
-    // 无关键词：直接分页
     if (!keyword) {
       return this.paginateWithoutKeyword(page, pageSize, indexName, direction);
     }
 
-    // 有关键词：过滤搜索
-    return this.searchWithKeyword(keyword, type, page, pageSize, indexName, direction);
+    const sortBy = query.sortBy ?? 'createdAt';
+    const sortOrder: 'asc' | 'desc' = query.sortOrder ?? 'desc';
+    return this.searchWithKeyword(keyword, type, page, pageSize, sortBy, sortOrder);
   }
 
-  /** 无关键词的分页查询。 */
+  /** 无关键字的分页查询。 */
   private async paginateWithoutKeyword(
     page: number,
     pageSize: number,
@@ -69,54 +67,27 @@ export class SearchService {
     return { items: data as Clip[], total, page, pageSize };
   }
 
-  /** 带关键词的搜索。 */
+  /** 关键字过滤搜索。 */
   private async searchWithKeyword(
     keyword: string,
     type: SearchType,
     page: number,
     pageSize: number,
-    indexName?: string,
-    direction: 'next' | 'prev' = 'prev'
+    sortBy: SortBy,
+    sortOrder: 'asc' | 'desc'
   ): Promise<SearchResult> {
     const lower = keyword.toLowerCase();
     const offset = (page - 1) * pageSize;
-    let skipped = 0;
-    const items: Clip[] = [];
-    let total = 0;
-
-    await indexedDBManager.executeTransaction('clips', 'readonly', async (transaction) => {
-      const store = transaction.objectStore('clips');
-      const source = indexName ? store.index(indexName) : store;
-      const request = source.openCursor(undefined, direction);
-
-      await new Promise<void>((resolve, reject) => {
-        request.onsuccess = () => {
-          const cursor = request.result as IDBCursorWithValue | null;
-          if (!cursor) {
-            resolve();
-            return;
-          }
-          const record = cursor.value as Clip;
-          
-          if (this.matchesSearch(record, type, lower)) {
-            total += 1;
-            if (skipped < offset) {
-              skipped += 1;
-            } else if (items.length < pageSize) {
-              items.push(record);
-            }
-          }
-
-          cursor.continue();
-        };
-        request.onerror = () => reject(request.error);
-      });
-    });
-
+    const { getClips } = await import('@/background/storage');
+    const clips = await getClips();
+    const matches = clips.filter((clip) => this.matchesSearch(clip, type, lower));
+    const sorted = this.sortClips(matches, sortBy, sortOrder);
+    const total = sorted.length;
+    const items = sorted.slice(offset, offset + pageSize);
     return { items, total, page, pageSize };
   }
 
-  /** 检查记录是否匹配搜索条件。 */
+  /** 判断记录是否满足过滤条件。 */
   private matchesSearch(record: Clip, type: SearchType, lowerKeyword: string): boolean {
     const title = (record.title ?? '').toLowerCase();
     const url = (record.sourceUrl ?? '').toLowerCase();
@@ -133,7 +104,35 @@ export class SearchService {
         return title.includes(lowerKeyword) || url.includes(lowerKeyword) || content.includes(lowerKeyword);
     }
   }
+
+  private sortClips(clips: Clip[], sortBy: SortBy, sortOrder: 'asc' | 'desc'): Clip[] {
+    const factor = sortOrder === 'asc' ? 1 : -1;
+    const access = (clip: Clip): string | number => {
+      switch (sortBy) {
+        case 'sourceUrl':
+          return (clip.sourceUrl ?? '').toLowerCase();
+        case 'textContent':
+          return (clip.textContent ?? '').toLowerCase();
+        case 'title':
+          return (clip.title ?? '').toLowerCase();
+        default:
+          return clip.createdAt ? new Date(clip.createdAt).getTime() : 0;
+      }
+    };
+
+    return [...clips].sort((a, b) => {
+      const left = access(a);
+      const right = access(b);
+      if (left === right) {
+        return 0;
+      }
+      if (typeof left === 'number' && typeof right === 'number') {
+        return (left - right) * factor;
+      }
+      return (left < right ? -1 : 1) * factor;
+    });
+  }
 }
 
-// 导出单例实例
+// 单例
 export const searchService = new SearchService();
