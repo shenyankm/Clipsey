@@ -23,11 +23,11 @@
             type="primary" 
             size="small"
             :disabled="!clip.sourceUrl" 
-            :loading="opening" 
-            @click.stop="handleOpen"
-          >
-            跳转
-          </a-button>
+              :loading="opening"
+              @click.stop="handleOpen"
+            >
+              跳转
+            </a-button>
         </a-col>
       </a-row>
     </a-space>
@@ -37,7 +37,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import type { Clip } from '@/types/clip';
-import { formatDate } from '@/utils/helpers';
+import { formatClipDate } from '@/utils/clip-format';
 import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
 
 const props = defineProps<{
@@ -50,7 +50,7 @@ const emit = defineEmits<{
 }>();
 
 const expanded = ref(false);
-const formattedDate = computed(() => formatDate(props.clip.createdAt));
+const formattedDate = computed(() => formatClipDate(props.clip.createdAt));
 const summaryHtml = computed(() => getClipHtmlContent(props.clip));
 const hasSummary = computed(() => hasClipRichContent(props.clip));
 const missingSummaryLabel = '暂无摘要';

@@ -31,6 +31,7 @@
             :open-clip-detail="openClipDetail"
             :open-clip-action="openClipAction"
             :delete-clip="deleteClip"
+            :opening-id="openingId"
           />
         </template>
         <template v-else>
@@ -44,6 +45,7 @@
             :open-clip-action="openClipAction"
             :delete-clip="deleteClip"
             :on-table-change="handleTableChangeBridge"
+            :opening-id="openingId"
           />
         </template>
       </div>
@@ -83,7 +85,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { message } from 'ant-design-vue';
 import type { Clip } from '@/types/clip';
 import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
-import { formatDateForTable } from '@/utils/helpers';
+import { formatClipDate, getClipPreview as formatClipPreview, getClipDomain } from '@/utils/clip-format';
 import { useClipSearch } from '../composables/useClipSearch';
 import { useClipPagination } from '../composables/useClipPagination';
 import { useClipCRUD } from '../composables/useClipCRUD';
@@ -99,7 +101,7 @@ type ClipGroup = { key: string; label: string; clips: Clip[] };
 // 使用组合式函数
 const { searchQuery, searchResults, searchTotal, performSearch } = useClipSearch();
 const { currentPage, paginatedClips: paginatedData } = useClipPagination(searchResults, 20);
-const { deleteClip: deleteClipAction, openClip: openClipAction } = useClipCRUD();
+const { deleteClip: deleteClipAction, openClip: openClipAction, openingId } = useClipCRUD();
 
 // 使用BroadcastChannel同步
 useBroadcastSync('clipsey-storage-sync', () => {
@@ -129,8 +131,7 @@ function toggleGroupExpansion(key: string): void {
 }
 
 const selectedClipCreatedAt = computed(() => {
-  const createdAt = selectedClip.value?.createdAt;
-  return createdAt ? formatDateForTable(createdAt) : '未知';
+  return formatClipDate(selectedClip.value?.createdAt);
 });
 
 const isGroupedView = computed(() => classificationMode.value !== 'none');
@@ -287,29 +288,8 @@ function formatGroupDate(isoString: string | undefined): string {
 }
 
 
-function getClipPreview(clip: Clip): string {
-  const content = clip.textContent ?? '';
-  const normalized = content.replace(/\s+/g, ' ').trim();
-  if (!normalized) {
-    return clip.title?.trim() || '暂无内容';
-  }
-  return normalized.length > 120 ? `${normalized.slice(0, 120)}…` : normalized;
-}
-
-function getDomainFromUrl(url: string | undefined): string {
-  /** 从URL提取顶级域名（去掉www前缀），用于表格展示来源站点。 */
-  if (!url) {
-    return '';
-  }
-  try {
-    const hostname = new URL(url).hostname;
-    // 移除 'www.' 前缀（如果存在）
-    return hostname.startsWith('www.') ? hostname.substring(4) : hostname;
-  } catch (error) {
-    console.error('无效的URL:', url, error);
-    return url; // 解析失败时返回原始URL
-  }
-}
+const getClipPreview = (clip: Clip) => formatClipPreview(clip);
+const getDomainFromUrl = (url?: string) => getClipDomain(url);
 
 
 
@@ -372,6 +352,6 @@ function handleTableChangeBridge(pagination: any, filters: any, sorter: any) {
 }
 
 function formatDateDisplay(value?: string): string {
-  return value ? formatDateForTable(value) : '--';
+  return formatClipDate(value);
 }
 </script>

@@ -26,7 +26,8 @@
               size="small"
               type="primary"
               :disabled="!record.sourceUrl"
-              @click="openClipAction(record.id)"
+              :loading="openingId === record.id"
+              @click="openClipAction(record)"
             >
               打开
             </a-button>
@@ -50,9 +51,10 @@ defineProps<{
   getDomainFromUrl: (url?: string) => string;
   formatDate: (iso?: string) => string;
   openClipDetail: (clip: Clip) => void;
-  openClipAction: (id: string) => void;
+  openClipAction: (clip: Clip) => void;
   deleteClip: (id: string) => void;
   onTableChange: (...args: any[]) => void;
+  openingId?: string | null;
 }>();
 </script>
 

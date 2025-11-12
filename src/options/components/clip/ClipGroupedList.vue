@@ -67,7 +67,8 @@
               size="small"
               type="primary"
               :disabled="!clipItem.sourceUrl"
-              @click="openClipAction(clipItem.id)"
+              :loading="openingId === clipItem.id"
+              @click="openClipAction(clipItem)"
             >
               打开
             </a-button>
@@ -96,8 +97,9 @@ defineProps<{
   formatDate: (iso?: string) => string;
   getDomainFromUrl: (url?: string) => string;
   openClipDetail: (clip: Clip) => void;
-  openClipAction: (id: string) => void;
+  openClipAction: (clip: Clip) => void;
   deleteClip: (id: string) => void;
+  openingId?: string | null;
 }>();
 </script>
 

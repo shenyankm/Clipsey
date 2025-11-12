@@ -1,9 +1,13 @@
 import { browser } from 'wxt/browser';
 import { permissionsService } from '@/background/services/permissions-service';
+import { buildHighlightPayloads, sendHighlightsToTab, isAutoHighlightEnabled } from '@/background/utils/highlight-helpers';
 /** 高亮同步服务：剪辑删除后刷新对应页面的高亮状态。 */
 export class HighlightSyncService {
   // 刷新指定 URL 的页面高亮（用于剪辑删除后的同步）
   async refreshPageHighlights(url: string): Promise<void> {
+    if (!(await isAutoHighlightEnabled())) {
+      return;
+    }
     try {
       const tabs = await browser.tabs.query({});
       
@@ -24,24 +28,12 @@ export class HighlightSyncService {
     try {
       const { getClipsForUrl } = await import('@/background/storage');
       const clips = await getClipsForUrl(tabUrl);
-      
-      const highlights = clips
-        .filter(clip => clip.highlightId && clip.textContent)
-        .map(clip => ({
-          id: clip.highlightId ?? clip.id,
-          highlightId: clip.highlightId,
-          textContent: clip.textContent,
-          contextBefore: clip.contextBefore,
-          contextAfter: clip.contextAfter,
-          anchorSelector: clip.anchorSelector,
-          textOffset: clip.textOffset,
-          highlightStyle: clip.highlightStyle
-        }));
-      
-      await browser.tabs.sendMessage(tabId, {
-        type: 'ACTIVATE_HIGHLIGHTS',
-        payload: { highlights }
-      });
+      const highlights = buildHighlightPayloads(clips);
+      if (!highlights.length) {
+        return;
+      }
+
+      await sendHighlightsToTab(tabId, highlights);
     } catch (error) {
       console.debug(`[Highlight Sync] Failed to update tab ${tabId}:`, error);
     }
