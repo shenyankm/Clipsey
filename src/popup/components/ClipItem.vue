@@ -36,50 +36,34 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { message } from 'ant-design-vue';
 import type { Clip } from '@/types/clip';
 import { formatDate } from '@/utils/helpers';
-import { sendMessage } from '@/utils/chrome';
 import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
-import { ErrorHandler } from '@/utils/error-handler';
-import type { MessageResponse } from '@/types/message';
 
-const props = defineProps<{ clip: Clip }>();
+const props = defineProps<{
+  clip: Clip;
+  opening: boolean;
+}>();
+
+const emit = defineEmits<{
+  (e: 'open', clip: Clip): void;
+}>();
 
 const expanded = ref(false);
 const formattedDate = computed(() => formatDate(props.clip.createdAt));
 const summaryHtml = computed(() => getClipHtmlContent(props.clip));
 const hasSummary = computed(() => hasClipRichContent(props.clip));
 const missingSummaryLabel = '暂无摘要';
-const opening = ref(false);
 
 function toggleExpand(): void {
   expanded.value = !expanded.value;
 }
 
-async function handleOpen(): Promise<void> {
-  /** 定位剪辑：通过后台消息在当前页高亮并滚动到位置；无来源链接则提示，过程显示加载状态。 */
-  if (opening.value) return;
-  if (!props.clip.sourceUrl) {
-    message.warning('暂无可用的来源链接');
+function handleOpen(): void {
+  if (!props.clip.sourceUrl || props.opening) {
     return;
   }
-  opening.value = true;
-  try {
-    const response = await sendMessage<MessageResponse>({
-      type: 'OPEN_CLIP',
-      payload: { id: props.clip.id }
-    });
-    if (!response?.success) {
-      throw new Error(response?.error ?? '无法打开剪辑');
-    }
-    window.close();
-  } catch (error) {
-    const appError = ErrorHandler.handle(error, 'Open clip from popup');
-    message.error(appError.userMessage);
-  } finally {
-    opening.value = false;
-  }
+  emit('open', props.clip);
 }
 </script>
 

@@ -89,6 +89,12 @@ export interface SaveClipPayload {
 export interface FocusClipPayload {
   id?: string;
   textContent?: string;
+  highlightId?: string;
+  contextBefore?: string;
+  contextAfter?: string;
+  anchorSelector?: string;
+  textOffset?: number;
+  highlightStyle?: 'inline' | 'overlay';
 }
 
 export interface HighlightPayload {

@@ -7,6 +7,8 @@ import { listenerManager } from './listener-cleanup';
 import { permissionsService } from '@/background/services/permissions-service';
 import type { Clip } from '@/types/clip';
 import type { MessageResponse, HighlightPayload } from '@/types/message';
+import { readSettingsLocal, DEFAULT_SETTINGS, SETTINGS_LOCAL_KEY } from '@/utils/settings-local';
+import type { SettingsOptions } from '@/utils/settings-local';
 
 const HIGHLIGHT_MAX_ATTEMPTS = 8;
 const HIGHLIGHT_RETRY_DELAY_MS = 600;
@@ -18,6 +20,9 @@ type TabInfo = TabUpdateListener extends (...args: infer Args) => any ? Args[2] 
 
 /** 标签页高亮：在页面加载完成后自动激活相关摘要的高亮。 */
 export class TabHighlightManager {
+  private autoHighlightEnabled = DEFAULT_SETTINGS.autoHighlightPageSummary;
+  private settingsInitialized = false;
+
   /** 处理标签页更新事件。 */
   async handleTabUpdate(tabId: number, changeInfo: TabChangeInfo, tab: TabInfo): Promise<void> {
     try {
@@ -51,6 +56,11 @@ export class TabHighlightManager {
   private async activatePageHighlights(tabId: number, url: string): Promise<void> {
     // 跳过不支持的URL
     if (!isSupportedHttpUrl(url)) {
+      return;
+    }
+
+    await this.ensureAutoHighlightSetting();
+    if (!this.autoHighlightEnabled) {
       return;
     }
 
@@ -168,6 +178,51 @@ export class TabHighlightManager {
     }
 
     return highlights;
+  }
+
+  private async ensureAutoHighlightSetting(): Promise<void> {
+    if (!this.settingsInitialized) {
+      await this.refreshAutoHighlightSetting();
+      this.settingsInitialized = true;
+      this.registerSettingsListener();
+    }
+  }
+
+  private async refreshAutoHighlightSetting(): Promise<void> {
+    try {
+      const settings = await readSettingsLocal();
+      this.autoHighlightEnabled = Boolean(settings.autoHighlightPageSummary);
+    } catch {
+      this.autoHighlightEnabled = DEFAULT_SETTINGS.autoHighlightPageSummary;
+    }
+  }
+
+  private registerSettingsListener(): void {
+    if (!browser.storage?.onChanged) {
+      return;
+    }
+
+    const handler: Parameters<typeof browser.storage.onChanged.addListener>[0] = (changes, areaName) => {
+      if (areaName !== 'local') return;
+      const change = changes[SETTINGS_LOCAL_KEY];
+      if (!change) return;
+
+      const newValue = change.newValue as Partial<SettingsOptions> | undefined;
+      if (newValue && typeof newValue.autoHighlightPageSummary === 'boolean') {
+        this.autoHighlightEnabled = newValue.autoHighlightPageSummary;
+      } else if (!newValue) {
+        this.autoHighlightEnabled = DEFAULT_SETTINGS.autoHighlightPageSummary;
+      }
+    };
+
+    try {
+      browser.storage.onChanged.addListener(handler);
+      listenerManager.addCleanup(() => {
+        browser.storage?.onChanged?.removeListener(handler);
+      });
+    } catch {
+      // ignore
+    }
   }
 }
 

@@ -196,13 +196,14 @@ function generateHighlightId(): string {
 async function tryAutoLocateLatestSummaryIfEnabled(success: boolean): Promise<void> {
   if (!success || __autoLocatePerformed) return;
 
-  let settings: SettingsOptions | undefined;
+  let settingsResponse: MessageResponse<SettingsOptions> | undefined;
   try {
-    settings = await sendMessage<SettingsOptions>({ type: 'REQUEST_SETTINGS' });
+    settingsResponse = await sendMessage<MessageResponse<SettingsOptions>>({ type: 'REQUEST_SETTINGS' });
   } catch {
     return;
   }
 
+  const settings = settingsResponse?.success ? settingsResponse.data : undefined;
   if (!settings?.autoLocateFirstSummary) return;
 
   const anchor = findLatestHighlightAnchor();

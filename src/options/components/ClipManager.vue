@@ -1,35 +1,13 @@
 <template>
   <a-space direction="vertical" size="large" style="width: 100%;">
-    <a-row :gutter="12" align="middle">
-      <a-col :xs="24" :sm="18" :md="20" :lg="20">
-        <a-mentions
-          v-model:value="searchQuery"
-          placeholder="输入 @title、@website、@content 进行精确搜索,或直接输入关键词进行全文搜索..."
-          style="width: 100%;"
-        >
-          <a-mentions-option value="title">@title - 搜索标题</a-mentions-option>
-          <a-mentions-option value="website">@website - 搜索网站</a-mentions-option>
-          <a-mentions-option value="content">@content - 搜索内容</a-mentions-option>
-        </a-mentions>
-      </a-col>
-      <a-col :xs="24" :sm="6" :md="4" :lg="4">
-        <a-button type="link" size="small" style="width: 100%;" @click="refreshClips">刷新</a-button>
-      </a-col>
-    </a-row>
-
-    <div class="clip-manager__classification">
-      <span class="clip-manager__classification-label">分类视图：</span>
-      <a-radio-group
-        v-model:value="classificationMode"
-        button-style="solid"
-        size="small"
-        class="clip-manager__classification-group"
-      >
-        <a-radio-button value="none">不分类</a-radio-button>
-        <a-radio-button value="domain">按网址分类</a-radio-button>
-        <a-radio-button value="date">按日期分类</a-radio-button>
-      </a-radio-group>
-    </div>
+    <clip-toolbar
+      :search-value="searchQuery"
+      :classification-mode="classificationMode"
+      :total="searchTotal"
+      @update:search-value="handleSearchChange"
+      @update:classification-mode="handleClassificationChange"
+      @refresh="refreshClips"
+    />
 
     <div>
       <a-card v-if="searchTotal === 0" size="small">
@@ -41,129 +19,32 @@
 
       <div v-else>
         <template v-if="isGroupedView">
-          <div v-if="!groupedClips.length" class="clip-group-empty">
-            <a-empty description="当前视图暂无数据" />
-          </div>
-          <div v-else class="clip-group-list">
-            <a-card
-              v-for="group in groupedClips"
-              :key="group.key"
-              size="small"
-              :class="[
-                'clip-group-card',
-                { 'clip-group-card--collapsed': !isGroupExpanded(group.key) }
-              ]"
-            >
-              <template #title>
-                <div class="clip-group-card__header">
-                  <span class="clip-group-card__title">{{ group.label }}</span>
-                  <span class="clip-group-card__count">({{ group.clips.length }})</span>
-                </div>
-              </template>
-              <template #extra>
-                <a-button type="link" size="small" @click="toggleGroupExpansion(group.key)">
-                  {{ isGroupExpanded(group.key) ? '收起' : '展开' }}
-                </a-button>
-              </template>
-              <div v-if="isGroupExpanded(group.key)">
-                <div
-                  v-for="clipItem in group.clips"
-                  :key="clipItem.id"
-                  :class="[
-                    'clip-group-item',
-                    {
-                      'clip-group-item--date': isDateClassification,
-                      'clip-group-item--domain': isDomainClassification
-                    }
-                  ]"
-                >
-                  <div class="clip-group-item__content">
-                    <div class="clip-group-item__title">{{ clipItem.title || '无标题' }}</div>
-                    <template v-if="isDateClassification">
-                      <div class="clip-group-item__excerpt">{{ getClipPreview(clipItem) }}</div>
-                      <div class="clip-group-item__time">{{ formatTimeForGroup(clipItem.createdAt) }}</div>
-                    </template>
-                    <template v-else-if="isDomainClassification">
-                      <div class="clip-group-item__url">
-                        <template v-if="clipItem.sourceUrl">
-                          <a :href="clipItem.sourceUrl" target="_blank" rel="noreferrer">
-                            {{ formatUrlForDisplay(clipItem.sourceUrl) }}
-                          </a>
-                        </template>
-                        <template v-else>暂无网址</template>
-                      </div>
-                      <div class="clip-group-item__meta clip-group-item__meta--domain">
-                        <span>{{ formatDateForTable(clipItem.createdAt) }}</span>
-                      </div>
-                      <div class="clip-group-item__excerpt">{{ getClipPreview(clipItem) }}</div>
-                    </template>
-                    <template v-else>
-                      <div class="clip-group-item__meta">
-                        <span>{{ formatDateForTable(clipItem.createdAt) }}</span>
-                        <span v-if="clipItem.sourceUrl">
-                          来自 {{ getDomainFromUrl(clipItem.sourceUrl) || '无网址' }}
-                        </span>
-                      </div>
-                      <div class="clip-group-item__excerpt">{{ getClipPreview(clipItem) }}</div>
-                    </template>
-                  </div>
-                  <div class="clip-group-item__actions">
-                    <a-button size="small" @click="openClipDetail(clipItem)">查看</a-button>
-                    <a-button
-                      size="small"
-                      type="primary"
-                      :disabled="!clipItem.sourceUrl"
-                      @click="openClipAction(clipItem.id)"
-                    >
-                      打开
-                    </a-button>
-                    <a-popconfirm title="确认删除该摘抄？此操作不可恢复" @confirm="deleteClip(clipItem.id)">
-                      <a-button size="small" danger>删除</a-button>
-                    </a-popconfirm>
-                  </div>
-                </div>
-              </div>
-            </a-card>
-          </div>
+          <clip-grouped-list
+            :groups="groupedClips"
+            :is-date-classification="isDateClassification"
+            :is-domain-classification="isDomainClassification"
+            :is-expanded="isGroupExpanded"
+            :toggle-group="toggleGroupExpansion"
+            :get-clip-preview="getClipPreview"
+            :format-date="formatDateDisplay"
+            :get-domain-from-url="getDomainFromUrl"
+            :open-clip-detail="openClipDetail"
+            :open-clip-action="openClipAction"
+            :delete-clip="deleteClip"
+          />
         </template>
         <template v-else>
-          <a-table
+          <clip-table-view
             :columns="columns"
-            :dataSource="paginatedData"
-            :pagination="false"
-            :bordered="false"
-            :rowKey="rowKey"
-            size="small"
-            @change="handleTableChange"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'sourceUrl'">
-                <template v-if="record.sourceUrl">
-                  <a-tag color="blue">{{ getDomainFromUrl(record.sourceUrl) }}</a-tag>
-                </template>
-                <template v-else>无网址</template>
-              </template>
-              <template v-else-if="column.key === 'createdAt'">
-                {{ formatDateForTable(record.createdAt) }}
-              </template>
-              <template v-else-if="column.key === 'actions'">
-                <a-space :size="8" align="center">
-                  <a-button size="small" @click="openClipDetail(record)">查看</a-button>
-                  <a-button
-                    size="small"
-                    type="primary"
-                    :disabled="!record.sourceUrl"
-                    @click="openClipAction(record.id)"
-                  >
-                    打开
-                  </a-button>
-                  <a-popconfirm title="确认删除该摘抄？此操作不可恢复" @confirm="deleteClip(record.id)">
-                    <a-button size="small" danger>删除</a-button>
-                  </a-popconfirm>
-                </a-space>
-              </template>
-            </template>
-          </a-table>
+            :data-source="paginatedData"
+            :row-key="rowKey"
+            :get-domain-from-url="getDomainFromUrl"
+            :format-date="formatDateDisplay"
+            :open-clip-detail="openClipDetail"
+            :open-clip-action="openClipAction"
+            :delete-clip="deleteClip"
+            :on-table-change="handleTableChangeBridge"
+          />
         </template>
       </div>
       <div v-if="pageCount > 1">
@@ -208,6 +89,9 @@ import { useClipPagination } from '../composables/useClipPagination';
 import { useClipCRUD } from '../composables/useClipCRUD';
 import { useBroadcastSync } from '@/composables/useBroadcastSync';
 import type { SortBy } from '@/background/services/search-service';
+import ClipToolbar from './clip/ClipToolbar.vue';
+import ClipGroupedList from './clip/ClipGroupedList.vue';
+import ClipTableView from './clip/ClipTableView.vue';
 
 type ClassificationMode = 'none' | 'domain' | 'date';
 type ClipGroup = { key: string; label: string; clips: Clip[] };
@@ -403,13 +287,6 @@ function formatGroupDate(isoString: string | undefined): string {
 }
 
 
-function formatTimeForGroup(isoString: string | undefined): string {
-  if (!isoString) return '--:--';
-  const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) return '--:--';
-  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
 function getClipPreview(clip: Clip): string {
   const content = clip.textContent ?? '';
   const normalized = content.replace(/\s+/g, ' ').trim();
@@ -417,17 +294,6 @@ function getClipPreview(clip: Clip): string {
     return clip.title?.trim() || '暂无内容';
   }
   return normalized.length > 120 ? `${normalized.slice(0, 120)}…` : normalized;
-}
-
-function formatUrlForDisplay(url: string): string {
-  try {
-    const parsed = new URL(url);
-    const path = parsed.pathname && parsed.pathname !== '/' ? parsed.pathname : '';
-    const search = parsed.search ?? '';
-    return `${parsed.hostname}${path}${search}`;
-  } catch {
-    return url;
-  }
 }
 
 function getDomainFromUrl(url: string | undefined): string {
@@ -492,138 +358,20 @@ onMounted(() => {
 
 // Table 唯一键
 const rowKey = (record: Clip) => record.id;
+
+function handleSearchChange(value: string) {
+  searchQuery.value = value;
+}
+
+function handleClassificationChange(value: ClassificationMode) {
+  classificationMode.value = value;
+}
+
+function handleTableChangeBridge(pagination: any, filters: any, sorter: any) {
+  handleTableChange(pagination, filters, sorter);
+}
+
+function formatDateDisplay(value?: string): string {
+  return value ? formatDateForTable(value) : '--';
+}
 </script>
-
-<style scoped>
-.clip-manager__classification {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.clip-manager__classification-label {
-  font-size: 13px;
-  color: #8c8c8c;
-}
-
-.clip-manager__classification-group {
-  flex: 1;
-}
-
-.clip-group-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.clip-group-card {
-  border-radius: 8px;
-}
-
-.clip-group-card__header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  font-size: 14px;
-}
-
-.clip-group-card__count {
-  color: #8c8c8c;
-  font-size: 12px;
-}
-
-.clip-group-item {
-  display: flex;
-  gap: 16px;
-  padding: 8px 0;
-  border-top: 1px solid #f0f0f0;
-}
-
-.clip-group-item--date {
-  align-items: flex-start;
-}
-
-.clip-group-item--date .clip-group-item__content {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.clip-group-item--date .clip-group-item__excerpt {
-  margin-top: 0;
-}
-
-.clip-group-item--domain .clip-group-item__content {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.clip-group-item--domain .clip-group-item__excerpt {
-  margin-top: 0;
-}
-
-.clip-group-item:first-of-type {
-  border-top: none;
-}
-
-.clip-group-item__content {
-  flex: 1;
-  min-width: 0;
-}
-
-.clip-group-item__title {
-  font-weight: 500;
-  font-size: 14px;
-  margin-bottom: 4px;
-}
-
-.clip-group-item__meta {
-  font-size: 12px;
-  color: #8c8c8c;
-}
-
-.clip-group-item__excerpt {
-  font-size: 13px;
-  color: #595959;
-  line-height: 1.4;
-  margin-top: 4px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.clip-group-item__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.clip-group-item__time {
-  font-size: 12px;
-  color: #8c8c8c;
-}
-
-.clip-group-item__url {
-  font-size: 12px;
-  color: #8c8c8c;
-  word-break: break-all;
-}
-
-.clip-group-item__url a {
-  color: #1677ff;
-  text-decoration: none;
-}
-
-.clip-group-item__url a:hover {
-  text-decoration: underline;
-}
-
-.clip-group-empty {
-  padding: 24px 0;
-}
-</style>

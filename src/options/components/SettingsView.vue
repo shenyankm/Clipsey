@@ -3,58 +3,12 @@
     <a-card :bordered="false" class="settings-card">
       <a-tabs v-model:activeKey="activeItem">
         <a-tab-pane key="basic" :tab="t('menuBasic')">
-          <div class="tab-section">
-            <a-typography-title :level="5">{{ t('basicSettingsTitle') }}</a-typography-title>
-            <a-typography-text type="secondary">
-              {{ t('basicSettingsDescription') }}
-            </a-typography-text>
-            <a-divider />
-            <a-form layout="vertical" class="settings-form">
-              <a-form-item :label="t('displayLanguage')">
-                <a-select 
-                  v-model:value="form.language" 
-                  :options="languageOptions" 
-                  style="width: 280px;"
-                  disabled
-                />
-              </a-form-item>
-              
-              <a-form-item :label="t('highlightColor')">
-                <a-select 
-                  v-model:value="form.highlightColor" 
-                  :options="highlightColorOptions" 
-                  style="width: 280px;"
-                >
-                  <template #option="{ label, hex }">
-                    <div class="color-option">
-                      <span class="color-preview" :style="{ backgroundColor: hex }"></span>
-                      <span>{{ label }}</span>
-                    </div>
-                  </template>
-                </a-select>
-              </a-form-item>
-              
-              <a-divider />
-              
-              <a-space direction="vertical" size="large" style="width: 100%;">
-                <div class="toggle-row">
-                  <div>
-                    <div class="toggle-row__title">{{ t('autoHighlightPageSummary') }}</div>
-                    <div class="toggle-row__desc">{{ t('autoHighlightPageSummaryDescription') }}</div>
-                  </div>
-                  <a-switch v-model:checked="form.autoHighlightPageSummary" />
-                </div>
-                
-                <div class="toggle-row">
-                  <div>
-                    <div class="toggle-row__title">{{ t('autoLocateFirstSummary') }}</div>
-                    <div class="toggle-row__desc">{{ t('autoLocateFirstSummaryDescription') }}</div>
-                  </div>
-                  <a-switch v-model:checked="form.autoLocateFirstSummary" />
-                </div>
-              </a-space>
-            </a-form>
-          </div>
+          <BasicPreferences
+            :form="form"
+            :language-options="languageOptions"
+            :highlight-color-options="highlightColorOptions"
+            :texts="texts"
+          />
         </a-tab-pane>
 
         <a-tab-pane key="content" :tab="t('menuContent')">
@@ -64,50 +18,11 @@
         </a-tab-pane>
 
         <a-tab-pane key="about" :tab="t('menuAbout')">
-          <div class="tab-section about-section">
-            <!-- 关于信息主区域 -->
-            <div class="about-container">
-              <!-- 关于标题与描述 -->
-              <div class="about-header">
-                <div class="about-header__content">
-                  <a-typography-title :level="4" class="about-header__title">{{ t('aboutTitle') }}</a-typography-title>
-                  <a-typography-text type="secondary" class="about-header__desc">{{ t('aboutDescription') }}</a-typography-text>
-                </div>
-              </div>
-              
-              <a-divider class="about-divider" />
-              
-              <!-- 联系信息区域 -->
-              <div class="about-contacts">
-                <!-- 邮箱联系 -->
-                <div class="contact-section">
-                  <a-typography-text strong class="contact-section__title">{{ t('contactEmailLabel') }}</a-typography-text>
-                  <a href="mailto:shenyankm@gmail.com" class="contact-link">
-                    <MailOutlined class="contact-link__icon" />
-                    <span>shenyankm@gmail.com</span>
-                  </a>
-                </div>
-                
-                <!-- 社区交流 -->
-                <div class="contact-section">
-                  <a-typography-text strong class="contact-section__title">{{ t('communityLabel') }}</a-typography-text>
-                  <a-space direction="vertical" size="small" class="community-list">
-                    <div
-                      v-for="item in communityLinks"
-                      :key="item.label"
-                      class="community-item"
-                    >
-                      <component :is="item.icon" class="community-item__icon" />
-                      <div class="community-item__content">
-                        <div class="community-item__label">{{ item.label }}</div>
-                        <a-typography-text class="community-item__value">{{ item.value }}</a-typography-text>
-                      </div>
-                    </div>
-                  </a-space>
-                </div>
-              </div>
-            </div>
-          </div>
+          <AboutSection
+            :texts="texts"
+            :contact-email="contactEmail"
+            :community-links="communityLinks"
+          />
         </a-tab-pane>
       </a-tabs>
     </a-card>
@@ -116,6 +31,8 @@
 
 <script setup lang="ts">
 import { defineAsyncComponent, onMounted, reactive, ref, watch, type Component } from 'vue';
+import BasicPreferences from './settings/BasicPreferences.vue';
+import AboutSection from './settings/AboutSection.vue';
 import {
   readSettingsLocal,
   writeSettingsLocal,
@@ -123,14 +40,10 @@ import {
   HIGHLIGHT_COLOR_OPTIONS,
   type SettingsOptions,
 } from '@/utils/settings-local';
-import { MailOutlined, QqOutlined } from '@ant-design/icons-vue';
+import { QqOutlined } from '@ant-design/icons-vue';
+import type { OptionsForm } from './settings/types';
 
 const ClipManager = defineAsyncComponent(() => import('./ClipManager.vue'));
-
-type OptionsForm = Pick<
-  SettingsOptions,
-  'language' | 'highlightColor' | 'autoHighlightPageSummary' | 'autoLocateFirstSummary'
->;
 
 type TabKey = 'basic' | 'content' | 'about';
 
@@ -150,6 +63,8 @@ const languageOptions = [
 ];
 
 const highlightColorOptions = HIGHLIGHT_COLOR_OPTIONS;
+
+const contactEmail = 'shenyankm@gmail.com';
 
 const communityLinks: CommunityContact[] = [
   { label: 'QQ 交流群', value: '2155061751', icon: QqOutlined }
@@ -297,107 +212,6 @@ watch(
   border-radius: 8px;
 }
 
-.color-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.color-preview {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  display: inline-block;
-  opacity: 0.8;
-}
-
-.toggle-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
-}
-
-.toggle-row__title {
-  font-weight: 500;
-}
-
-.toggle-row__desc {
-  font-size: 12px;
-  color: #8c8c8c;
-  margin-top: 4px;
-}
-
-.about-hero {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.about-hero__icon {
-  font-size: 28px;
-  color: #1677ff;
-}
-
-.about-header {
-  margin-bottom: 24px;
-}
-
-.about-header__content {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.about-header__title {
-  margin: 0;
-  font-weight: 600;
-}
-
-.about-header__desc {
-  line-height: 1.6;
-}
-
-.about-divider {
-  margin: 24px 0;
-}
-
-.about-contacts {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-}
-
-.contact-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.contact-section__title {
-  font-size: 14px;
-  color: #000000d9;
-  display: block;
-  margin-bottom: 8px;
-}
-
-.community-list {
-  width: 100%;
-}
-
-.community-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 8px 0;
-}
-
-.community-item__icon {
-  font-size: 18px;
-  color: #1677ff;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
 
 .community-item__content {
   display: flex;

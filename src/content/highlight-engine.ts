@@ -1,9 +1,9 @@
 import { ensureHighlightColorsReady } from '@/content/color-manager';
 import { applyInline, applyOverlay } from '@/content/highlight/painters';
-import { findTextRangeInNode } from '@/content/highlight/text-search';
 import { LocationStrategy } from '@/content/highlight/locators';
 import { HighlightCache } from '@/content/highlight/cache-manager';
 import { ScrollManager } from '@/content/highlight/scroll-manager';
+import type { FocusClipPayload } from '@/types/message';
 
 type RemoteHighlight = {
   id?: string;
@@ -44,12 +44,50 @@ export class HighlightEngine {
     return this.cache.remove(highlightId);
   }
 
-  async focusClip(payload: { textContent?: string; id?: string } | undefined): Promise<boolean> {
+  async focusClip(payload: FocusClipPayload | undefined): Promise<boolean> {
     const text = payload?.textContent?.trim();
-    if (!text) return false;
-    const range = findTextRangeInNode(document.body, text);
-    if (!range) return false;
-    ScrollManager.scrollIntoView(range);
+    if (!text) {
+      return false;
+    }
+
+    await this.waitForDOMReady();
+
+    const highlightId = payload?.highlightId ?? payload?.id ?? text;
+    if (highlightId) {
+      const existingRange = this.findRangeByHighlightId(highlightId);
+      if (existingRange) {
+        ScrollManager.scrollIntoView(existingRange);
+        return true;
+      }
+    }
+
+    const locatedRange = LocationStrategy.locate({
+      text,
+      textOffset: payload?.textOffset,
+      anchorSelector: payload?.anchorSelector,
+      contextBefore: payload?.contextBefore,
+      contextAfter: payload?.contextAfter
+    });
+
+    if (!locatedRange) {
+      return false;
+    }
+
+    const scrollRange = locatedRange.cloneRange();
+    ScrollManager.scrollIntoView(scrollRange);
+
+    if (highlightId && !this.cache.has(highlightId)) {
+      const highlightStyle = payload?.highlightStyle === 'overlay' ? 'overlay' : 'inline';
+      const highlightRange = locatedRange.cloneRange();
+      const spans =
+        highlightStyle === 'overlay'
+          ? applyOverlay(highlightRange)
+          : applyInline(highlightRange, highlightId);
+      if (spans.length) {
+        this.cache.add(highlightId, spans);
+      }
+    }
+
     return true;
   }
 
@@ -152,5 +190,27 @@ export class HighlightEngine {
     return (typeof performance !== 'undefined' && typeof performance.now === 'function')
       ? performance.now()
       : Date.now();
+  }
+
+  private findRangeByHighlightId(id: string): Range | null {
+    try {
+      const selector = `[data-clipsey-id="${this.escapeCssSelector(id)}"]`;
+      const element = document.querySelector(selector);
+      if (!element) {
+        return null;
+      }
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return range;
+    } catch {
+      return null;
+    }
+  }
+
+  private escapeCssSelector(value: string): string {
+    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+      return CSS.escape(value);
+    }
+    return value.replace(/[!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~]/g, '\\$&');
   }
 }

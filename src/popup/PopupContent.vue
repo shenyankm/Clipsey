@@ -1,55 +1,12 @@
 <template>
   <div class="popup-container">
-    <div class="popup-header">
-      <a-row align="middle" justify="space-between" :wrap="false" :gutter="12">
-        <a-col flex="none">
-          <a-typography-title :level="5" style="margin-bottom: 0;">
-            Clipsey
-          </a-typography-title>
-        </a-col>
-        <a-col flex="auto" style="min-width: 0;">
-          <a-typography-text 
-            v-if="displayUrl" 
-            type="secondary" 
-            :ellipsis="{ tooltip: currentUrl }"
-            style="font-size: 12px; color: #888;"
-          >
-            {{ displayUrl }}
-          </a-typography-text>
-        </a-col>
-        <a-col flex="none">
-          <a-space :size="4">
-            <a-tooltip placement="bottom" trigger="hover">
-              <template #title>刷新</template>
-              <a-button
-                size="small"
-                type="text"
-                @click="handleRefresh"
-                :loading="loading"
-                aria-label="刷新"
-              >
-                <template #icon>
-                  <ReloadOutlined />
-                </template>
-              </a-button>
-            </a-tooltip>
-            <a-tooltip placement="bottom" trigger="hover">
-              <template #title>设置</template>
-              <a-button
-                size="small"
-                type="text"
-                @click="openSettings"
-                aria-label="设置"
-              >
-                <template #icon>
-                  <SettingOutlined />
-                </template>
-              </a-button>
-            </a-tooltip>
-          </a-space>
-        </a-col>
-      </a-row>
-    </div>
+    <popup-header
+      :display-url="displayUrl"
+      :tooltip-url="currentUrl"
+      :loading="loading"
+      @refresh="handleRefresh"
+      @open-settings="openSettings"
+    />
     <a-divider style="margin: 8px 0;" />
     <a-spin :spinning="loading">
       <div class="clips-content">
@@ -75,10 +32,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { message, Empty } from 'ant-design-vue';
-import { SettingOutlined, ReloadOutlined } from '@ant-design/icons-vue';
 import { browser } from 'wxt/browser';
 import type { Clip } from '@/types/clip';
 import ClipList from './components/ClipList.vue';
+import PopupHeader from './components/PopupHeader.vue';
 import { sendMessage, isChromeExtensionEnv } from '@/utils/chrome';
 import { useClipFilter } from '@/composables/useClipFilter';
 import { useClipSort } from '@/composables/useClipSort';
