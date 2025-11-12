@@ -4,6 +4,7 @@ import { contentScriptService } from '../services/content-script-service';
 import { ErrorHandler } from '@/utils/error-handler';
 import { delay, isSupportedHttpUrl } from '@/utils/helpers';
 import { listenerManager } from './listener-cleanup';
+import { permissionsService } from '@/background/services/permissions-service';
 import type { Clip } from '@/types/clip';
 import type { MessageResponse, HighlightPayload } from '@/types/message';
 
@@ -50,6 +51,11 @@ export class TabHighlightManager {
   private async activatePageHighlights(tabId: number, url: string): Promise<void> {
     // 跳过不支持的URL
     if (!isSupportedHttpUrl(url)) {
+      return;
+    }
+
+    const hasPermission = await permissionsService.hasHostPermissionForUrl(url);
+    if (!hasPermission) {
       return;
     }
 

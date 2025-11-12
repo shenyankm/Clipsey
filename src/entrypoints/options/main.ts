@@ -14,6 +14,7 @@ import {
   Space,
   Switch,
   Mentions,
+  Radio,
   Row,
   Col,
   Button,
@@ -36,6 +37,7 @@ createApp(App)
   .use(Space)
   .use(Switch)
   .use(Mentions)
+  .use(Radio)
   .use(Row)
   .use(Col)
   .use(Button)

@@ -73,7 +73,7 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
           .then(async success => {
             sendResponse({ success } satisfies MessageResponse);
             try {
-              await tryAutoLocateLastSummaryIfEnabled(success);
+              await tryAutoLocateLatestSummaryIfEnabled(success);
             } catch {
               // 忽略自动定位中的任何错误，避免影响主流程
             }
@@ -193,44 +193,118 @@ function generateHighlightId(): string {
 }
 
 /** 自动定位：高亮激活后根据设置跳转到最后一个摘要位置。 */
-async function tryAutoLocateLastSummaryIfEnabled(success: boolean): Promise<void> {
-  if (!success) return;
-  if (__autoLocatePerformed) return;
+async function tryAutoLocateLatestSummaryIfEnabled(success: boolean): Promise<void> {
+  if (!success || __autoLocatePerformed) return;
 
-  // 读取设置项
   let settings: SettingsOptions | undefined;
   try {
     settings = await sendMessage<SettingsOptions>({ type: 'REQUEST_SETTINGS' });
   } catch {
-    // 读取失败时使用默认策略：不自动定位
     return;
   }
 
   if (!settings?.autoLocateFirstSummary) return;
 
-  // 收集所有可能的摘要高亮元素（内联与覆盖）
-  const inlineNodes = Array.from(document.querySelectorAll<HTMLElement>(`.${HIGHLIGHT_INLINE_CLASS}`));
-  const overlayNodes = Array.from(document.querySelectorAll<HTMLElement>(`.${HIGHLIGHT_OVERLAY_CLASS}`));
-  const candidates = [...inlineNodes, ...overlayNodes].filter(el => isElementVisible(el));
-
-  if (!candidates.length) return;
-
-  // 选择页面中位置最靠后的元素（以视口中的 top 坐标为排序依据）
-  const sorted = candidates
-    .map(el => ({ el, rect: el.getBoundingClientRect() }))
-    .sort((a, b) => a.rect.top - b.rect.top);
-
-  const last = sorted[sorted.length - 1]?.el;
-  if (!last) return;
+  const anchor = findLatestHighlightAnchor();
+  if (!anchor) return;
 
   try {
     const range = document.createRange();
-    range.selectNodeContents(last);
+    if (anchor.element.childNodes.length > 0) {
+      range.selectNodeContents(anchor.element);
+    } else {
+      range.selectNode(anchor.element);
+    }
     ScrollManager.scrollIntoView(range);
     __autoLocatePerformed = true;
   } catch {
     // 忽略滚动错误
   }
+}
+
+type HighlightAnchor = {
+  element: HTMLElement;
+  rect: DOMRectReadOnly;
+  priority: number;
+};
+
+function findLatestHighlightAnchor(): HighlightAnchor | null {
+  const anchors = collectHighlightAnchors();
+  if (!anchors.length) return null;
+
+  const inlineAnchors = anchors.filter(anchor => anchor.priority === 0);
+  const pool = inlineAnchors.length ? inlineAnchors : anchors;
+
+  return pool.reduce<HighlightAnchor | null>((latest, candidate) => {
+    if (!latest) return candidate;
+    if (candidate.rect.bottom === latest.rect.bottom) {
+      return candidate.rect.left >= latest.rect.left ? candidate : latest;
+    }
+    return candidate.rect.bottom > latest.rect.bottom ? candidate : latest;
+  }, null);
+}
+
+function collectHighlightAnchors(): HighlightAnchor[] {
+  const anchors: HighlightAnchor[] = [];
+
+  const inlineNodes = Array.from(
+    document.querySelectorAll<HTMLElement>(`.${HIGHLIGHT_INLINE_CLASS}`)
+  ).filter(isElementVisible);
+
+  const grouped = new Map<string, HTMLElement[]>();
+  let anonymousIndex = 0;
+
+  for (const node of inlineNodes) {
+    const key = node.dataset.clipseyId || `anonymous-${anonymousIndex++}`;
+    const bucket = grouped.get(key);
+    if (bucket) {
+      bucket.push(node);
+    } else {
+      grouped.set(key, [node]);
+    }
+  }
+
+  grouped.forEach(nodes => {
+    const anchorElement = pickBottomMostElement(nodes);
+    if (!anchorElement) return;
+    anchors.push({
+      element: anchorElement.element,
+      rect: anchorElement.rect,
+      priority: 0
+    });
+  });
+
+  const overlayNodes = Array.from(
+    document.querySelectorAll<HTMLElement>(`.${HIGHLIGHT_OVERLAY_CLASS}`)
+  ).filter(isElementVisible);
+
+  overlayNodes.forEach(node => {
+    anchors.push({
+      element: node,
+      rect: node.getBoundingClientRect(),
+      priority: 1
+    });
+  });
+
+  return anchors;
+}
+
+function pickBottomMostElement(nodes: HTMLElement[]): { element: HTMLElement; rect: DOMRectReadOnly } | null {
+  let result: { element: HTMLElement; rect: DOMRectReadOnly } | null = null;
+  for (const node of nodes) {
+    const rect = node.getBoundingClientRect();
+    if (!result) {
+      result = { element: node, rect };
+      continue;
+    }
+    if (
+      rect.bottom > result.rect.bottom ||
+      (rect.bottom === result.rect.bottom && rect.left >= result.rect.left)
+    ) {
+      result = { element: node, rect };
+    }
+  }
+  return result;
 }
 
 function isElementVisible(el: HTMLElement): boolean {

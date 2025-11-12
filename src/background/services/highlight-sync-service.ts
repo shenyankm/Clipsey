@@ -1,4 +1,5 @@
 import { browser } from 'wxt/browser';
+import { permissionsService } from '@/background/services/permissions-service';
 /** 高亮同步服务：剪辑删除后刷新对应页面的高亮状态。 */
 export class HighlightSyncService {
   // 刷新指定 URL 的页面高亮（用于剪辑删除后的同步）
@@ -9,7 +10,7 @@ export class HighlightSyncService {
       for (const tab of tabs) {
         if (!tab.id || !tab.url) continue;
         
-        if (this.urlsMatch(tab.url, url)) {
+        if (this.urlsMatch(tab.url, url) && (await permissionsService.hasHostPermissionForUrl(tab.url))) {
           await this.updateTabHighlights(tab.id, tab.url);
         }
       }

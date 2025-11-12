@@ -3,9 +3,11 @@ import { isValidMessage } from './middleware/validator';
 import { ResponseBuilder } from './middleware/response';
 import { registry } from './registry';
 
-/** 注册消息路由：统一以 Promise 形式处理 */
-export function registerMessageRouter(): void {
-  browser.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
+type RuntimeMessageListener = Parameters<typeof browser.runtime.onMessage.addListener>[0];
+
+/** 注册消息路由，统一用 Promise 形式处理，并返回卸载函数 */
+export function registerMessageRouter(): () => void {
+  const listener: RuntimeMessageListener = (message: unknown, sender, sendResponse) => {
     if (!isValidMessage(message)) {
       sendResponse(ResponseBuilder.validationError('Invalid message format'));
       return;
@@ -28,5 +30,11 @@ export function registerMessageRouter(): void {
 
     // 返回 true，通知浏览器异步调用 sendResponse。
     return true;
-  });
+  };
+
+  browser.runtime.onMessage.addListener(listener);
+
+  return () => {
+    browser.runtime.onMessage.removeListener(listener);
+  };
 }

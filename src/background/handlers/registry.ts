@@ -24,24 +24,24 @@ type RuntimeMessageSender = RuntimeMessageListener extends (
   ? Sender
   : never;
 
-/** ��Ϣ���������Ͷ��塣 */
+/** 消息处理函数：解析消息并返回统一响应。 */
 type MessageHandler = (message: AppMessage, sender: RuntimeMessageSender) => Promise<MessageResponse>;
 
 /** 消息处理器注册表。 */
 class HandlerRegistry {
   private handlers = new Map<string, MessageHandler>();
 
-  /** 注册消息处理器。 */
+  /** 注册指定类型的消息处理器。 */
   register(type: string, handler: MessageHandler): void {
     this.handlers.set(type, handler);
   }
 
-  /** 获取消息处理器。 */
+  /** 获取指定类型的消息处理器。 */
   get(type: string): MessageHandler | undefined {
     return this.handlers.get(type);
   }
 
-  /** 检查是否存在处理器。 */
+  /** 判断是否存在对应的消息处理器。 */
   has(type: string): boolean {
     return this.handlers.has(type);
   }

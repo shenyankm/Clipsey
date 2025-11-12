@@ -2,6 +2,7 @@ import { browser } from 'wxt/browser';
 import { contentScriptService } from '../services/content-script-service';
 import { ErrorHandler } from '@/utils/error-handler';
 import { delay, isSupportedHttpUrl } from '@/utils/helpers';
+import { permissionsService } from '@/background/services/permissions-service';
 import type { MessageResponse } from '@/types/message';
 
 const REQUEST_SELECTION_MAX_ATTEMPTS = 3;
@@ -12,16 +13,28 @@ type ContextMenuListener = Parameters<typeof browser.contextMenus.onClicked.addL
 type ContextMenuClickInfo = ContextMenuListener extends (...args: infer Args) => any ? Args[0] : never;
 type ContextMenuTab = ContextMenuListener extends (...args: infer Args) => any ? Args[1] : never;
 
-/** 选区请求管理：右键触发后请求并保存选区，含系统页预检、重试与通知。 */
+/** 选区请求管理：处理右键菜单请求并引导选区保存，同时反馈通知。 */
 export class SelectionRequestManager {
-  /** 处理右键菜单点击事件。 */
+  /** 处理右键菜单点击事件 */
   async handleContextMenuClick(info: ContextMenuClickInfo, tab?: ContextMenuTab): Promise<void> {
     if (!tab?.id) {
       return;
     }
 
     if (!info.selectionText || !info.selectionText.trim()) {
-      void this.showNotification('没有可保存的内容', '请选择要保存的文字后重试。');
+      void this.showNotification('无可保存的内容', '请先选择需要摘录的文本。');
+      return;
+    }
+
+    const pageUrl = tab.url ?? info.pageUrl ?? tab.pendingUrl ?? '';
+    if (!pageUrl || !isSupportedHttpUrl(pageUrl)) {
+      void this.showNotification('当前页面不支持摘录', '仅支持在普通 http/https 页面使用。');
+      return;
+    }
+
+    const permissionReady = await this.ensureHostPermission(pageUrl);
+    if (!permissionReady) {
+      void this.showNotification('权限被拒绝', '需要授予当前站点的访问权限，才能自动恢复高亮。');
       return;
     }
 
@@ -31,18 +44,18 @@ export class SelectionRequestManager {
     });
   }
 
-  /** 请求选区内容：向内容脚本发送消息，含重试与注入处理。 */
+  /** 请求选中内容，并向内容脚本发送消息完成高亮和持久化 */
   private async requestSelection(tabId: number, attempt = 0): Promise<void> {
-    // 在系统页/非 http(s) 页面直接提示并终止请求
+    // 在系统页/非 http(s) 页直接提示阻止
     try {
       const tab = await browser.tabs.get(tabId);
       const url = tab?.url;
       if (url && !isSupportedHttpUrl(url)) {
-        void this.showNotification('当前页面不支持摘抄', '仅支持在第三方网站的 http/https 页面使用。');
+        void this.showNotification('当前页面不支持摘录', '仅支持在普通 http/https 页面使用。');
         return;
       }
     } catch {
-      // 如果查询标签页失败，继续执行并交由后续错误处理
+      // 查询标签页失败时继续尝试，交由后续逻辑处理
     }
     
     try {
@@ -60,7 +73,7 @@ export class SelectionRequestManager {
 
       if (!contentScriptService.isMissingReceiverError(error)) {
         const appError = ErrorHandler.handle(error, 'Request selection');
-        void this.showNotification('保存失败', appError.userMessage);
+        void this.showNotification('请求失败', appError.userMessage);
         throw error;
       }
 
@@ -77,37 +90,37 @@ export class SelectionRequestManager {
       } catch (retryError) {
         if (contentScriptService.isMissingReceiverError(retryError)) {
           void this.showNotification(
-            '保存失败',
-            '此页面无法使用辅助脚本。'
+            '请求失败',
+            '该页面无法使用内容脚本'
           );
           return;
         }
 
         const appError = ErrorHandler.handle(retryError, 'Retry request selection');
-        void this.showNotification('保存失败', appError.userMessage);
+        void this.showNotification('请求失败', appError.userMessage);
         throw retryError;
       }
     }
   }
 
-  /** 处理选区请求响应。 */
+  /** 处理选区请求的响应 */
   private handleSelectionResponse(response: MessageResponse<unknown> | undefined): void {
     if (!response) {
-      void this.showNotification('保存失败', '发生未知错误，请稍后重试。');
+      void this.showNotification('请求失败', '出现未知错误，请稍后再试。');
       return;
     }
 
     if (response.success) {
-      void this.showNotification('保存成功', '打开插件弹窗以查看剪辑。');
+      void this.showNotification('保存成功', '打开扩展面板即可查看摘录。');
       return;
     }
 
     if (response.error?.includes('未选择任何内容')) {
-      void this.showNotification('没有可保存的内容', '请选择要保存的文字后重试。');
+      void this.showNotification('无可保存的内容', '请先选择需要摘录的文本。');
       return;
     }
 
-    void this.showNotification('保存失败', response.error ?? '发生未知错误，请稍后重试。');
+    void this.showNotification('请求失败', response.error ?? '出现未知错误，请稍后再试。');
   }
 
   private async showNotification(title: string, message: string): Promise<void> {
@@ -128,8 +141,14 @@ export class SelectionRequestManager {
       console.warn(appError.userMessage);
     }
   }
+
+  private async ensureHostPermission(url: string): Promise<boolean> {
+    if (await permissionsService.hasHostPermissionForUrl(url)) {
+      return true;
+    }
+    return permissionsService.requestHostPermissionForUrl(url);
+  }
 }
 
-// 导出单例实例
+// 导出单例
 export const selectionRequestManager = new SelectionRequestManager();
-
