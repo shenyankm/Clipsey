@@ -1,33 +1,39 @@
 # ==========================================
-# Clipsey Browser Extension - .gitignore
+# Clipsey 浏览器扩展 - Git 忽略规则
 # WXT Framework + Vite + TypeScript + Vue 3
 # ==========================================
 
-# Dependencies
+# ========== 依赖目录 ==========
 node_modules/
 
-# WXT Build Outputs
+# ========== WXT 构建产物 ==========
+# WXT 输出目录
 .output/
+# WXT 临时文件和缓存
 .wxt/
+# 生产构建产物
 dist/
+# 浏览器扩展打包文件
 *.crx
 *.zip
 *.xpi
 
-# Vite
+# ========== Vite 相关 ==========
+# Vite 缓存目录
 .vite/
+# Vite 配置时间戳文件
 vite.config.ts.timestamp-*
 
-# TypeScript
+# ========== TypeScript 编译产物 ==========
 *.tsbuildinfo
 *.tsbuildinfo.*
 
-# Test Coverage
+# ========== 测试覆盖率报告 ==========
 coverage/
 .nyc_output/
 *.lcov
 
-# Logs
+# ========== 日志文件 ==========
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -35,31 +41,51 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Environment Variables
+# ========== 环境变量文件 ==========
 .env
 .env.local
 .env.*.local
 .env.production
 .env.development
+.env.test
+# 保留示例配置文件
 !.env.example
 
-# IDE and Editor Files
+# ========== IDE 编辑器配置 ==========
+# Qoder IDE
 .qoder/
+# JetBrains 系列
 .idea/
+*.iml
+*.iws
+*.ipr
+out/
+# VS Code（保留推荐配置）
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+# Vim
 *.swp
 *.swo
 *.swn
+# 临时备份文件
 *.bak
 *.tmp
 *.temp
+*~
 
-# OS Files
+# ========== 操作系统文件 ==========
+# macOS
 .DS_Store
 .DS_Store?
+.AppleDouble
+.LSOverride
+# Windows
 Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 *.cab
@@ -68,23 +94,30 @@ $RECYCLE.BIN/
 *.msm
 *.msp
 *.lnk
+# Linux
+.directory
+.Trash-*
 
-# Tooling Caches
+# ========== 工具链缓存 ==========
 .eslintcache
 .stylelintcache
 .cache/
 .parcel-cache/
+# TypeScript 编译缓存
 .rpt2_cache/
 .rts2_cache_cjs/
 .rts2_cache_es/
 .rts2_cache_umd/
 
-# Package Manager Files
+# ========== 包管理器相关 ==========
+# 压缩包
 *.tgz
 *.tar.gz
+# npm
+.npm
 package-lock.json
+# Yarn
 yarn.lock
-.pnpm-store/
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
@@ -92,24 +125,20 @@ yarn.lock
 !.yarn/sdks
 !.yarn/versions
 .pnp.*
+# pnpm（项目使用）
+.pnpm-store/
+pnpm-lock.yaml.bak
 
-# Runtime
+# ========== 运行时文件 ==========
 *.pid
 *.seed
 *.pid.lock
-
-# Optional
-.npm
 .node_repl_history
 
-# Debug
+# ========== 调试与测试 ==========
 .vscode-test/
 
-# Temporary Build Files
+# ========== 临时构建目录 ==========
 tmp/
 temp/
 build/
-
-# Documentation Build (keep source docs)
-# docs/.vitepress/dist
-# docs/.vitepress/cache
