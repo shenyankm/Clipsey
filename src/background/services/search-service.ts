@@ -76,15 +76,17 @@ export class SearchService {
     sortBy: SortBy,
     sortOrder: 'asc' | 'desc'
   ): Promise<SearchResult> {
-    const lower = keyword.toLowerCase();
-    const offset = (page - 1) * pageSize;
-    const { getClips } = await import('@/background/storage');
-    const clips = await getClips();
-    const matches = clips.filter((clip) => this.matchesSearch(clip, type, lower));
-    const sorted = this.sortClips(matches, sortBy, sortOrder);
-    const total = sorted.length;
-    const items = sorted.slice(offset, offset + pageSize);
-    return { items, total, page, pageSize };
+    const { indexName, direction } = normalizeSort({ sortBy, sortOrder });
+    const fields: (keyof Clip)[] =
+      type === 'title' ? ['title'] :
+      type === 'website' ? ['sourceUrl'] :
+      type === 'content' ? ['textContent'] : ['title', 'sourceUrl', 'textContent'];
+
+    const result = await IndexedDBQuery.filterByKeywordPaged('clips', keyword, fields as any, page, pageSize, {
+      indexName,
+      direction
+    });
+    return { items: result.items as Clip[], total: result.total, page: result.page, pageSize: result.pageSize };
   }
 
   /** 判断记录是否满足过滤条件。 */

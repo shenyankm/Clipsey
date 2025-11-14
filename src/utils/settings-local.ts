@@ -1,5 +1,5 @@
 /** 管理本地存储的统一读/写/监听接口，提供默认值并包裹 browser.storage.local */
-import { browser } from 'wxt/browser';
+import { browser as wxtBrowser } from 'wxt/browser';
 
 export type LanguageOption = 'zh-CN'; // 当前仅支持简体中文
 export type HighlightColorScheme = 'amber' | 'green' | 'blue';
@@ -41,11 +41,18 @@ export const HIGHLIGHT_COLOR_OPTIONS = Object.entries(HIGHLIGHT_COLOR_SCHEMES).m
   })
 );
 
+function getBrowser(): any {
+  const globalBrowser = (globalThis as any).browser;
+  if (globalBrowser) return globalBrowser;
+  return (typeof wxtBrowser !== 'undefined' && wxtBrowser) ? wxtBrowser : undefined;
+}
+
 /** 读取设置，始终返回带默认值的结构 */
 export async function readSettingsLocal(): Promise<SettingsOptions> {
   try {
-    if (browser.storage?.local) {
-      const items = await browser.storage.local.get(SETTINGS_LOCAL_KEY);
+    const b = getBrowser();
+    if (b?.storage?.local) {
+      const items = await b.storage.local.get(SETTINGS_LOCAL_KEY);
       const raw = items[SETTINGS_LOCAL_KEY] as Partial<SettingsOptions> | undefined;
       return mergeWithDefaults(raw);
     }
@@ -60,8 +67,9 @@ export async function writeSettingsLocal(partial: Partial<SettingsOptions>): Pro
   try {
     const current = await readSettingsLocal();
     const next = { ...current, ...partial } satisfies SettingsOptions;
-    if (browser.storage?.local) {
-      await browser.storage.local.set({ [SETTINGS_LOCAL_KEY]: next });
+    const b = getBrowser();
+    if (b?.storage?.local) {
+      await b.storage.local.set({ [SETTINGS_LOCAL_KEY]: next });
     }
   } catch (error) {
     console.warn('[SettingsLocal] Failed to write settings:', error);
@@ -90,8 +98,9 @@ export function watchSettingsLocal(
   };
 
   try {
-    if (browser.storage?.onChanged) {
-      browser.storage.onChanged.addListener(handler);
+    const b = getBrowser();
+    if (b?.storage?.onChanged) {
+      b.storage.onChanged.addListener(handler);
     }
   } catch {
     // ignore
@@ -100,8 +109,9 @@ export function watchSettingsLocal(
   // 返回移除监听的函数
   return () => {
     try {
-      if (browser.storage?.onChanged) {
-        browser.storage.onChanged.removeListener(handler);
+      const b = getBrowser();
+      if (b?.storage?.onChanged) {
+        b.storage.onChanged.removeListener(handler);
       }
     } catch {
       // ignore

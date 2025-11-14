@@ -16,6 +16,12 @@ export function parseCssPixels(value: string): number {
 }
 
 export function measureFixedOrStickyHeaderHeight(): number {
+  // 结果缓存：在短时间窗口内复用，减少重复测量成本
+  const now = Date.now();
+  if (headerCache.ts && (now - headerCache.ts) < 500 && headerCache.value >= 0) {
+    return headerCache.value;
+  }
+
   const viewportWidth = Math.max(document.documentElement?.clientWidth || 0, 0);
   const candidates = Array.from(document.querySelectorAll(
     '[style*="position: fixed"], [style*="position:sticky"], header, nav, .header, .topbar, #header'
@@ -24,10 +30,17 @@ export function measureFixedOrStickyHeaderHeight(): number {
   const referenceY = Math.max(window.scrollY, 0) + 0; // 顶部参考线
   const heights = candidates.map(el => evaluateObstructionElement(el, referenceY));
   const filtered = heights.filter(h => h > 0);
-  if (!filtered.length) return 0;
+  if (!filtered.length) {
+    headerCache.value = 0;
+    headerCache.ts = now;
+    return 0;
+  }
   const avg = filtered.reduce((a, b) => a + b, 0) / filtered.length;
   const values = filtered.map(value => clamp(Math.round(value), 0, Math.max(viewportWidth - 1, 0)));
-  return Math.max(...values, clamp(Math.round(avg), 0, Math.max(viewportWidth - 1, 0)));
+  const result = Math.max(...values, clamp(Math.round(avg), 0, Math.max(viewportWidth - 1, 0)));
+  headerCache.value = result;
+  headerCache.ts = now;
+  return result;
 }
 
 export function evaluateObstructionElement(element: Element, referenceY: number): number {
@@ -125,3 +138,13 @@ export function scheduleFallbackScrolls(targetTop: number): void {
     }
   } catch {}
 }
+
+// 简单缓存结构与失效机制
+const headerCache: { value: number; ts: number } = { value: -1, ts: 0 };
+
+try {
+  window.addEventListener('resize', () => {
+    headerCache.value = -1;
+    headerCache.ts = 0;
+  });
+} catch {}

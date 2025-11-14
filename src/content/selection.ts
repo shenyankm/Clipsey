@@ -2,6 +2,7 @@ import 'webextension-polyfill';
 import { browser } from 'wxt/browser';
 import type { Clip } from '@/types/clip';
 import { HighlightEngine } from '@/content/highlight-engine';
+import { applyInline } from '@/content/highlight/painters';
 import { ensureHighlightColorsReady, HIGHLIGHT_INLINE_CLASS, HIGHLIGHT_OVERLAY_CLASS } from '@/content/color-manager';
 import { captureHighlightMetadata } from '@/content/highlight/metadata';
 import type { MessageResponse } from '@/types/message';
@@ -328,126 +329,15 @@ function createHighlightSpanElement(highlightId: string): HTMLSpanElement {
   return span;
 }
 
-type HighlightSegment = {
-  node: Text;
-  start: number;
-  end: number;
-};
-
-/** 收集高亮文本片段：支持富文本与跨元素。 */
-function collectHighlightSegments(range: Range): HighlightSegment[] {
-  const segments: HighlightSegment[] = [];
-  const root = range.commonAncestorContainer;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-
-  let current: Node | null = walker.nextNode();
-  while (current) {
-    const textNode = current as Text;
-    
-    // 检查节点是否在range范围内
-    if (!range.intersectsNode(textNode)) {
-      current = walker.nextNode();
-      continue;
-    }
-
-    // 跳过已高亮内容，避免重复包裹
-    if (textNode.parentElement?.closest('[data-clipsey-id]')) {
-      current = walker.nextNode();
-      continue;
-    }
-    
-    // 跳过不可见元素
-    const parent = textNode.parentElement;
-    if (parent) {
-      try {
-        const style = getComputedStyle(parent);
-        if (style.visibility === 'hidden' || style.display === 'none') {
-          current = walker.nextNode();
-          continue;
-        }
-      } catch {
-        // 忽略样式获取错误
-      }
-    }
-
-    const content = textNode.textContent ?? '';
-    if (!content.trim()) {
-      current = walker.nextNode();
-      continue;
-    }
-
-    const length = content.length;
-    let start = 0;
-    let end = length;
-
-    if (textNode === range.startContainer) {
-      start = Math.max(0, Math.min(length, range.startOffset));
-    }
-
-    if (textNode === range.endContainer) {
-      end = Math.max(0, Math.min(length, range.endOffset));
-    }
-
-    if (start >= end) {
-      current = walker.nextNode();
-      continue;
-    }
-
-    segments.push({ node: textNode, start, end });
-    current = walker.nextNode();
-  }
-
-  return segments;
-}
-
-/** 应用高亮：直接包裹失败时退化为提取内容再包裹。 */
-function applyHighlightSegments(range: Range, highlightId: string): HTMLSpanElement[] {
-  const segments = collectHighlightSegments(range);
-  const created: HTMLSpanElement[] = [];
-
-  for (const { node, start, end } of segments) {
-    // 检查节点是否还在DOM中
-    if (!node.isConnected) {
-      continue;
-    }
-
-    const segmentRange = document.createRange();
-    segmentRange.setStart(node, start);
-    segmentRange.setEnd(node, end);
-
-    const span = createHighlightSpanElement(highlightId);
-    
-    // 尝试直接包裹
-    try {
-      segmentRange.surroundContents(span);
-      created.push(span);
-      continue;
-    } catch {
-      // 如果直接包裹失败(如跨元素),尝试提取内容后再包裹
-      try {
-        const fragment = segmentRange.extractContents();
-        span.appendChild(fragment);
-        segmentRange.insertNode(span);
-        created.push(span);
-      } catch {
-        // 如果两种方式都失败,清理span并跳过
-        span.remove();
-        continue;
-      }
-    }
-  }
-
-  return created;
-}
 
 function wrapRangeInHighlight(range: Range | null, highlightId: string): HTMLSpanElement | null {
   if (!range || range.collapsed) {
     return null;
   }
 
-  const spans = applyHighlightSegments(range, highlightId);
+  const spans = applyInline(range, highlightId);
   if (spans.length > 0) {
-    return spans[0];
+    return spans[0] as HTMLSpanElement;
   }
 
   const span = createHighlightSpanElement(highlightId);

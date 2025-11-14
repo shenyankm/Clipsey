@@ -1,6 +1,6 @@
 import { defineConfig } from 'wxt';
 import { randomBytes } from 'node:crypto';
-import packageData from './package.json' assert { type: 'json' };
+import packageData from './package.json' with { type: 'json' };
 import { OPTIONAL_HOST_PERMISSION_LIST, LOCALHOST_DEBUG_ORIGINS } from './src/constants/hosts';
 
 type PackageMeta = {

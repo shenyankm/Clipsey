@@ -45,15 +45,17 @@ export async function saveClips(clips: Clip[]): Promise<void> {
   try {
     const oldClips = cacheManager.has() ? await getClips() : [];
     const normalizedClips = normalizeClips(clips);
-    
-    // 清空现有数据
-    await indexedDBManager.clear('clips');
-    
-    // 批量插入新数据
+    const oldIds = new Set(oldClips.map(c => c.id));
+    const newIds = new Set(normalizedClips.map(c => c.id));
+    const toDelete: string[] = [];
+    for (const id of oldIds) {
+      if (!newIds.has(id)) toDelete.push(id);
+    }
+    if (toDelete.length > 0) {
+      await IndexedDBQuery.bulkDelete('clips', toDelete, { batchSize: 100 });
+    }
     if (normalizedClips.length > 0) {
-      await IndexedDBQuery.bulkAdd('clips', normalizedClips, {
-        batchSize: 50
-      });
+      await IndexedDBQuery.bulkPut('clips', normalizedClips, { batchSize: 50 });
     }
     
     // 更新缓存
@@ -213,18 +215,32 @@ export async function getStorageStats(): Promise<{
   try {
     const clips = await cacheManager.get(() => loadClipsFromStorage());
     const totalClips = clips.length;
-    const totalSize = JSON.stringify(clips).length;
-    
-    const sortedByDate = clips
-      .filter(clip => clip.createdAt)
-      .sort((a, b) => new Date(a.createdAt!).getTime() - new Date(b.createdAt!).getTime());
-    
-    return {
-      totalClips,
-      totalSize,
-      oldestClip: sortedByDate[0]?.createdAt,
-      newestClip: sortedByDate[sortedByDate.length - 1]?.createdAt
-    };
+    let totalSize = 0;
+    let oldestClip: string | undefined;
+    let newestClip: string | undefined;
+    let oldestTs = Number.POSITIVE_INFINITY;
+    let newestTs = 0;
+
+    for (const clip of clips) {
+      if (typeof clip.textContent === 'string') totalSize += clip.textContent.length;
+      if (typeof clip.htmlContent === 'string') totalSize += clip.htmlContent.length;
+      if (typeof clip.sourceUrl === 'string') totalSize += clip.sourceUrl.length;
+      if (typeof clip.title === 'string') totalSize += clip.title.length;
+      if (typeof clip.contextBefore === 'string') totalSize += clip.contextBefore.length;
+      if (typeof clip.contextAfter === 'string') totalSize += clip.contextAfter.length;
+      if (typeof clip.anchorSelector === 'string') totalSize += clip.anchorSelector.length;
+      if (typeof clip.highlightId === 'string') totalSize += clip.highlightId.length;
+
+      if (clip.createdAt) {
+        const ts = new Date(clip.createdAt).getTime();
+        if (Number.isFinite(ts)) {
+          if (ts < oldestTs) { oldestTs = ts; oldestClip = clip.createdAt; }
+          if (ts > newestTs) { newestTs = ts; newestClip = clip.createdAt; }
+        }
+      }
+    }
+
+    return { totalClips, totalSize, oldestClip, newestClip };
   } catch (error) {
     throw new IndexedDBError(
       'Failed to get storage stats',

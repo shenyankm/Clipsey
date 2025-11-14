@@ -370,4 +370,79 @@ export class IndexedDBQuery {
 
     return Array.from(uniqueValues);
   }
+
+  /**
+   * 关键字分页检索：使用游标按索引遍历，流式匹配并分页收集，避免 getAll 带来的内存占用。
+   * - fields：参与匹配的字段集合（字符串字段）
+   * - keyword：大小写不敏感匹配
+   * - page/pageSize：分页参数
+   * - options：支持 indexName 与 direction，用于选择遍历顺序
+   */
+  static async filterByKeywordPaged<K extends keyof DBSchema>(
+    storeName: K,
+    keyword: string,
+    fields: (keyof DBSchema[K]['value'])[],
+    page: number,
+    pageSize: number,
+    options: QueryOptions = {}
+  ): Promise<{ items: DBSchema[K]['value'][]; total: number; page: number; pageSize: number }> {
+    const lower = (keyword ?? '').toLowerCase();
+    const offset = Math.max(0, (page - 1) * pageSize);
+    const limit = Math.max(1, pageSize);
+
+    return indexedDBManager.executeTransaction(storeName as string, 'readonly', async (transaction) => {
+      const store = transaction.objectStore(storeName as string);
+      const source = options.indexName ? store.index(options.indexName) : store;
+      let direction: IDBCursorDirection = 'next';
+      if (options.direction === 'desc' || options.direction === 'prev') {
+        direction = 'prev';
+      } else if (options.direction === 'asc' || options.direction === 'next') {
+        direction = 'next';
+      } else if (options.direction) {
+        direction = options.direction as IDBCursorDirection;
+      }
+
+      return new Promise<{ items: DBSchema[K]['value'][]; total: number; page: number; pageSize: number }>((resolve, reject) => {
+        const items: DBSchema[K]['value'][] = [];
+        let total = 0;
+        let skipped = 0;
+
+        const request = source.openCursor(options.query, direction);
+
+        request.onsuccess = () => {
+          const cursor = request.result as IDBCursorWithValue | null;
+          if (!cursor) {
+            resolve({ items, total, page, pageSize });
+            return;
+          }
+
+          const record = cursor.value as DBSchema[K]['value'];
+          let matched = false;
+          for (const field of fields) {
+            const v = (record as any)[field];
+            if (typeof v === 'string' && v.toLowerCase().includes(lower)) {
+              matched = true;
+              break;
+            }
+          }
+
+          if (matched) {
+            total += 1;
+            if (skipped < offset) {
+              skipped += 1;
+            } else if (items.length < limit) {
+              items.push(record);
+            }
+            // 当已收集满本页数据后仍需继续迭代以计算 total
+          }
+
+          cursor.continue();
+        };
+
+        request.onerror = () => {
+          reject(new IndexedDBError('Failed to query with keyword', 'QUERY_ERROR', request.error || undefined));
+        };
+      });
+    });
+  }
 }

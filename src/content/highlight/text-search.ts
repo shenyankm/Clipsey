@@ -78,8 +78,10 @@ export function isRangeHighlighted(textNodes: Text[], startIndex: number, length
 // 在根节点下查找文本 Range（跨节点、忽略空白；仅定位不修改），可跳过已高亮内容。
 export function findTextRangeInNode(root: Node, text: string, skipHighlighted = true): Range | null {
   if (!root) return null;
-  const query = text.trim();
-  if (!query) return null;
+  const rawQuery = text.trim();
+  if (!rawQuery) return null;
+
+  const normalizedQuery = normalizeWhitespace(rawQuery).toLowerCase();
 
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
@@ -97,91 +99,74 @@ export function findTextRangeInNode(root: Node, text: string, skipHighlighted = 
         if (style && (style.visibility === 'hidden' || style.display === 'none')) {
           return NodeFilter.FILTER_REJECT;
         }
-      } catch {
-        // 某些节点可能无法获取样式，忽略错误
-      }
+      } catch {}
       return NodeFilter.FILTER_ACCEPT;
     }
   });
 
-  const textNodes: Text[] = [];
-  const buffer: string[] = [];
+  let qIndex = 0;
+  let startNode: Text | null = null;
+  let startOffset = 0;
+  let endNode: Text | null = null;
+  let endOffset = 0;
+  let prevWasWs = false;
+
   let current: Node | null = walker.nextNode();
   while (current) {
-    const t = current as Text;
-    textNodes.push(t);
-    buffer.push(t.textContent ?? '');
+    const tn = current as Text;
+    const textContent = tn.textContent ?? '';
+    const parent = tn.parentElement;
+    // 高亮跳过：若要求跳过且父级已高亮，直接进入下一个节点
+    if (skipHighlighted && parent?.closest('[data-clipsey-id]')) {
+      current = walker.nextNode();
+      continue;
+    }
+
+    for (let i = 0; i < textContent.length; i += 1) {
+      const ch = textContent[i];
+      const isWs = /\s/.test(ch);
+      let tChar: string;
+      if (isWs) {
+        if (prevWasWs) {
+          // 连续空白折叠，跳过本字符
+          continue;
+        }
+        tChar = ' ';
+        prevWasWs = true;
+      } else {
+        tChar = ch.toLowerCase();
+        prevWasWs = false;
+      }
+
+      const qChar = normalizedQuery[qIndex];
+      if (qChar === tChar) {
+        if (qIndex === 0) {
+          startNode = tn;
+          startOffset = i;
+        }
+        qIndex += 1;
+        if (qIndex === normalizedQuery.length) {
+          endNode = tn;
+          endOffset = i + 1;
+          // 构建并返回 Range
+          if (startNode && endNode) {
+            const range = document.createRange();
+            range.setStart(startNode, startOffset);
+            range.setEnd(endNode, endOffset);
+            return range;
+          }
+          // 匹配完成但无法构造范围，重置
+          qIndex = 0;
+          startNode = null;
+        }
+      } else {
+        // 失配：若当前字符可作为新匹配起点，则尝试退回到 0 或 1
+        qIndex = 0;
+        startNode = null;
+      }
+    }
     current = walker.nextNode();
   }
 
-  if (!textNodes.length) return null;
-
-  const combined = buffer.join('');
-  const normalizedCombined = normalizeWhitespace(combined);
-  const normalizedQuery = normalizeWhitespace(query);
-
-  let index = -1;
-  let searchStartPos = 0;
-  while (true) {
-    let foundIndex = combined.toLowerCase().indexOf(query.toLowerCase(), searchStartPos);
-    if (foundIndex === -1) {
-      const normalizedFoundIndex = normalizedCombined.toLowerCase().indexOf(
-        normalizedQuery.toLowerCase(),
-        searchStartPos
-      );
-      if (normalizedFoundIndex === -1) break;
-      foundIndex = mapNormalizedIndexToOriginal(combined, normalizedCombined, normalizedFoundIndex);
-    }
-
-    if (skipHighlighted && isRangeHighlighted(textNodes, foundIndex, query.length)) {
-      searchStartPos = foundIndex + 1;
-      continue;
-    }
-    index = foundIndex;
-    break;
-  }
-
-  if (index === -1) return null;
-
-  let remaining = index;
-  let startNode: Text | null = null;
-  let startOffset = 0;
-  for (const tn of textNodes) {
-    const len = tn.textContent?.length ?? 0;
-    if (remaining < len) {
-      startNode = tn;
-      startOffset = remaining;
-      break;
-    }
-    remaining -= len;
-  }
-  if (!startNode) return null;
-
-  const range = document.createRange();
-  range.setStart(startNode, startOffset);
-
-  let remainingLength = query.length;
-  let endNode: Text = startNode;
-  let endOffset = Math.min(startOffset + remainingLength, startNode.textContent?.length ?? 0);
-  remainingLength -= endOffset - startOffset;
-
-  let idx = textNodes.indexOf(startNode);
-  while (remainingLength > 0 && idx + 1 < textNodes.length) {
-    idx += 1;
-    const nextNode = textNodes[idx];
-    const len = nextNode.textContent?.length ?? 0;
-    if (len === 0) continue;
-    if (remainingLength <= len) {
-      endNode = nextNode;
-      endOffset = remainingLength;
-      remainingLength = 0;
-      break;
-    }
-    remainingLength -= len;
-    endNode = nextNode;
-    endOffset = len;
-  }
-
-  range.setEnd(endNode, endOffset);
-  return range;
+  return null;
 }

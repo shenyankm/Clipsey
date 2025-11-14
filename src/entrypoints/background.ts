@@ -5,6 +5,7 @@ import { contextMenuManager } from '@/background/lifecycle/context-menu-manager'
 import { selectionRequestManager } from '@/background/lifecycle/selection-request-manager';
 import { tabHighlightManager } from '@/background/lifecycle/tab-highlight-manager';
 import { listenerManager } from '@/background/lifecycle/listener-cleanup';
+import { syncManager } from '@/background/storage/sync-manager';
 
 export default defineBackground(() => {
   // 安装/更新阶段
@@ -36,6 +37,9 @@ export default defineBackground(() => {
     cleaned = true;
     disposeMessageRouter();
     listenerManager.cleanup();
+    try {
+      syncManager.close();
+    } catch {}
   };
 
   const suspendHandler = () => {

@@ -19,7 +19,7 @@ type RemoteHighlight = {
 /** 高亮引擎：编排定位/渲染/缓存，批量激活或管理高亮，并支持滚动定位。 */
 export class HighlightEngine {
   private cache: HighlightCache;
-  private throttled = 16; // ms
+  private throttled = 8;
   private abortController: AbortController | null = null;
   private lastPerf: { durationMs: number; appliedCount: number } | null = null;
 
@@ -169,21 +169,32 @@ export class HighlightEngine {
         }
       });
     }
-    
     if (document.readyState === 'loading') {
       await new Promise<void>((resolve) => {
         document.addEventListener('DOMContentLoaded', () => resolve(), { once: true });
       });
-      await this.sleep(200);
-    } else if (document.readyState === 'interactive') {
-      await this.sleep(300);
+      await this.waitIdle(100);
     } else {
-      await this.sleep(150);
+      await this.waitIdle(50);
     }
   }
 
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private waitIdle(ms: number): Promise<void> {
+    return new Promise(resolve => {
+      const w = (globalThis as any);
+      const ric = w && w.requestIdleCallback;
+      if (typeof ric === 'function') {
+        try {
+          ric(() => resolve(), { timeout: ms });
+          return;
+        } catch {}
+      }
+      setTimeout(resolve, ms);
+    });
   }
 
   private now(): number {
