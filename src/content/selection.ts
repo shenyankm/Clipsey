@@ -174,8 +174,17 @@ function handleRequestSelection(
     highlightStyle: 'inline'
   };
 
-  sendMessage({ type: 'SAVE_CLIP', payload })
-    .then(() => sendResponse({ success: true }))
+  sendMessage<MessageResponse<unknown>>({ type: 'SAVE_CLIP', payload })
+    .then(response => {
+      if (response?.success) {
+        sendResponse({ success: true });
+        return;
+      }
+
+      const msg = response?.error ?? '保存失败';
+      void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'SAVE_CLIP from content script' } });
+      sendResponse({ success: false, error: msg });
+    })
     .catch(error => {
       const msg = ErrorHandler.getErrorMessage(error);
       void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'SAVE_CLIP from content script' } });
