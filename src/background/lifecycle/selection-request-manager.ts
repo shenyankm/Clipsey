@@ -2,12 +2,12 @@ import { browser } from 'wxt/browser';
 import { contentScriptService } from '../services/content-script-service';
 import { ErrorHandler } from '@/utils/error-handler';
 import { delay, isSupportedHttpUrl } from '@/utils/helpers';
-import { permissionsService } from '@/background/services/permissions-service';
 import type { MessageResponse } from '@/types/message';
 
 const REQUEST_SELECTION_MAX_ATTEMPTS = 3;
 const REQUEST_SELECTION_RETRY_DELAY_MS = 200;
-const NOTIFICATION_ICON = browser.runtime.getURL('/icon128.png');
+// 使用相对路径，由浏览器自动解析
+const NOTIFICATION_ICON = '/icon128.png';
 
 type ContextMenuListener = Parameters<typeof browser.contextMenus.onClicked.addListener>[0];
 type ContextMenuClickInfo = ContextMenuListener extends (...args: infer Args) => any ? Args[0] : never;
@@ -27,20 +27,18 @@ export class SelectionRequestManager {
     }
 
     const pageUrl = tab.url ?? info.pageUrl ?? tab.pendingUrl ?? '';
+    
     if (!pageUrl || !isSupportedHttpUrl(pageUrl)) {
       void this.showNotification('当前页面不支持摘录', '仅支持在普通 http/https 页面使用。');
       return;
     }
 
-    const permissionReady = await this.ensureHostPermission(pageUrl);
-    if (!permissionReady) {
-      void this.showNotification('权限被拒绝', '需要授予当前站点的访问权限，才能自动恢复高亮。');
-      return;
-    }
-
+    // 使用 activeTab 权限，无需额外请求就能访问当前标签页
+    // 右键菜单点击已经是用户手势，可以直接使用 activeTab
+    
     await this.requestSelection(tab.id).catch(error => {
       const appError = ErrorHandler.handle(error, 'Request selection');
-      console.error(appError.userMessage);
+      console.error(appError.userMessage, error);
     });
   }
 
@@ -50,11 +48,12 @@ export class SelectionRequestManager {
     try {
       const tab = await browser.tabs.get(tabId);
       const url = tab?.url;
+      
       if (url && !isSupportedHttpUrl(url)) {
         void this.showNotification('当前页面不支持摘录', '仅支持在普通 http/https 页面使用。');
         return;
       }
-    } catch {
+    } catch (error) {
       // 查询标签页失败时继续尝试，交由后续逻辑处理
     }
     
@@ -140,13 +139,6 @@ export class SelectionRequestManager {
       const appError = ErrorHandler.handle(error, 'Show notification');
       console.warn(appError.userMessage);
     }
-  }
-
-  private async ensureHostPermission(url: string): Promise<boolean> {
-    if (await permissionsService.hasHostPermissionForUrl(url)) {
-      return true;
-    }
-    return permissionsService.requestHostPermissionForUrl(url);
   }
 }
 

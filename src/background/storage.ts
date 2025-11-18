@@ -9,6 +9,7 @@ import { normalizeClips } from './storage/utils/clip-normalizer';
 const MAX_CLIP_ENTRIES = 200;
 
 let initAttempt: Promise<void> | null = null;
+let addClipMutex: Promise<void> = Promise.resolve();
 
 async function ensureInitialized(): Promise<void> {
   if (indexedDBManager.isInitialized()) {
@@ -77,22 +78,44 @@ export async function saveClips(clips: Clip[]): Promise<void> {
 export async function addClip(clip: Clip): Promise<void> {
   await ensureInitialized();
   
-  const normalizedClip = normalizeClips([clip])[0];
-  if (!normalizedClip) {
-    return;
-  }
+  // 等待前一个 addClip 完成
+  await addClipMutex;
+
+  // 创建新的互斥锁
+  let releaseMutex: () => void;
+  addClipMutex = new Promise(resolve => {
+    releaseMutex = resolve;
+  });
 
   try {
-    const oldClips = await getClips();
+    const normalizedClip = normalizeClips([clip])[0];
+    if (!normalizedClip) {
+      return;
+    }
 
-    await indexedDBManager.executeTransaction('clips', 'readwrite', async (transaction) => {
+    // 在同一个事务中读取旧数据
+    const oldClips = await indexedDBManager.executeTransaction('clips', 'readwrite', async (transaction) => {
       const store = transaction.objectStore('clips');
+      
+      // 读取当前所有数据
+      const currentClips = await new Promise<Clip[]>((resolve, reject) => {
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error ?? new Error('Failed to read clips'));
+      });
+
+      // 执行写入操作
       await deleteDuplicateHighlights(store, normalizedClip);
       await putClipRecord(store, normalizedClip);
       await trimClipsToLimit(store, MAX_CLIP_ENTRIES);
+
+      return currentClips;
     });
 
+    // 重新加载缓存
     const newClips = await reloadCacheFromStorage();
+    
+    // 通知变化
     syncManager.notifyChange(oldClips, newClips);
   } catch (error) {
     throw new IndexedDBError(
@@ -100,6 +123,9 @@ export async function addClip(clip: Clip): Promise<void> {
       'ADD_ERROR',
       error instanceof Error ? error : undefined
     );
+  } finally {
+    // 释放互斥锁
+    releaseMutex!();
   }
 }
 
@@ -130,25 +156,41 @@ async function reloadCacheFromStorage(): Promise<Clip[]> {
 }
 
 async function deleteDuplicateHighlights(store: IDBObjectStore, clip: Clip): Promise<void> {
-  if (!clip.highlightId) {
+  // 空值检查：空字符串也视为无效
+  if (!clip.highlightId || clip.highlightId.trim() === '') {
     return;
   }
 
+  const highlightId = clip.highlightId.trim();
+
   await new Promise<void>((resolve, reject) => {
     const index = store.index('highlightId');
-    const request = index.openCursor(IDBKeyRange.only(clip.highlightId));
+    const request = index.openCursor(IDBKeyRange.only(highlightId));
+    
+    const deletePromises: Promise<void>[] = [];
 
     request.onsuccess = () => {
       const cursor = request.result as IDBCursorWithValue | null;
       if (!cursor) {
-        resolve();
+        // 等待所有删除操作完成
+        Promise.all(deletePromises)
+          .then(() => resolve())
+          .catch(reject);
         return;
       }
 
       const value = cursor.value as Clip;
+      
+      // 删除同一 URL 下相同 highlightId 的旧记录
       if (value.sourceUrl === clip.sourceUrl && value.id !== clip.id) {
-        cursor.delete();
+        const deletePromise = new Promise<void>((resolveDelete, rejectDelete) => {
+          const deleteRequest = cursor.delete();
+          deleteRequest.onsuccess = () => resolveDelete();
+          deleteRequest.onerror = () => rejectDelete(deleteRequest.error ?? new Error('Failed to delete duplicate'));
+        });
+        deletePromises.push(deletePromise);
       }
+      
       cursor.continue();
     };
 

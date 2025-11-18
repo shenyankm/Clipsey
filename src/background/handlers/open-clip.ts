@@ -2,7 +2,6 @@ import { browser } from 'wxt/browser';
 import type { Clip } from '@/types/clip';
 import { clipService } from '@/background/services/clip-service';
 import { contentScriptService } from '@/background/services/content-script-service';
-import { permissionsService } from '@/background/services/permissions-service';
 import { delay, isSupportedHttpUrl } from '@/utils/helpers';
 
 const FOCUS_MAX_ATTEMPTS = 5;
@@ -27,13 +26,8 @@ export async function handleOpenClip(clipId?: string): Promise<void> {
     throw new Error('剪辑包含不支持的链接');
   }
 
-  const hasPermission = await permissionsService.hasHostPermissionForUrl(clip.sourceUrl);
-  if (!hasPermission) {
-    const granted = await permissionsService.requestHostPermissionForUrl(clip.sourceUrl);
-    if (!granted) {
-      throw new Error('需要授权扩展访问该网站，才能跳转并定位到摘录');
-    }
-  }
+  // 移除权限检查：用户点击"打开"是主动操作，直接跳转
+  // 如果没有权限，只是无法定位，但能打开页面
 
   // 获取当前活动标签页
   const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });

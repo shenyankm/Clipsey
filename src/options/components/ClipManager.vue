@@ -104,8 +104,15 @@ const { currentPage, paginatedClips: paginatedData } = useClipPagination(searchR
 const { deleteClip: deleteClipAction, openClip: openClipAction, openingId } = useClipCRUD();
 
 // 使用BroadcastChannel同步
-useBroadcastSync('clipsey-storage-sync', () => {
-  void refreshClips(false);
+useBroadcastSync('clipsey-storage-sync', (message) => {
+  // 数据变更时，跳转到第一页并刷新，确保新添加的内容可见
+  if (message.type === 'CLIPS_CHANGED') {
+    // 如果是新增内容（新数量大于旧数量），跳转到第一页
+    if (message.newCount && message.oldCount && message.newCount > message.oldCount) {
+      currentPage.value = 1;
+    }
+    void refreshClips(false);
+  }
 });
 
 const showModal = ref(false);
@@ -287,11 +294,8 @@ function formatGroupDate(isoString: string | undefined): string {
   return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
 }
 
-
 const getClipPreview = (clip: Clip) => formatClipPreview(clip);
 const getDomainFromUrl = (url?: string) => getClipDomain(url);
-
-
 
 // 监听搜索查询变化
 watch(searchQuery, () => {

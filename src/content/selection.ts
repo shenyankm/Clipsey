@@ -56,7 +56,14 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
         sendResponse({ success: true } satisfies MessageResponse);
         return true;
       case 'REQUEST_SELECTION':
-        return handleRequestSelection(sendResponse);
+        void handleRequestSelection(sendResponse).catch(error => {
+          console.error('handleRequestSelection error:', error);
+          sendResponse({ 
+            success: false, 
+            error: ErrorHandler.getErrorMessage(error) 
+          });
+        });
+        return true;
       case 'FOCUS_CLIP':
         __engine
           .focusClip(message?.payload)
@@ -116,13 +123,13 @@ function extractSelectionHtml(selection: Selection | null): string | undefined {
 
 
 
-function handleRequestSelection(
+async function handleRequestSelection(
   sendResponse: (response: { success: boolean; error?: string }) => void
-): boolean {
+): Promise<boolean> {
   // 区域限制：仅允许在 http/https 普通网页上摘抄
   const currentUrl = window.location.href;
   if (!isSupportedHttpUrl(currentUrl)) {
-    const msg = '当前页面不支持摘抄，仅支持在第三方网站的 http/https 页面使用。';
+    const msg = '当前页面不支持摘抄,仅支持在第三方网站的 http/https 页面使用。';
     void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'REQUEST_SELECTION in content script' } });
     sendResponse({ success: false, error: msg });
     return false;
@@ -174,24 +181,54 @@ function handleRequestSelection(
     highlightStyle: 'inline'
   };
 
-  sendMessage<MessageResponse<unknown>>({ type: 'SAVE_CLIP', payload })
-    .then(response => {
-      if (response?.success) {
-        sendResponse({ success: true });
-        return;
+  try {
+    const response = await sendMessage<MessageResponse<unknown>>({ type: 'SAVE_CLIP', payload });
+    
+    if (response?.success) {
+      // 保存成功后，重新请求并激活当前页面的所有高亮，确保新保存的内容被正确高亮
+      try {
+        const clipsResponse = await sendMessage<MessageResponse<Clip[]>>({ 
+          type: 'REQUEST_CLIPS' 
+        });
+        
+        if (clipsResponse?.success && clipsResponse.data && Array.isArray(clipsResponse.data)) {
+          const currentPageUrl = window.location.href;
+          // 过滤出当前页面的高亮
+          const pageHighlights = clipsResponse.data.filter((clip: Clip) => {
+            if (!clip.sourceUrl) return false;
+            try {
+              const clipUrl = new URL(clip.sourceUrl);
+              const pageUrl = new URL(currentPageUrl);
+              return clipUrl.origin === pageUrl.origin && clipUrl.pathname === pageUrl.pathname;
+            } catch {
+              return false;
+            }
+          });
+          
+          // 重新激活高亮
+          if (pageHighlights.length > 0) {
+            await __engine.activateHighlights(pageHighlights);
+          }
+        }
+      } catch (highlightError) {
+        // 高亮激活失败不影响保存成功的返回
+        console.warn('Failed to reactivate highlights:', highlightError);
       }
+      
+      sendResponse({ success: true });
+      return true;
+    }
 
-      const msg = response?.error ?? '保存失败';
-      void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'SAVE_CLIP from content script' } });
-      sendResponse({ success: false, error: msg });
-    })
-    .catch(error => {
-      const msg = ErrorHandler.getErrorMessage(error);
-      void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'SAVE_CLIP from content script' } });
-      sendResponse({ success: false, error: msg });
-    });
-
-  return true;
+    const msg = response?.error ?? '保存失败';
+    void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'SAVE_CLIP from content script' } });
+    sendResponse({ success: false, error: msg });
+    return false;
+  } catch (error) {
+    const msg = ErrorHandler.getErrorMessage(error);
+    void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'SAVE_CLIP from content script' } });
+    sendResponse({ success: false, error: msg });
+    return false;
+  }
 }
 
 function generateHighlightId(): string {
@@ -426,15 +463,6 @@ function normalizeIncomingHighlights(payload: unknown): RemoteHighlight[] {
 
   return normalized;
 }
-
-
-
-
-
-
-
-
-
 
 
 

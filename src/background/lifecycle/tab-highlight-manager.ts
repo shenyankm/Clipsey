@@ -3,7 +3,6 @@ import { getClipsForUrl } from '../storage';
 import { ErrorHandler } from '@/utils/error-handler';
 import { delay, isSupportedHttpUrl } from '@/utils/helpers';
 import { listenerManager } from './listener-cleanup';
-import { permissionsService } from '@/background/services/permissions-service';
 import { buildHighlightPayloads, sendHighlightsToTab, isAutoHighlightEnabled } from '@/background/utils/highlight-helpers';
 
 const HIGHLIGHT_MAX_ATTEMPTS = 8;
@@ -54,10 +53,8 @@ export class TabHighlightManager {
       return;
     }
 
-    const hasPermission = await permissionsService.hasHostPermissionForUrl(url);
-    if (!hasPermission) {
-      return;
-    }
+    // 移除权限检查：用户访问页面是主动行为，直接尝试激活高亮
+    // 如果没有权限，发送消息会失败，但不影响用户使用
 
     const clips = await getClipsForUrl(url);
     if (!clips.length) {
