@@ -45,7 +45,7 @@ Clipsey 是一款简洁高效的浏览器扩展,专为网页内容收藏而设�
 
 ### 安装扩展
 
-**方法一: Chrome 网上应用店(推荐)**
+**方法一: Chrome 扩展商店(推荐)**
 > 📢 已上架 Chrome Web Store!
 
 **方法二: 手动安装(开发者模式)**
@@ -106,6 +106,6 @@ Clipsey 基于 WXT 框架构建,使用 Vue 3 + TypeScript 开发。
 遇到问题或有功能建议?欢迎通过以下方式联系我们:
 - 🐛 [提交 Bug 报告](https://github.com/Shenean/Clipsey/issues)
 - 💡 [功能建议](https://github.com/Shenean/Clipsey/issues)
-- ⭐ 如果 Clipsey 帮到了你,欢迎给我们一个 Star!
+- ⭐ 如果 Clipsey 帮到了你,欢迎给一个 Star!
 
-祝你收藏愉快! 📚✨
+祝你使用愉快! 📚✨
