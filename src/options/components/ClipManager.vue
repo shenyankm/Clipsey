@@ -84,14 +84,12 @@
                 <div class="timeline-clip-card">
                   <div class="clip-card-header">
                     <h4 class="clip-card-title">{{ clip.title || t('clipNoTitle') }}</h4>
-                    <span class="clip-card-time">{{ formatTimelineTime(clip.createdAt) }}</span>
-                  </div>
-                  <p class="clip-card-content">{{ getClipPreview(clip) }}</p>
-                  <div class="clip-card-meta">
                     <a-tag v-if="clip.sourceUrl" size="small" :color="getSourceColor(clip.sourceUrl)">
                       {{ getDomainFromUrl(clip.sourceUrl) || t('clipNoUrl') }}
                     </a-tag>
+                    <span class="clip-card-time">{{ formatTimelineTime(clip.createdAt) }}</span>
                   </div>
+                  <p class="clip-card-content">{{ getClipPreview(clip) }}</p>
                   <div class="clip-card-actions">
                     <a-button size="small" type="text" @click="openClipDetail(clip)">
                       {{ t('clipViewButton') }}
@@ -762,25 +760,36 @@ function getSourceColor(url?: string): string {
 /* 卡片头部 */
 .clip-card-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 12px;
+  min-height: 24px;
 }
 
 .clip-card-title {
   flex: 1;
+  min-width: 0;
   margin: 0;
   font-size: 15px;
   font-weight: 600;
   color: #262626;
-  line-height: 1.4;
+  line-height: 1.5;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
+}
+
+/* 元信息行：域名和时间并列 */
+.clip-card-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.clip-card-meta-row .ant-tag {
+  margin: 0;
+  flex-shrink: 0;
 }
 
 .clip-card-time {
@@ -791,6 +800,11 @@ function getSourceColor(url?: string): string {
   background: #f5f5f5;
   padding: 2px 8px;
   border-radius: 4px;
+}
+
+.clip-card-header .ant-tag {
+  flex-shrink: 0;
+  margin: 0;
 }
 
 /* 卡片内容 */
@@ -805,11 +819,6 @@ function getSourceColor(url?: string): string {
   -webkit-line-clamp: 3;
   line-clamp: 3;
   -webkit-box-orient: vertical;
-}
-
-/* 卡片元信息 */
-.clip-card-meta {
-  margin-bottom: 12px;
 }
 
 /* 卡片操作 */
