@@ -3,6 +3,7 @@
   "menuBasic": "基础设置",
   "menuContent": "摘要管理",
   "menuAbout": "关于",
+  "clipManagerDescription": "查看、搜索和管理你保存的所有网页摘要，支持分类视图和时间轴显示。",
   "displayLanguage": "界面语言",
   "highlightColor": "高亮主题色",
   "languageZhCN": "简体中文",
@@ -60,6 +61,7 @@
   "clipModalFieldUrl": "URL:",
   "clipModalFieldContent": "内容:",
   "clipModalFieldCreatedAt": "创建时间:",
-  "clipRefreshed": "已刷新"
+  "clipRefreshed": "已刷新",
+  "clipUnknownDate": "未知日期"
 }
 

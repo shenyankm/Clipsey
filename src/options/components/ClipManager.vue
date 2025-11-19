@@ -1,5 +1,10 @@
 <template>
-  <div class="clip-manager">
+  <div class="clip-manager tab-section">
+    <a-typography-title :level="5">{{ t('menuContent') }}</a-typography-title>
+    <a-typography-text type="secondary">
+      {{ t('clipManagerDescription') }}
+    </a-typography-text>
+    <a-divider />
     <a-space direction="vertical" size="large" style="width: 100%;">
       <div class="clip-toolbar">
         <div class="clip-toolbar__row">
@@ -56,73 +61,58 @@
       </a-card>
 
       <template v-else>
-        <div v-if="isTimelineView">
-          <a-card class="clip-timeline-card" size="small" bordered>
-            <div class="clip-timeline">
-              <a-timeline mode="left">
-                <a-timeline-item 
-                  v-for="(clipItem, index) in searchResults" 
-                  :key="clipItem.id" 
-                  class="clip-timeline-item"
-                  :color="getTimelineColor(index)"
-                >
-                  <template #dot>
-                    <div class="timeline-dot" :class="`timeline-dot--${getTimelineColorClass(index)}`">
-                      <span class="timeline-dot__index">{{ searchResults.length - index }}</span>
-                    </div>
-                  </template>
-                  <div class="timeline-card">
-                    <div class="timeline-card__timestamp">
-                      <span class="timeline-card__date">{{ formatTimelineDate(clipItem.createdAt) }}</span>
-                      <span class="timeline-card__time-detail">{{ formatTimelineTime(clipItem.createdAt) }}</span>
-                    </div>
-                    <div class="timeline-card__main">
-                      <div class="timeline-card__header">
-                        <h4 class="timeline-card__title">{{ clipItem.title || t('clipNoTitle') }}</h4>
-                        <a-tag :color="getSourceColor(clipItem.sourceUrl)" class="timeline-card__source-tag">
-                          {{ getDomainFromUrl(clipItem.sourceUrl) || t('clipNoUrl') }}
-                        </a-tag>
-                      </div>
-                      <div class="timeline-card__content">
-                        <p class="timeline-card__excerpt">{{ getClipPreview(clipItem) }}</p>
-                      </div>
-                      <div class="timeline-card__footer">
-                        <div class="timeline-card__url">
-                          <template v-if="clipItem.sourceUrl">
-                            <svg class="timeline-card__link-icon" viewBox="0 0 1024 1024" width="12" height="12">
-                              <path d="M853.333333 469.333333a42.666667 42.666667 0 0 0-42.666666 42.666667v256a42.666667 42.666667 0 0 1-42.666667 42.666667H256a42.666667 42.666667 0 0 1-42.666667-42.666667V256a42.666667 42.666667 0 0 1 42.666667-42.666667h256a42.666667 42.666667 0 0 0 0-85.333333H256a128 128 0 0 0-128 128v512a128 128 0 0 0 128 128h512a128 128 0 0 0 128-128v-256a42.666667 42.666667 0 0 0-42.666667-42.666667z" fill="currentColor"/>
-                              <path d="M682.666667 213.333333h67.413333l-268.373333 268.373334a42.666667 42.666667 0 0 0 60.586666 60.586666L810.666667 273.92V341.333333a42.666667 42.666667 0 0 0 85.333333 0V170.666667a42.666667 42.666667 0 0 0-42.666667-42.666667h-170.666666a42.666667 42.666667 0 0 0 0 85.333333z" fill="currentColor"/>
-                            </svg>
-                            <a :href="clipItem.sourceUrl" target="_blank" rel="noreferrer" class="timeline-card__link">{{ clipItem.sourceUrl }}</a>
-                          </template>
-                          <template v-else>
-                            <span class="timeline-card__no-url">{{ t('clipNoUrlAlt') }}</span>
-                          </template>
-                        </div>
-                        <div class="timeline-card__actions">
-                          <a-button size="small" type="text" @click="openClipDetail(clipItem)">
-                            {{ t('clipViewButton') }}
-                          </a-button>
-                          <a-button
-                            size="small"
-                            type="primary"
-                            :disabled="!clipItem.sourceUrl"
-                            :loading="openingId === clipItem.id"
-                            @click="openClipAction(clipItem)"
-                          >
-                            {{ t('clipOpenButton') }}
-                          </a-button>
-                          <a-popconfirm :title="t('clipDeleteConfirm')" @confirm="deleteClip(clipItem.id)">
-                            <a-button size="small" danger type="text">{{ t('clipDeleteButton') }}</a-button>
-                          </a-popconfirm>
-                        </div>
-                      </div>
-                    </div>
+        <div v-if="isTimelineView" class="clip-timeline-container">
+          <div class="clip-timeline-wrapper">
+            <div class="timeline-axis"></div>
+            <div v-for="group in timelineGroups" :key="group.date" class="timeline-date-group">
+              <!-- 日期分割线 -->
+              <div class="timeline-date-marker">
+                <div class="timeline-date-dot"></div>
+                <div class="timeline-date-label">{{ group.dateLabel }}</div>
+              </div>
+              
+              <!-- 该日期的所有卡片 -->
+              <div 
+                v-for="clip in group.clips" 
+                :key="clip.id"
+                class="timeline-clip-wrapper"
+                :class="{
+                  'timeline-clip-wrapper--left': group.dayIndex % 2 === 0,
+                  'timeline-clip-wrapper--right': group.dayIndex % 2 === 1
+                }"
+              >
+                <div class="timeline-clip-card">
+                  <div class="clip-card-header">
+                    <h4 class="clip-card-title">{{ clip.title || t('clipNoTitle') }}</h4>
+                    <span class="clip-card-time">{{ formatTimelineTime(clip.createdAt) }}</span>
                   </div>
-                </a-timeline-item>
-              </a-timeline>
+                  <p class="clip-card-content">{{ getClipPreview(clip) }}</p>
+                  <div class="clip-card-meta">
+                    <a-tag v-if="clip.sourceUrl" size="small" :color="getSourceColor(clip.sourceUrl)">
+                      {{ getDomainFromUrl(clip.sourceUrl) || t('clipNoUrl') }}
+                    </a-tag>
+                  </div>
+                  <div class="clip-card-actions">
+                    <a-button size="small" type="text" @click="openClipDetail(clip)">
+                      {{ t('clipViewButton') }}
+                    </a-button>
+                    <a-button
+                      size="small"
+                      type="primary"
+                      :disabled="!clip.sourceUrl"
+                      :loading="openingId === clip.id"
+                      @click="openClipAction(clip)"
+                    >
+                      {{ t('clipOpenButton') }}
+                    </a-button>
+                    <a-popconfirm :title="t('clipDeleteConfirm')" @confirm="deleteClip(clip.id)">
+                      <a-button size="small" danger type="text">{{ t('clipDeleteButton') }}</a-button>
+                    </a-popconfirm>
+                  </div>
+                </div>
+              </div>
             </div>
-          </a-card>
+          </div>
         </div>
         <div v-else>
           <a-card class="clip-table-card" size="small" bordered>
@@ -261,6 +251,54 @@ const selectedClipCreatedAt = computed(() => {
 });
 
 const isTimelineView = computed(() => classificationMode.value === 'timeline');
+
+// 按日期分组clips
+type ClipsByDate = {
+  date: string; // YYYY-MM-DD 格式
+  dateLabel: string; // 显示标签
+  clips: Clip[];
+  dayIndex: number; // 用于确定左右位置
+};
+
+const timelineGroups = computed<ClipsByDate[]>(() => {
+  if (!isTimelineView.value || searchResults.value.length === 0) {
+    return [];
+  }
+
+  // 按日期分组
+  const groupMap = new Map<string, Clip[]>();
+  const dateList: string[] = [];
+
+  for (const clip of searchResults.value) {
+    const date = getDateOnly(clip.createdAt);
+    if (!groupMap.has(date)) {
+      groupMap.set(date, []);
+      dateList.push(date);
+    }
+    groupMap.get(date)!.push(clip);
+  }
+
+  // 按日期排序（最新的在前）
+  dateList.sort((a, b) => b.localeCompare(a));
+
+  // 计算每个日期的dayIndex（用于左右交替）
+  return dateList.map((date, index) => ({
+    date,
+    dateLabel: formatTimelineDate(date),
+    clips: groupMap.get(date) || [],
+    dayIndex: index
+  }));
+});
+
+// 获取日期部分（YYYY-MM-DD）
+function getDateOnly(isoString?: string): string {
+  if (!isoString) return 'unknown';
+  try {
+    return isoString.split('T')[0];
+  } catch {
+    return 'unknown';
+  }
+}
 
 
 
@@ -409,27 +447,26 @@ function formatDateDisplay(value?: string): string {
 }
 
 function formatTimelineDate(isoString?: string): string {
-  if (!isoString) return t('clipUnknownDate');
+  if (!isoString) return t('clipUnknownDate') || 'Unknown Date';
   const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) return t('clipUnknownDate');
-  return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+  if (Number.isNaN(date.getTime())) return t('clipUnknownDate') || 'Unknown Date';
+  
+  const locale = (t('languageZhCN') === '简体中文') ? 'zh-CN' : 'en-US';
+  return date.toLocaleDateString(locale, { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric',
+    weekday: 'short'
+  });
 }
 
 function formatTimelineTime(isoString?: string): string {
   if (!isoString) return '';
   const date = new Date(isoString);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
-function getTimelineColor(index: number): string {
-  const colors = ['blue', 'green', 'orange', 'purple', 'cyan', 'magenta'];
-  return colors[index % colors.length];
-}
-
-function getTimelineColorClass(index: number): string {
-  const classes = ['blue', 'green', 'orange', 'purple', 'cyan', 'magenta'];
-  return classes[index % classes.length];
+  
+  const locale = (t('languageZhCN') === '简体中文') ? 'zh-CN' : 'en-US';
+  return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 }
 
 function getSourceColor(url?: string): string {
@@ -449,6 +486,12 @@ function getSourceColor(url?: string): string {
 <style scoped>
 .clip-manager {
   width: 100%;
+}
+
+.tab-section {
+  background: #fff;
+  padding: 24px;
+  border-radius: 8px;
 }
 
 /* 工具栏容器 - 移除卡片样式 */
@@ -589,148 +632,159 @@ function getSourceColor(url?: string): string {
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
 }
 
-.clip-timeline-card {
-  margin-top: 8px;
-  border-radius: 8px;
-  border: 1px solid #d9d9d9;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
-  background: linear-gradient(to bottom, #fafafa 0%, #ffffff 100%);
+/* 时间轴容器 */
+.clip-timeline-container {
+  margin-top: 16px;
+  width: 100%;
 }
 
-.clip-timeline {
-  max-height: 75vh;
-  overflow-y: auto;
-  padding: 16px 8px 16px 0;
-}
-
-.clip-timeline::-webkit-scrollbar {
-  width: 6px;
-}
-
-.clip-timeline::-webkit-scrollbar-track {
-  background: #f0f0f0;
-  border-radius: 3px;
-}
-
-.clip-timeline::-webkit-scrollbar-thumb {
-  background: #bfbfbf;
-  border-radius: 3px;
-}
-
-.clip-timeline::-webkit-scrollbar-thumb:hover {
-  background: #8c8c8c;
-}
-
-.clip-timeline-item {
-  animation: slideInFromLeft 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+.clip-timeline-wrapper {
   position: relative;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 0;
 }
 
-.clip-timeline-item:hover .timeline-card {
-  transform: translateX(4px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+/* 中心轴线 */
+.timeline-axis {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(to bottom, #e3e8ef 0%, #1677ff 50%, #e3e8ef 100%);
+  transform: translateX(-50%);
+  border-radius: 2px;
 }
 
-.timeline-dot {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+/* 日期分组 */
+.timeline-date-group {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+/* 日期标记 */
+.timeline-date-marker {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
-  font-size: 12px;
-  color: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  position: relative;
+  margin-bottom: 20px;
   z-index: 2;
 }
 
-.timeline-dot:hover {
-  transform: scale(1.15) rotate(5deg);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+.timeline-date-dot {
+  width: 16px;
+  height: 16px;
+  background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(22, 119, 255, 0.1);
 }
 
-.timeline-dot--blue {
-  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+.timeline-date-label {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 24px;
+  padding: 6px 16px;
+  background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%);
+  color: white;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(22, 119, 255, 0.25);
 }
 
-.timeline-dot--green {
-  background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
-}
-
-.timeline-dot--orange {
-  background: linear-gradient(135deg, #fa8c16 0%, #d46b08 100%);
-}
-
-.timeline-dot--purple {
-  background: linear-gradient(135deg, #722ed1 0%, #531dab 100%);
-}
-
-.timeline-dot--cyan {
-  background: linear-gradient(135deg, #13c2c2 0%, #08979c 100%);
-}
-
-.timeline-dot--magenta {
-  background: linear-gradient(135deg, #eb2f96 0%, #c41d7f 100%);
-}
-
-.timeline-dot__index {
-  font-variant-numeric: tabular-nums;
-}
-
-.timeline-card {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
-  border: 1px solid #e8e8e8;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+/* 卡片包装器 */
+.timeline-clip-wrapper {
   position: relative;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+  margin-bottom: 16px;
+  display: flex;
 }
 
-.timeline-card::before {
+.timeline-clip-wrapper--left {
+  justify-content: flex-end;
+  padding-right: calc(50% + 24px);
+}
+
+.timeline-clip-wrapper--right {
+  justify-content: flex-start;
+  padding-left: calc(50% + 24px);
+}
+
+/* 卡片样式 */
+.timeline-clip-card {
+  width: 100%;
+  max-width: 480px;
+  background: #fff;
+  border: 1px solid #e3e8ef;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.timeline-clip-wrapper--left .timeline-clip-card::after {
+  content: '';
+  position: absolute;
+  right: -8px;
+  top: 20px;
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 8px solid #fff;
+  filter: drop-shadow(2px 0 2px rgba(0, 0, 0, 0.04));
+}
+
+.timeline-clip-wrapper--right .timeline-clip-card::after {
   content: '';
   position: absolute;
   left: -8px;
-  top: 16px;
+  top: 20px;
   width: 0;
   height: 0;
   border-top: 8px solid transparent;
   border-bottom: 8px solid transparent;
-  border-right: 8px solid #e8e8e8;
+  border-right: 8px solid #fff;
+  filter: drop-shadow(-2px 0 2px rgba(0, 0, 0, 0.04));
 }
 
-.timeline-card::after {
-  content: '';
-  position: absolute;
-  left: -7px;
-  top: 16px;
-  width: 0;
-  height: 0;
-  border-top: 8px solid transparent;
-  border-bottom: 8px solid transparent;
-  border-right: 8px solid white;
+.timeline-clip-card:hover {
+  border-color: #4096ff;
+  box-shadow: 0 4px 16px rgba(64, 150, 255, 0.15);
+  transform: translateY(-2px);
 }
 
-.timeline-card__timestamp {
+/* 卡片头部 */
+.clip-card-header {
   display: flex;
-  align-items: baseline;
+  justify-content: space-between;
+  align-items: flex-start;
   gap: 12px;
   margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 2px solid #f0f0f0;
 }
 
-.timeline-card__date {
+.clip-card-title {
+  flex: 1;
+  margin: 0;
   font-size: 15px;
   font-weight: 600;
   color: #262626;
-  letter-spacing: 0.3px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
-.timeline-card__time-detail {
+.clip-card-time {
+  flex-shrink: 0;
   font-size: 12px;
   color: #8c8c8c;
   font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
@@ -739,120 +793,62 @@ function getSourceColor(url?: string): string {
   border-radius: 4px;
 }
 
-.timeline-card__main {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.timeline-card__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.timeline-card__title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #262626;
-  line-height: 1.5;
-  flex: 1;
-  min-width: 0;
+/* 卡片内容 */
+.clip-card-content {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: #595959;
+  line-height: 1.6;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.timeline-card__source-tag {
-  flex-shrink: 0;
-  font-size: 12px;
-  border-radius: 4px;
-  padding: 0 10px;
-  font-weight: 500;
-}
-
-.timeline-card__content {
-  margin: 0;
-}
-
-.timeline-card__excerpt {
-  margin: 0;
-  font-size: 14px;
-  color: #595959;
-  line-height: 1.7;
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.timeline-card__footer {
+/* 卡片元信息 */
+.clip-card-meta {
+  margin-bottom: 12px;
+}
+
+/* 卡片操作 */
+.clip-card-actions {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #f5f5f5;
-  flex-wrap: wrap;
-}
-
-.timeline-card__url {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #8c8c8c;
-}
-
-.timeline-card__link-icon {
-  flex-shrink: 0;
-  color: #1677ff;
-}
-
-.timeline-card__link {
-  color: #1677ff;
-  text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  transition: color 0.3s ease;
-}
-
-.timeline-card__link:hover {
-  color: #4096ff;
-  text-decoration: underline;
-}
-
-.timeline-card__no-url {
-  color: #bfbfbf;
-  font-style: italic;
-}
-
-.timeline-card__actions {
-  display: flex;
-  align-items: center;
   gap: 8px;
-  flex-shrink: 0;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+.clip-card-actions .ant-btn {
+  flex: 1;
 }
 
-@keyframes slideInFromLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-20px);
+/* 响应式 */
+@media (max-width: 768px) {
+  .timeline-clip-wrapper--left,
+  .timeline-clip-wrapper--right {
+    padding-left: 24px;
+    padding-right: 24px;
+    justify-content: center;
   }
-  to {
-    opacity: 1;
-    transform: translateX(0);
+  
+  .timeline-axis {
+    left: 24px;
+  }
+  
+  .timeline-date-marker {
+    justify-content: flex-start;
+    padding-left: 16px;
+  }
+  
+  .timeline-date-label {
+    left: 40px;
+    transform: none;
+  }
+  
+  .timeline-clip-card::after {
+    display: none;
   }
 }
 

@@ -12,9 +12,7 @@
         </a-tab-pane>
 
         <a-tab-pane key="content" :tab="t('menuContent')">
-          <div style="padding: 16px;">
-            <ClipManager />
-          </div>
+          <ClipManager />
         </a-tab-pane>
 
         <a-tab-pane key="about" :tab="t('menuAbout')">

@@ -3,6 +3,7 @@
   "menuBasic": "Basic Settings",
   "menuContent": "Clip Manager",
   "menuAbout": "About",
+  "clipManagerDescription": "View, search and manage all your saved web clips with support for categorized views and timeline display.",
   "displayLanguage": "Display Language",
   "highlightColor": "Highlight Color",
   "languageZhCN": "简体中文",
@@ -60,6 +61,7 @@
   "clipModalFieldUrl": "URL:",
   "clipModalFieldContent": "Content:",
   "clipModalFieldCreatedAt": "Created At:",
-  "clipRefreshed": "Refreshed"
+  "clipRefreshed": "Refreshed",
+  "clipUnknownDate": "Unknown Date"
 }
 
