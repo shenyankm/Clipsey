@@ -1,19 +1,15 @@
 <template>
   <div class="clip-manager">
     <a-space direction="vertical" size="large" style="width: 100%;">
-      <a-card class="clip-toolbar-card" size="small" bordered>
+      <div class="clip-toolbar">
         <div class="clip-toolbar__row">
           <div class="clip-toolbar__search">
-            <a-input
+            <a-input-search
               v-model:value="searchQuery"
               :placeholder="t('clipSearchPlaceholder')"
-              allowClear
-              class="clip-search-input"
-            >
-              <template #prefix>
-                <span class="clip-search-icon">🔍</span>
-              </template>
-            </a-input>
+              allow-clear
+              enter-button
+            />
           </div>
           <div class="clip-toolbar__actions">
             <div class="clip-toolbar__stat">
@@ -38,7 +34,7 @@
             <a-radio-button value="date">{{ t('clipClassificationDate') }}</a-radio-button>
           </a-radio-group>
         </div>
-      </a-card>
+      </div>
 
       <a-card v-if="searchTotal === 0" size="small">
         <a-empty :description="t('clipNoRecords')" />
@@ -473,15 +469,9 @@ function formatDateDisplay(value?: string): string {
   width: 100%;
 }
 
-.clip-toolbar-card {
-  border-radius: 8px;
-  border: 1px solid #d9d9d9;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
-  transition: box-shadow 0.3s ease;
-}
-
-.clip-toolbar-card:hover {
-  box-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.16), 0 3px 6px 0 rgba(0, 0, 0, 0.12), 0 5px 12px 4px rgba(0, 0, 0, 0.09);
+/* 工具栏容器 - 移除卡片样式 */
+.clip-toolbar {
+  width: 100%;
 }
 
 .clip-toolbar__row {
@@ -492,77 +482,30 @@ function formatDateDisplay(value?: string): string {
 }
 
 .clip-toolbar__row + .clip-toolbar__row {
-  margin-top: 12px;
+  margin-top: 16px;
 }
 
 .clip-toolbar__row--filters {
   justify-content: space-between;
   border-top: 1px solid #f0f0f0;
-  padding-top: 12px;
+  padding-top: 16px;
   align-items: center;
 }
 
+/* 搜索框 - 增大宽度 */
 .clip-toolbar__search {
   flex: 1;
-  min-width: 240px;
-  max-width: 600px;
+  min-width: 320px;
+  max-width: 800px;
 }
 
-/* 搜索框样式优化，与 Ant Design Vue 组件保持一致 */
-.clip-search-input :deep(.ant-input-affix-wrapper) {
-  border-radius: 6px;
-  border: 1px solid #d9d9d9;
-  background-color: #ffffff;
-  transition: all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
-  box-shadow: none;
-  height: 32px;
-}
-
-.clip-search-input :deep(.ant-input-affix-wrapper:hover) {
-  border-color: #4096ff;
-}
-
-.clip-search-input :deep(.ant-input-affix-wrapper:focus-within),
-.clip-search-input :deep(.ant-input-affix-wrapper-focused) {
-  border-color: #4096ff;
-  box-shadow: 0 0 0 2px rgba(5, 145, 255, 0.1);
-  outline: 0;
-}
-
-.clip-search-input :deep(.ant-input) {
-  font-size: 14px;
-  line-height: 1.5715;
-  color: rgba(0, 0, 0, 0.88);
-}
-
-.clip-search-input :deep(.ant-input::placeholder) {
-  color: rgba(0, 0, 0, 0.25);
-}
-
-.clip-search-icon {
-  color: rgba(0, 0, 0, 0.45);
-  font-size: 14px;
-  display: inline-flex;
-  align-items: center;
-  margin-right: 4px;
-}
-
-/* 清除按钮样式 */
-.clip-search-input :deep(.ant-input-clear-icon) {
-  color: rgba(0, 0, 0, 0.25);
-  font-size: 12px;
-  transition: color 0.3s;
-}
-
-.clip-search-input :deep(.ant-input-clear-icon:hover) {
-  color: rgba(0, 0, 0, 0.45);
-}
-
+/* 右侧操作区 - 向右对齐 */
 .clip-toolbar__actions {
   display: flex;
   align-items: center;
   gap: 16px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  margin-left: auto;
 }
 
 /* 刷新按钮样式优化 */
