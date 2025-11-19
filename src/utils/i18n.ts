@@ -10,6 +10,9 @@ const i18n = createI18n<[MessageSchema], 'zh-CN' | 'en-US'>({
   legacy: false, // Vue 3 Composition API mode
   locale: 'zh-CN', // default locale
   fallbackLocale: 'en-US',
+  globalInjection: true, // 全局注入 $t
+  missingWarn: true, // 开发环境下警告缺失的翻译
+  fallbackWarn: true, // 开发环境下警告回退翻译
   messages: {
     'zh-CN': zhCN,
     'en-US': enUS,
@@ -27,6 +30,7 @@ export async function initI18nLocale(): Promise<void> {
     const locale = i18n.global.locale as any;
     if (locale.value !== targetLocale) {
       locale.value = targetLocale;
+      console.log('[i18n] Locale changed to:', targetLocale);
     }
   } catch (error) {
     console.warn('[i18n] Failed to load locale from settings:', error);
@@ -38,6 +42,7 @@ export async function initI18nLocale(): Promise<void> {
     const locale = i18n.global.locale as any;
     if (locale.value !== newLocale) {
       locale.value = newLocale;
+      console.log('[i18n] Locale updated to:', newLocale);
     }
   });
 }

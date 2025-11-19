@@ -8,10 +8,10 @@
               v-model:value="searchQuery"
               :placeholder="t('clipSearchPlaceholder')"
               allowClear
-              size="large"
+              class="clip-search-input"
             >
               <template #prefix>
-                <span style="color: #8c8c8c; font-size: 14px;">🔍</span>
+                <span class="clip-search-icon">🔍</span>
               </template>
             </a-input>
           </div>
@@ -248,7 +248,6 @@ const selectedClip = ref<Clip | null>(null);
 const pageSize = 20;
 const classificationMode = ref<ClassificationMode>('none');
 
-const isDateClassification = computed(() => classificationMode.value === 'date');
 const isDomainClassification = computed(() => classificationMode.value === 'domain');
 
 const groupExpansionState = ref<Record<string, boolean>>({});
@@ -475,7 +474,14 @@ function formatDateDisplay(value?: string): string {
 }
 
 .clip-toolbar-card {
-  border-radius: 12px;
+  border-radius: 8px;
+  border: 1px solid #d9d9d9;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+  transition: box-shadow 0.3s ease;
+}
+
+.clip-toolbar-card:hover {
+  box-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.16), 0 3px 6px 0 rgba(0, 0, 0, 0.12), 0 5px 12px 4px rgba(0, 0, 0, 0.09);
 }
 
 .clip-toolbar__row {
@@ -493,6 +499,7 @@ function formatDateDisplay(value?: string): string {
   justify-content: space-between;
   border-top: 1px solid #f0f0f0;
   padding-top: 12px;
+  align-items: center;
 }
 
 .clip-toolbar__search {
@@ -501,13 +508,54 @@ function formatDateDisplay(value?: string): string {
   max-width: 600px;
 }
 
-.clip-toolbar__search :deep(.ant-input-affix-wrapper) {
-  border-radius: 8px;
+/* 搜索框样式优化，与 Ant Design Vue 组件保持一致 */
+.clip-search-input :deep(.ant-input-affix-wrapper) {
+  border-radius: 6px;
+  border: 1px solid #d9d9d9;
+  background-color: #ffffff;
+  transition: all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+  box-shadow: none;
+  height: 32px;
 }
 
-.clip-toolbar__search :deep(.ant-input-lg) {
-  height: 40px;
+.clip-search-input :deep(.ant-input-affix-wrapper:hover) {
+  border-color: #4096ff;
+}
+
+.clip-search-input :deep(.ant-input-affix-wrapper:focus-within),
+.clip-search-input :deep(.ant-input-affix-wrapper-focused) {
+  border-color: #4096ff;
+  box-shadow: 0 0 0 2px rgba(5, 145, 255, 0.1);
+  outline: 0;
+}
+
+.clip-search-input :deep(.ant-input) {
   font-size: 14px;
+  line-height: 1.5715;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+.clip-search-input :deep(.ant-input::placeholder) {
+  color: rgba(0, 0, 0, 0.25);
+}
+
+.clip-search-icon {
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+}
+
+/* 清除按钮样式 */
+.clip-search-input :deep(.ant-input-clear-icon) {
+  color: rgba(0, 0, 0, 0.25);
+  font-size: 12px;
+  transition: color 0.3s;
+}
+
+.clip-search-input :deep(.ant-input-clear-icon:hover) {
+  color: rgba(0, 0, 0, 0.45);
 }
 
 .clip-toolbar__actions {
@@ -517,25 +565,63 @@ function formatDateDisplay(value?: string): string {
   flex-wrap: wrap;
 }
 
+/* 刷新按钮样式优化 */
+.clip-toolbar__actions :deep(.ant-btn) {
+  height: 32px;
+  padding: 4px 15px;
+  font-size: 14px;
+  border-radius: 6px;
+  transition: all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+
+.clip-toolbar__actions :deep(.ant-btn-default) {
+  border: 1px solid #d9d9d9;
+  background-color: #ffffff;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+.clip-toolbar__actions :deep(.ant-btn-default:hover) {
+  color: #4096ff;
+  border-color: #4096ff;
+}
+
+.clip-toolbar__actions :deep(.ant-btn-default:active) {
+  color: #0958d9;
+  border-color: #0958d9;
+}
+
 .clip-toolbar__stat {
   text-align: right;
   min-width: 90px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  background-color: #f5f5f5;
+  transition: background-color 0.3s ease;
+}
+
+.clip-toolbar__stat:hover {
+  background-color: #e6f4ff;
 }
 
 .clip-toolbar__stat-value {
   font-size: 20px;
   font-weight: 600;
   line-height: 1.2;
+  color: #1677ff;
+  font-variant-numeric: tabular-nums;
 }
 
 .clip-toolbar__stat-label {
   font-size: 12px;
-  color: #8c8c8c;
+  color: rgba(0, 0, 0, 0.45);
+  margin-top: 2px;
 }
 
 .clip-toolbar__filter-label {
-  font-size: 13px;
-  color: #8c8c8c;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.88);
+  white-space: nowrap;
 }
 
 .clip-toolbar__classification {
@@ -543,6 +629,32 @@ function formatDateDisplay(value?: string): string {
   flex: 1;
   min-width: 220px;
   justify-content: flex-end;
+}
+
+/* 分类选择器样式优化 */
+.clip-toolbar__classification :deep(.ant-radio-button-wrapper) {
+  height: 32px;
+  line-height: 30px;
+  font-size: 14px;
+  border-radius: 0;
+  transition: all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+
+.clip-toolbar__classification :deep(.ant-radio-button-wrapper:first-child) {
+  border-radius: 6px 0 0 6px;
+}
+
+.clip-toolbar__classification :deep(.ant-radio-button-wrapper:last-child) {
+  border-radius: 0 6px 6px 0;
+}
+
+.clip-toolbar__classification :deep(.ant-radio-button-wrapper-checked) {
+  background-color: #1677ff;
+  border-color: #1677ff;
+}
+
+.clip-toolbar__classification :deep(.ant-radio-button-wrapper:not(.ant-radio-button-wrapper-disabled):hover) {
+  color: #4096ff;
 }
 
 .clip-group-area {
@@ -556,10 +668,17 @@ function formatDateDisplay(value?: string): string {
 }
 
 .clip-group-card {
-  border-radius: 10px;
+  border-radius: 8px;
+  border: 1px solid #d9d9d9;
   min-height: 220px;
   display: flex;
   flex-direction: column;
+  transition: all 0.3s ease;
+}
+
+.clip-group-card:hover {
+  border-color: #4096ff;
+  box-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.16), 0 3px 6px 0 rgba(0, 0, 0, 0.12), 0 5px 12px 4px rgba(0, 0, 0, 0.09);
 }
 
 .clip-group-card__header {
@@ -683,7 +802,9 @@ function formatDateDisplay(value?: string): string {
 
 .clip-table-card {
   margin-top: 8px;
-  border-radius: 12px;
+  border-radius: 8px;
+  border: 1px solid #d9d9d9;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
 }
 
 .clip-pagination {

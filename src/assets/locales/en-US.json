@@ -16,7 +16,6 @@
   "autoLocateFirstSummaryDescription": "Automatically scroll to the latest summary upon entering the page to quickly access new content.",
   "basicSettingsTitle": "General Preferences",
   "basicSettingsDescription": "Configure interface language and highlight color to improve daily efficiency.",
-
   "aboutTitle": "About",
   "aboutDescription": "Clipsey is a browser extension focused on web clipping and backtracking, helping you quickly save inspiration, sync highlights, and locate original text with one click.",
   "contactEmailLabel": "Contact Email",
@@ -45,7 +44,7 @@
   "clipNoTitle": "No Title",
   "clipNoUrlAlt": "No URL",
   "clipNoContentAlt": "No Content",
-  "clipSearchPlaceholder": "Enter @title, @website, @content for precise search, or keywords for full-text search...",
+  "clipSearchPlaceholder": "Search by title, website or content...",
   "clipSearchOptionTitle": "@title - Search by title",
   "clipSearchOptionWebsite": "@website - Search by website",
   "clipSearchOptionContent": "@content - Search by content",
