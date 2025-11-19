@@ -35,6 +35,8 @@
   "clipOpenButton": "Open",
   "clipDeleteButton": "Delete",
   "clipDeleteConfirm": "Confirm deletion? This action cannot be undone",
+  "clipDeleteSuccess": "Deleted successfully",
+  "clipDeleteFailed": "Failed to delete clip",
   "clipTableColumnTitle": "Title",
   "clipTableColumnUrl": "URL",
   "clipTableColumnContent": "Content",
@@ -66,3 +68,4 @@
   "clipUnknownDate": "Unknown Date",
   "clipRefreshed": "Refreshed"
 }
+

@@ -10,7 +10,8 @@ const app = createExtensionApp(App, {
   plugins: [Antd]
 });
 
-app.mount('#app');
 
-// 初始化 i18n 语言设置
-initI18nLocale();
+void (async () => {
+  await initI18nLocale();
+  app.mount('#app');
+})();

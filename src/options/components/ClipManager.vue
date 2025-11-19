@@ -133,7 +133,7 @@
           <a-card class="clip-table-card" size="small" bordered>
             <a-table
               :columns="columns"
-              :dataSource="paginatedData"
+              :dataSource="searchResults"
               :pagination="false"
               :bordered="false"
               :rowKey="rowKey"
@@ -216,7 +216,6 @@ import type { Clip } from '@/types/clip';
 import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
 import { formatClipDate, getClipPreview as formatClipPreview, getClipDomain } from '@/utils/clip-format';
 import { useClipSearch } from '../composables/useClipSearch';
-import { useClipPagination } from '../composables/useClipPagination';
 import { useClipCRUD } from '../composables/useClipCRUD';
 import { useBroadcastSync } from '@/composables/useBroadcastSync';
 import type { SortBy } from '@/background/services/search-service';
@@ -227,7 +226,7 @@ type ClassificationMode = 'none' | 'domain' | 'date';
 type ClipGroup = { key: string; label: string; clips: Clip[] };
 
 const { searchQuery, searchResults, searchTotal, isSearching, performSearch } = useClipSearch();
-const { currentPage, paginatedClips: paginatedData } = useClipPagination(searchResults, 20);
+const currentPage = ref(1);
 const { deleteClip: deleteClipAction, openClip: openClipAction, openingId } = useClipCRUD();
 
 useBroadcastSync('clipsey-storage-sync', (message) => {
@@ -272,7 +271,7 @@ const groupedClips = computed<ClipGroup[]>(() => {
   const buckets: ClipGroup[] = [];
   const map = new Map<string, ClipGroup>();
 
-  for (const clip of paginatedData.value) {
+  for (const clip of searchResults.value) {
     const { key, label } = getGroupMeta(clip, mode);
     let group = map.get(key);
     if (!group) {
@@ -353,6 +352,13 @@ function handleTableChange(_pagination: any, _filters: any, sorter: any) {
 const pageCount = computed(() => {
   if (searchTotal.value <= 0) return 1;
   return Math.ceil(searchTotal.value / pageSize);
+});
+
+watch(searchTotal, () => {
+  const maxPage = Math.max(1, pageCount.value);
+  if (currentPage.value > maxPage) {
+    currentPage.value = maxPage;
+  }
 });
 
 const columns = computed(() => [
@@ -448,12 +454,6 @@ function openClipDetail(clip: Clip) {
 }
 
 onMounted(() => {
-  console.log('[ClipManager] Component mounted');
-  console.log('[ClipManager] Initial state:', {
-    searchQuery: searchQuery.value,
-    classificationMode: classificationMode.value,
-    searchTotal: searchTotal.value
-  });
   void performSearch(currentPage.value, pageSize, getSortOptions());
 });
 
@@ -766,3 +766,5 @@ function formatDateDisplay(value?: string): string {
   }
 }
 </style>
+
+

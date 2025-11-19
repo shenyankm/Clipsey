@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import { message } from 'ant-design-vue';
+import { useI18n } from 'vue-i18n';
 import { deleteClipById } from '@/background/api';
 import type { Clip } from '@/types/clip';
 import { ErrorHandler } from '@/utils/error-handler';
@@ -9,6 +10,7 @@ import { useClipOpener } from '@/utils/clip/opener';
 export function useClipCRUD() {
   const isDeleting = ref(false);
   const { openingId, openClip } = useClipOpener();
+  const { t } = useI18n();
 
   // 删除剪辑
   async function deleteClip(id: string): Promise<boolean> {
@@ -41,3 +43,7 @@ export function useClipCRUD() {
     viewClipDetail
   };
 }
+
+
+
+

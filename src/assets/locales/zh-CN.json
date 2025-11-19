@@ -34,7 +34,9 @@
   "clipViewButton": "查看",
   "clipOpenButton": "打开",
   "clipDeleteButton": "删除",
-  "clipDeleteConfirm": "确认删除该摘抄？此操作不可恢复",
+  "clipDeleteConfirm": "确认删除该摘要？此操作不可恢复",
+  "clipDeleteSuccess": "删除成功",
+  "clipDeleteFailed": "删除失败",
   "clipTableColumnTitle": "标题",
   "clipTableColumnUrl": "网址",
   "clipTableColumnContent": "内容",
@@ -66,3 +68,4 @@
   "clipUnknownDate": "未知日期",
   "clipRefreshed": "已刷新"
 }
+

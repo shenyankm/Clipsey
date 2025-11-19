@@ -71,10 +71,10 @@ const DEFAULT_OPTIONS: OptionsForm = createOptionsForm(DEFAULT_SETTINGS);
 const form = reactive<OptionsForm>({ ...DEFAULT_OPTIONS });
 const activeItem = ref<TabKey>('basic');
 
-const languageOptions = [
+const languageOptions = computed(() => [
   { label: t('languageZhCN'), value: 'zh-CN' },
   { label: t('languageEnUS'), value: 'en-US' },
-];
+]);
 
 const texts = computed(() => ({
   displayLanguage: t('displayLanguage'),

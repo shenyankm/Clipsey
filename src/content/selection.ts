@@ -192,36 +192,6 @@ async function handleRequestSelection(
     const response = await sendMessage<MessageResponse<unknown>>({ type: 'SAVE_CLIP', payload });
     
     if (response?.success) {
-      // 保存成功后，重新请求并激活当前页面的所有高亮，确保新保存的内容被正确高亮
-      try {
-        const clipsResponse = await sendMessage<MessageResponse<Clip[]>>({ 
-          type: 'REQUEST_CLIPS' 
-        });
-        
-        if (clipsResponse?.success && clipsResponse.data && Array.isArray(clipsResponse.data)) {
-          const currentPageUrl = window.location.href;
-          // 过滤出当前页面的高亮
-          const pageHighlights = clipsResponse.data.filter((clip: Clip) => {
-            if (!clip.sourceUrl) return false;
-            try {
-              const clipUrl = new URL(clip.sourceUrl);
-              const pageUrl = new URL(currentPageUrl);
-              return clipUrl.origin === pageUrl.origin && clipUrl.pathname === pageUrl.pathname;
-            } catch {
-              return false;
-            }
-          });
-          
-          // 重新激活高亮
-          if (pageHighlights.length > 0) {
-            await __engine.activateHighlights(pageHighlights);
-          }
-        }
-      } catch (highlightError) {
-        // 高亮激活失败不影响保存成功的返回
-        console.warn('Failed to reactivate highlights:', highlightError);
-      }
-      
       sendResponse({ success: true });
       return true;
     }
@@ -470,6 +440,7 @@ function normalizeIncomingHighlights(payload: unknown): RemoteHighlight[] {
 
   return normalized;
 }
+
 
 
 

@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser';
 import { contentScriptService } from '../services/content-script-service';
+import { permissionsService } from '@/background/services/permissions-service';
 import { ErrorHandler } from '@/utils/error-handler';
 import { delay, isSupportedHttpUrl } from '@/utils/helpers';
 import type { MessageResponse } from '@/types/message';
@@ -32,6 +33,16 @@ export class SelectionRequestManager {
       void this.showNotification('当前页面不支持摘录', '仅支持在普通 http/https 页面使用。');
       return;
     }
+
+    if (!(await permissionsService.hasHostPermissionForUrl(pageUrl))) {
+      const granted = await permissionsService.requestHostPermissionForUrl(pageUrl);
+      if (!granted) {
+        void this.showNotification('������Ȩ', '�������벻�ܷ���ǰҳ���ݣ�������Ȩ�������Ժ����ԡ�');
+        return;
+      }
+    }
+
+
 
     // 使用 activeTab 权限，无需额外请求就能访问当前标签页
     // 右键菜单点击已经是用户手势，可以直接使用 activeTab
@@ -144,3 +155,4 @@ export class SelectionRequestManager {
 
 // 导出单例
 export const selectionRequestManager = new SelectionRequestManager();
+

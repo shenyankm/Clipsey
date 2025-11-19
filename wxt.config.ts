@@ -97,7 +97,7 @@ export default defineConfig({
       }
     },
     define: {
-      __INTLIFY_PROD_DEVTOOLS__: 'false'
+      __INTLIFY_PROD_DEVTOOLS__: false
     },
     json: {
       stringify: true

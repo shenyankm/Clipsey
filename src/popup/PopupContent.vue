@@ -63,7 +63,7 @@ useBroadcastSync('clipsey-storage-sync', (data) => {
     });
   }
   // 静默刷新,不显示loader,不打扰用户
-  void loadClips(false);
+  void loadClips(false, false);
 });
 
 // 显示URL（简洁形式）
@@ -101,7 +101,7 @@ async function getCurrentTabUrl(): Promise<void> {
 }
 
 /** 加载剪辑数据：支持静默刷新与缓存强制更新（默认显示加载状态） */
-async function loadClips(showLoader: boolean = true): Promise<void> {
+async function loadClips(showLoader: boolean = true, refreshCache: boolean = false): Promise<void> {
   if (showLoader) {
     loading.value = true;
   }
@@ -166,7 +166,7 @@ function openSettings(): void {
  * 手动刷新摘要列表
  */
 async function handleRefresh(): Promise<void> {
-  await loadClips(true);
+  await loadClips(true, true);
   message.success(t('popupRefreshed'));
 }
 
@@ -174,7 +174,7 @@ async function handleRefresh(): Promise<void> {
  * 组件挂载时初始化
  */
 onMounted(async () => {
-  await Promise.all([loadClips(true), getCurrentTabUrl()]);
+  await Promise.all([loadClips(true, true), getCurrentTabUrl()]);
 });
 </script>
 
@@ -212,4 +212,9 @@ onMounted(async () => {
   background: #8c8c8c;
 }
 </style>
+
+
+
+
+
 

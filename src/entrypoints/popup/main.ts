@@ -35,7 +35,8 @@ const app = createExtensionApp(App, {
   ]
 });
 
-app.mount('#app');
 
-// ��ʼ�� i18n ��������
-initI18nLocale();
+void (async () => {
+  await initI18nLocale();
+  app.mount('#app');
+})();
