@@ -4,15 +4,16 @@
       <a-card class="clip-toolbar-card" size="small" bordered>
         <div class="clip-toolbar__row">
           <div class="clip-toolbar__search">
-            <a-mentions
+            <a-input
               v-model:value="searchQuery"
-              :prefix="['@']"
               :placeholder="t('clipSearchPlaceholder')"
+              allowClear
+              size="large"
             >
-              <a-mentions-option value="title">{{ t('clipSearchOptionTitle') }}</a-mentions-option>
-              <a-mentions-option value="website">{{ t('clipSearchOptionWebsite') }}</a-mentions-option>
-              <a-mentions-option value="content">{{ t('clipSearchOptionContent') }}</a-mentions-option>
-            </a-mentions>
+              <template #prefix>
+                <span style="color: #8c8c8c; font-size: 14px;">🔍</span>
+              </template>
+            </a-input>
           </div>
           <div class="clip-toolbar__actions">
             <div class="clip-toolbar__stat">
@@ -497,10 +498,16 @@ function formatDateDisplay(value?: string): string {
 .clip-toolbar__search {
   flex: 1;
   min-width: 240px;
+  max-width: 600px;
 }
 
-.clip-toolbar__search :deep(.ant-mentions) {
-  width: 100%;
+.clip-toolbar__search :deep(.ant-input-affix-wrapper) {
+  border-radius: 8px;
+}
+
+.clip-toolbar__search :deep(.ant-input-lg) {
+  height: 40px;
+  font-size: 14px;
 }
 
 .clip-toolbar__actions {

@@ -44,7 +44,7 @@
   "clipNoTitle": "无标题",
   "clipNoUrlAlt": "暂无网址",
   "clipNoContentAlt": "暂无内容",
-  "clipSearchPlaceholder": "输入 @title、@website、@content 进行精确搜索,或直接输入关键词进行全文搜索...",
+  "clipSearchPlaceholder": "搜索标题、网站或内容...",
   "clipSearchOptionTitle": "@title - 搜索标题",
   "clipSearchOptionWebsite": "@website - 搜索网站",
   "clipSearchOptionContent": "@content - 搜索内容",
