@@ -12,7 +12,7 @@
         </a-tab-pane>
 
         <a-tab-pane key="content" :tab="t('menuContent')">
-          <div class="tab-section">
+          <div style="padding: 16px;">
             <ClipManager />
           </div>
         </a-tab-pane>
@@ -46,7 +46,17 @@ import type { OptionsForm } from './settings/types';
 
 const { t } = useI18n();
 
-const ClipManager = defineAsyncComponent(() => import('./ClipManager.vue'));
+const ClipManager = defineAsyncComponent({
+  loader: () => import('./ClipManager.vue'),
+  loadingComponent: {
+    template: '<a-spin size="large" style="display: flex; justify-content: center; padding: 48px;" />'
+  },
+  errorComponent: {
+    template: '<a-alert message="加载失败" description="无法加载摘要管理组件，请刷新页面重试" type="error" show-icon />'
+  },
+  delay: 200,
+  timeout: 10000
+});
 
 type TabKey = 'basic' | 'content' | 'about';
 
@@ -75,19 +85,19 @@ const texts = computed(() => ({
   autoLocateFirstSummaryDescription: t('autoLocateFirstSummaryDescription'),
   basicSettingsTitle: t('basicSettingsTitle'),
   basicSettingsDescription: t('basicSettingsDescription'),
-  aiSummaryEnabled: t('aiSummaryEnabled'),
-  aiSummaryEnabledDescription: t('aiSummaryEnabledDescription'),
-  aiProviderLabel: t('aiProviderLabel'),
-  aiProvider: t('aiProvider'),
-  aiProviderQwen: t('aiProviderQwen'),
-  aiProviderDeepseek: t('aiProviderDeepseek'),
-  aiSummaryApiKeyLabel: t('aiSummaryApiKeyLabel'),
-  aiSummaryApiKey: t('aiSummaryApiKey'),
-  aiSummaryApiKeyPlaceholder: t('aiSummaryApiKeyPlaceholder'),
-  aiTestButton: t('aiTestButton'),
-  aiTestSuccess: t('aiTestSuccess'),
-  aiTestFailed: t('aiTestFailed'),
-  aiTesting: t('aiTesting'),
+  // aiSummaryEnabled: t('aiSummaryEnabled'),
+  // aiSummaryEnabledDescription: t('aiSummaryEnabledDescription'),
+  // aiProviderLabel: t('aiProviderLabel'),
+  // aiProvider: t('aiProvider'),
+  // aiProviderQwen: t('aiProviderQwen'),
+  // aiProviderDeepseek: t('aiProviderDeepseek'),
+  // aiSummaryApiKeyLabel: t('aiSummaryApiKeyLabel'),
+  // aiSummaryApiKey: t('aiSummaryApiKey'),
+  // aiSummaryApiKeyPlaceholder: t('aiSummaryApiKeyPlaceholder'),
+  // aiTestButton: t('aiTestButton'),
+  // aiTestSuccess: t('aiTestSuccess'),
+  // aiTestFailed: t('aiTestFailed'),
+  // aiTesting: t('aiTesting'),
 }));
 
 const aboutTexts = computed(() => ({
@@ -116,9 +126,9 @@ function createOptionsForm(current?: Partial<SettingsOptions>): OptionsForm {
     highlightColor: DEFAULT_SETTINGS.highlightColor,
     autoHighlightPageSummary: DEFAULT_SETTINGS.autoHighlightPageSummary,
     autoLocateFirstSummary: DEFAULT_SETTINGS.autoLocateFirstSummary,
-    aiSummaryEnabled: DEFAULT_SETTINGS.aiSummaryEnabled,
-    aiProvider: DEFAULT_SETTINGS.aiProvider,
-    aiSummaryApiKey: DEFAULT_SETTINGS.aiSummaryApiKey,
+    // aiSummaryEnabled: DEFAULT_SETTINGS.aiSummaryEnabled,
+    // aiProvider: DEFAULT_SETTINGS.aiProvider,
+    // aiSummaryApiKey: DEFAULT_SETTINGS.aiSummaryApiKey,
   };
   const merged: OptionsForm = { ...base };
   if (!current) return merged;
@@ -130,15 +140,15 @@ function createOptionsForm(current?: Partial<SettingsOptions>): OptionsForm {
   if (typeof current.autoLocateFirstSummary === 'boolean') {
     merged.autoLocateFirstSummary = current.autoLocateFirstSummary;
   }
-  if (typeof current.aiSummaryEnabled === 'boolean') {
-    merged.aiSummaryEnabled = current.aiSummaryEnabled;
-  }
-  if (current.aiProvider) {
-    merged.aiProvider = current.aiProvider;
-  }
-  if (typeof current.aiSummaryApiKey === 'string') {
-    merged.aiSummaryApiKey = current.aiSummaryApiKey;
-  }
+  // if (typeof current.aiSummaryEnabled === 'boolean') {
+  //   merged.aiSummaryEnabled = current.aiSummaryEnabled;
+  // }
+  // if (current.aiProvider) {
+  //   merged.aiProvider = current.aiProvider;
+  // }
+  // if (typeof current.aiSummaryApiKey === 'string') {
+  //   merged.aiSummaryApiKey = current.aiSummaryApiKey;
+  // }
   return merged;
 }
 
@@ -210,7 +220,7 @@ function persistActiveTabToStorage(tab: TabKey): void {
 }
 
 watch(
-  () => [form.language, form.highlightColor, form.autoHighlightPageSummary, form.autoLocateFirstSummary, form.aiSummaryEnabled, form.aiProvider, form.aiSummaryApiKey],
+  () => [form.language, form.highlightColor, form.autoHighlightPageSummary, form.autoLocateFirstSummary], // Removed AI summary fields
   async () => {
     try {
       await writeSettingsLocal({
@@ -218,9 +228,9 @@ watch(
         highlightColor: form.highlightColor,
         autoHighlightPageSummary: form.autoHighlightPageSummary,
         autoLocateFirstSummary: form.autoLocateFirstSummary,
-        aiSummaryEnabled: form.aiSummaryEnabled,
-        aiProvider: form.aiProvider,
-        aiSummaryApiKey: form.aiSummaryApiKey,
+        // aiSummaryEnabled: form.aiSummaryEnabled,
+        // aiProvider: form.aiProvider,
+        // aiSummaryApiKey: form.aiSummaryApiKey,
       });
     } catch (error) {
       console.warn('Failed to save settings:', error);

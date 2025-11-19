@@ -1,4 +1,3 @@
-import 'webextension-polyfill';
 import { browser } from 'wxt/browser';
 import type { Clip } from '@/types/clip';
 import { HighlightEngine } from '@/content/highlight-engine';
@@ -42,25 +41,29 @@ const INLINE_HIGHLIGHT_CLASS = HIGHLIGHT_INLINE_CLASS;
 
 const __engine = new HighlightEngine();
 let __autoLocatePerformed = false;
+type RuntimeMessageListener = Parameters<typeof browser.runtime.onMessage.addListener>[0];
 
-if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
+export function initSelectionContentScript(): () => void {
+  if (window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
+    return () => {};
+  }
+
   window.__PAGE_CLIPPER_CONTENT_INITIALIZED__ = true;
-  // 初始化时确保颜色已注入
+  // 初始化时确保颜色等资源可用
   void ensureHighlightColorsReady();
 
-  type RuntimeMessageListener = Parameters<typeof browser.runtime.onMessage.addListener>[0];
   const runtimeMessageListener: RuntimeMessageListener = (message, _sender, sendResponse) => {
     switch (message?.type) {
       case 'PING':
-        // 用于检测内容脚本是否已加载
+        // 用于检测 content script 是否已加载
         sendResponse({ success: true } satisfies MessageResponse);
         return true;
       case 'REQUEST_SELECTION':
         void handleRequestSelection(sendResponse).catch(error => {
           console.error('handleRequestSelection error:', error);
-          sendResponse({ 
-            success: false, 
-            error: ErrorHandler.getErrorMessage(error) 
+          sendResponse({
+            success: false,
+            error: ErrorHandler.getErrorMessage(error)
           });
         });
         return true;
@@ -83,7 +86,7 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
             try {
               await tryAutoLocateLatestSummaryIfEnabled(success);
             } catch {
-              // 忽略自动定位中的任何错误，避免影响主流程
+              // 忽略自动定位失败，避免影响用户操作
             }
           })
           .catch(error => {
@@ -101,8 +104,12 @@ if (!window.__PAGE_CLIPPER_CONTENT_INITIALIZED__) {
   };
 
   browser.runtime.onMessage.addListener(runtimeMessageListener);
-}
 
+  return () => {
+    browser.runtime.onMessage.removeListener(runtimeMessageListener);
+    window.__PAGE_CLIPPER_CONTENT_INITIALIZED__ = false;
+  };
+}
 /** 提取选区 HTML：使用 Range.cloneContents + innerHTML 保留富文本结构。 */
 function extractSelectionHtml(selection: Selection | null): string | undefined {
   if (!selection || selection.rangeCount === 0) {
@@ -463,6 +470,7 @@ function normalizeIncomingHighlights(payload: unknown): RemoteHighlight[] {
 
   return normalized;
 }
+
 
 
 

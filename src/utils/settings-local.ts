@@ -3,7 +3,7 @@ import { browser as wxtBrowser } from 'wxt/browser';
 
 export type LanguageOption = 'zh-CN' | 'en-US';
 export type HighlightColorScheme = 'amber' | 'green' | 'blue';
-export type AiProvider = 'qwen' | 'deepseek';
+// AI Provider type removed
 
 type HighlightColorConfig = {
   label: string;
@@ -21,9 +21,9 @@ export interface SettingsOptions {
   highlightColor: HighlightColorScheme;
   autoHighlightPageSummary: boolean;
   autoLocateFirstSummary: boolean;
-  aiSummaryEnabled: boolean;
-  aiProvider: AiProvider;
-  aiSummaryApiKey: string;
+  // aiSummaryEnabled: boolean;
+  // aiProvider: AiProvider;
+  // aiSummaryApiKey: string;
   schemaVersion: number;
 }
 
@@ -34,9 +34,9 @@ export const DEFAULT_SETTINGS: SettingsOptions = {
   highlightColor: 'amber',
   autoHighlightPageSummary: true,
   autoLocateFirstSummary: true,
-  aiSummaryEnabled: false,
-  aiProvider: 'qwen',
-  aiSummaryApiKey: '',
+  // aiSummaryEnabled: false,
+  // aiProvider: 'qwen',
+  // aiSummaryApiKey: ''
   schemaVersion: 1
 };
 
@@ -135,9 +135,9 @@ function mergeWithDefaults(raw?: Partial<SettingsOptions>): SettingsOptions {
     highlightColor: (raw.highlightColor ?? base.highlightColor) as HighlightColorScheme,
     autoHighlightPageSummary: raw.autoHighlightPageSummary ?? base.autoHighlightPageSummary,
     autoLocateFirstSummary: raw.autoLocateFirstSummary ?? base.autoLocateFirstSummary,
-    aiSummaryEnabled: raw.aiSummaryEnabled ?? base.aiSummaryEnabled,
-    aiProvider: (raw.aiProvider ?? base.aiProvider) as AiProvider,
-    aiSummaryApiKey: raw.aiSummaryApiKey ?? base.aiSummaryApiKey,
+    // aiSummaryEnabled: raw.aiSummaryEnabled ?? base.aiSummaryEnabled,
+    // aiProvider: (raw.aiProvider ?? base.aiProvider) as AiProvider,
+    // aiSummaryApiKey: raw.aiSummaryApiKey ?? base.aiSummaryApiKey,
     schemaVersion: typeof raw.schemaVersion === 'number' ? raw.schemaVersion : base.schemaVersion
   } satisfies SettingsOptions;
 }

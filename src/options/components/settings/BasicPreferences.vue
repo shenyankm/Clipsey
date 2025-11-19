@@ -46,48 +46,7 @@
 
         <a-divider />
 
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-row__title">{{ texts.aiSummaryEnabled }}</div>
-            <div class="toggle-row__desc">{{ texts.aiSummaryEnabledDescription }}</div>
-          </div>
-          <a-switch v-model:checked="form.aiSummaryEnabled" />
-        </div>
-
-        <!-- AI配置区域 -->
-        <div v-if="form.aiSummaryEnabled" class="ai-config-section">
-          <a-form layout="vertical">
-            <a-form-item :label="texts.aiProviderLabel || 'AI 模型'" style="margin-bottom: 16px;">
-              <a-select
-                v-model:value="form.aiProvider"
-                style="width: 280px;"
-              >
-                <a-select-option value="qwen">{{ texts.aiProviderQwen }}</a-select-option>
-                <a-select-option value="deepseek">{{ texts.aiProviderDeepseek }}</a-select-option>
-              </a-select>
-            </a-form-item>
-
-            <a-form-item :label="texts.aiSummaryApiKeyLabel || 'API Key'" style="margin-bottom: 16px;">
-              <a-input
-                v-model:value="form.aiSummaryApiKey"
-                :placeholder="texts.aiSummaryApiKeyPlaceholder"
-                type="password"
-                style="width: 100%;"
-              />
-            </a-form-item>
-
-            <a-form-item style="margin-bottom: 0;">
-              <a-button
-                type="primary"
-                :loading="testingApiKey"
-                @click="handleTestApiKey"
-                class="test-button"
-              >
-                {{ texts.aiTestButton }}
-              </a-button>
-            </a-form-item>
-          </a-form>
-        </div>
+        <!-- AI Summary feature removed -->
       </a-space>
 
 
@@ -96,12 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { message } from 'ant-design-vue';
-import { useI18n } from 'vue-i18n';
 import type { OptionsForm, LanguageOption } from './types';
-
-const { t } = useI18n();
 
 defineProps<{
   form: OptionsForm;
@@ -110,23 +64,7 @@ defineProps<{
   texts: Record<string, string>;
 }>();
 
-const testingApiKey = ref(false);
-
-/**
- * 测试 API Key 的有效性
- */
-async function handleTestApiKey() {
-  testingApiKey.value = true;
-  try {
-    // TODO: 实现实际的 API 调用验证逻辑
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    message.success(t('aiTestSuccess'));
-  } catch (error) {
-    message.error(t('aiTestFailed'));
-  } finally {
-    testingApiKey.value = false;
-  }
-}
+// AI Summary feature removed
 </script>
 
 <style scoped>
@@ -167,24 +105,5 @@ async function handleTestApiKey() {
   margin-top: 4px;
 }
 
-.ai-config-section {
-  margin-top: 16px;
-  padding: 20px 0;
-}
-
-.test-button {
-  background-color: #52c41a;
-  border-color: #52c41a;
-  min-width: 120px;
-}
-
-.test-button:hover {
-  background-color: #73d13d;
-  border-color: #73d13d;
-}
-
-.test-button:focus {
-  background-color: #73d13d;
-  border-color: #73d13d;
-}
+/* AI Summary styles removed */
 </style>
