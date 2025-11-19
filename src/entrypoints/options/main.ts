@@ -27,7 +27,12 @@ import {
   Typography,
 } from 'ant-design-vue';
 
-createApp(App)
+import i18n, { initI18nLocale } from '@/utils/i18n';
+
+const app = createApp(App);
+
+app
+  .use(i18n)
   .use(ConfigProvider)
   .use(Card)
   .use(Tabs)
@@ -50,3 +55,5 @@ createApp(App)
   .use(Typography)
   .mount('#app');
 
+// 初始化 i18n 语言设置
+initI18nLocale();

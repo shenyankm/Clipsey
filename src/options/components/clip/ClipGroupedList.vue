@@ -1,6 +1,6 @@
 <template>
   <div v-if="!groups.length" class="clip-group-empty">
-    <a-empty description="当前视图暂无数据" />
+    <a-empty :description="t('clipGroupEmpty')" />
   </div>
   <div v-else class="clip-group-list">
     <a-card
@@ -17,7 +17,7 @@
       </template>
       <template #extra>
         <a-button type="link" size="small" @click="toggleGroup(group.key)">
-          {{ isExpanded(group.key) ? '收起' : '展开' }}
+          {{ isExpanded(group.key) ? t('clipGroupCollapse') : t('clipGroupExpand') }}
         </a-button>
       </template>
       <div v-if="isExpanded(group.key)">
@@ -28,13 +28,13 @@
         >
           <div class="clip-group-item__content">
               <div class="clip-group-item__header">
-                <div class="clip-group-item__title">{{ clipItem.title || '无标题' }}</div>
+                <div class="clip-group-item__title">{{ clipItem.title || t('clipNoTitle') }}</div>
                 <div class="clip-group-item__tags">
                   <span
                     class="clip-badge"
                     v-if="clipItem.sourceUrl && !isDomainClassification"
                   >
-                    {{ getDomainFromUrl(clipItem.sourceUrl) || '无网址' }}
+                    {{ getDomainFromUrl(clipItem.sourceUrl) || t('clipNoUrl') }}
                   </span>
                   <span class="clip-badge clip-badge--muted" v-if="clipItem.createdAt">
                     {{ formatDate(clipItem.createdAt) }}
@@ -49,20 +49,20 @@
                     {{ clipItem.sourceUrl }}
                   </a>
                 </template>
-                <template v-else>暂无网址</template>
+                <template v-else>{{ t('clipNoUrlAlt') }}</template>
               </div>
             </div>
             <div class="clip-group-item__meta-row" v-else>
               <div class="clip-group-item__meta">
                 <span>{{ formatDate(clipItem.createdAt) }}</span>
                 <span v-if="clipItem.sourceUrl">
-                  来自 {{ getDomainFromUrl(clipItem.sourceUrl) || '无网址' }}
+                  {{ t('clipFromSource') }} {{ getDomainFromUrl(clipItem.sourceUrl) || t('clipNoUrl') }}
                 </span>
               </div>
             </div>
           </div>
           <div class="clip-group-item__actions">
-            <a-button size="small" @click="openClipDetail(clipItem)">查看</a-button>
+            <a-button size="small" @click="openClipDetail(clipItem)">{{ t('clipViewButton') }}</a-button>
             <a-button
               size="small"
               type="primary"
@@ -70,10 +70,10 @@
               :loading="openingId === clipItem.id"
               @click="openClipAction(clipItem)"
             >
-              打开
+              {{ t('clipOpenButton') }}
             </a-button>
-            <a-popconfirm title="确认删除该摘抄？此操作不可恢复" @confirm="deleteClip(clipItem.id)">
-              <a-button size="small" danger>删除</a-button>
+            <a-popconfirm :title="t('clipDeleteConfirm')" @confirm="deleteClip(clipItem.id)">
+              <a-button size="small" danger>{{ t('clipDeleteButton') }}</a-button>
             </a-popconfirm>
           </div>
         </div>
@@ -83,7 +83,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import type { Clip } from '@/types/clip';
+
+const { t } = useI18n();
 
 type ClipGroup = { key: string; label: string; clips: Clip[] };
 
@@ -191,6 +194,7 @@ defineProps<{
   line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

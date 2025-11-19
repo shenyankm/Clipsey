@@ -15,12 +15,12 @@
         </template>
         <a-empty 
           v-else 
-          description="当前页面暂无保存的摘要"
+          :description="t('popupNoClips')"
           :image="emptyImage"
         >
           <template #description>
-            <a-typography-text type="secondary">
-              在当前页面选中文本后右键点击<br />“保存当前选中内容”即可保存摘要
+            <a-typography-text type="secondary" style="white-space: pre-line;">
+              {{ t('popupNoClipsHint') }}
             </a-typography-text>
           </template>
         </a-empty>
@@ -32,6 +32,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { message, Empty } from 'ant-design-vue';
+import { useI18n } from 'vue-i18n';
 import { browser } from 'wxt/browser';
 import type { Clip } from '@/types/clip';
 import ClipList from './components/ClipList.vue';
@@ -41,6 +42,7 @@ import { useClipFilter } from '@/composables/useClipFilter';
 import { useClipSort } from '@/composables/useClipSort';
 import { useBroadcastSync } from '@/composables/useBroadcastSync';
 
+const { t } = useI18n();
 const clips = ref<Clip[]>([]);
 const loading = ref(false);
 const currentUrl = ref<string>('');
@@ -119,13 +121,13 @@ async function loadClips(showLoader: boolean = true): Promise<void> {
     } else {
       // 只在显示loader时才显示错误消息,静默刷新失败不打扰用户
       if (showLoader) {
-        message.error(response?.error ?? '加载剪辑失败');
+        message.error(response?.error ?? t('popupLoadFailed'));
       }
     }
   } catch (error) {
     // 只在显示loader时才显示错误消息
     if (showLoader) {
-      message.error('加载剪辑失败');
+      message.error(t('popupLoadFailed'));
     }
     console.error('加载剪辑失败:', error);
   } finally {
@@ -138,7 +140,7 @@ async function loadClips(showLoader: boolean = true): Promise<void> {
 function openSettings(): void {
   try {
     // 统一使用显式 URL，避免极端情况下 openOptionsPage 回退到扩展详情页
-    const url = browser.runtime.getURL('/options.html');
+    const url = (browser.runtime as any).getURL('/options.html');
 
     // 在扩展环境下优先通过 tabs.create 新开标签页，体验更稳定
     if (chromeEnv && browser.tabs?.create) {
@@ -156,7 +158,7 @@ function openSettings(): void {
     window.open(url, '_blank');
   } catch (error) {
     console.error('打开设置失败:', error);
-    message.error('打开设置失败');
+    message.error(t('popupOpenSettingsFailed'));
   }
 }
 
@@ -165,7 +167,7 @@ function openSettings(): void {
  */
 async function handleRefresh(): Promise<void> {
   await loadClips(true);
-  message.success('已刷新');
+  message.success(t('popupRefreshed'));
 }
 
 /**

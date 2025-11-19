@@ -9,7 +9,7 @@
           v-html="summaryHtml"
         ></div>
       </template>
-      <a-typography-text v-else type="secondary">{{ missingSummaryLabel }}</a-typography-text>
+      <a-typography-text v-else type="secondary">{{ t('clipNoContent') }}</a-typography-text>
       
       <!-- 时间和跳转按钮 -->
       <a-row align="middle" justify="space-between" :gutter="8">
@@ -26,7 +26,7 @@
               :loading="opening"
               @click.stop="handleOpen"
             >
-              跳转
+              {{ t('clipJumpButton') }}
             </a-button>
         </a-col>
       </a-row>
@@ -36,9 +36,12 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { Clip } from '@/types/clip';
 import { formatClipDate } from '@/utils/clip-format';
 import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   clip: Clip;
@@ -53,7 +56,6 @@ const expanded = ref(false);
 const formattedDate = computed(() => formatClipDate(props.clip.createdAt));
 const summaryHtml = computed(() => getClipHtmlContent(props.clip));
 const hasSummary = computed(() => hasClipRichContent(props.clip));
-const missingSummaryLabel = '暂无摘要';
 
 function toggleExpand(): void {
   expanded.value = !expanded.value;

@@ -95,6 +95,12 @@ export default defineConfig({
       alias: {
         '@': '/src'
       }
+    },
+    define: {
+      __INTLIFY_PROD_DEVTOOLS__: 'false'
+    },
+    json: {
+      stringify: true
     }
   }),
 

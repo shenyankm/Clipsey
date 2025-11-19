@@ -11,9 +11,9 @@
 
     <div>
       <a-card v-if="searchTotal === 0" size="small">
-        <a-empty description="暂无摘抄记录" />
+        <a-empty :description="t('clipNoRecords')" />
         <a-space>
-          <a-button size="small" @click="refreshClips">刷新</a-button>
+          <a-button size="small" @click="refreshClips">{{ t('clipRefreshButton') }}</a-button>
         </a-space>
       </a-card>
 
@@ -60,20 +60,20 @@
       </div>
     </div>
 
-    <a-modal v-model:open="showModal" title="摘抄详情" :maskClosable="true">
+    <a-modal v-model:open="showModal" :title="t('clipModalTitle')" :maskClosable="true">
       <template #footer>
-        <a-button @click="showModal = false">关闭</a-button>
+        <a-button @click="showModal = false">{{ t('clipModalClose') }}</a-button>
       </template>
       <a-space direction="vertical">
-        <a-typography-text strong>标题:</a-typography-text>
-        <a-typography-text>{{ selectedClip?.title || '无标题' }}</a-typography-text>
-        <a-typography-text strong>URL:</a-typography-text>
-        <a-typography-text>{{ selectedClip?.sourceUrl || '无URL' }}</a-typography-text>
-        <a-typography-text strong>内容:</a-typography-text>
+        <a-typography-text strong>{{ t('clipModalFieldTitle') }}</a-typography-text>
+        <a-typography-text>{{ selectedClip?.title || t('clipNoTitle') }}</a-typography-text>
+        <a-typography-text strong>{{ t('clipModalFieldUrl') }}</a-typography-text>
+        <a-typography-text>{{ selectedClip?.sourceUrl || t('clipNoUrl') }}</a-typography-text>
+        <a-typography-text strong>{{ t('clipModalFieldContent') }}</a-typography-text>
         <div v-if="selectedClip && clipHasRichContent(selectedClip)" v-html="resolveClipHtml(selectedClip)"></div>
-        <a-typography-text v-else-if="selectedClip">{{ selectedClip.textContent || '暂无内容' }}</a-typography-text>
-        <a-typography-text v-else>暂无内容</a-typography-text>
-        <a-typography-text strong>创建时间:</a-typography-text>
+        <a-typography-text v-else-if="selectedClip">{{ selectedClip.textContent || t('clipNoContentAlt') }}</a-typography-text>
+        <a-typography-text v-else>{{ t('clipNoContentAlt') }}</a-typography-text>
+        <a-typography-text strong>{{ t('clipModalFieldCreatedAt') }}</a-typography-text>
         <a-typography-text>{{ selectedClipCreatedAt }}</a-typography-text>
       </a-space>
     </a-modal>
@@ -83,6 +83,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { message } from 'ant-design-vue';
+import { useI18n } from 'vue-i18n';
 import type { Clip } from '@/types/clip';
 import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
 import { formatClipDate, getClipPreview as formatClipPreview, getClipDomain } from '@/utils/clip-format';
@@ -94,6 +95,8 @@ import type { SortBy } from '@/background/services/search-service';
 import ClipToolbar from './clip/ClipToolbar.vue';
 import ClipGroupedList from './clip/ClipGroupedList.vue';
 import ClipTableView from './clip/ClipTableView.vue';
+
+const { t } = useI18n();
 
 type ClassificationMode = 'none' | 'domain' | 'date';
 type ClipGroup = { key: string; label: string; clips: Clip[] };
@@ -236,32 +239,32 @@ const pageCount = computed(() => {
 // 表格列定义（使用 Ant Design Vue 的 Table）
 const columns = computed(() => [
   {
-    title: '标题',
+    title: t('clipTableColumnTitle'),
     dataIndex: 'title',
     key: 'title',
     width: 180,
     ellipsis: true
   },
   {
-    title: '网址',
+    title: t('clipTableColumnUrl'),
     dataIndex: 'sourceUrl',
     key: 'sourceUrl',
     width: 200
   },
   {
-    title: '内容',
+    title: t('clipTableColumnContent'),
     dataIndex: 'textContent',
     key: 'textContent',
     ellipsis: true
   },
   {
-    title: '创建时间',
+    title: t('clipTableColumnCreatedAt'),
     dataIndex: 'createdAt',
     key: 'createdAt',
     width: 180
   },
   {
-    title: '操作',
+    title: t('clipTableColumnActions'),
     key: 'actions',
     width: 200,
     align: 'center'
@@ -280,7 +283,7 @@ function clipHasRichContent(clip: Clip): boolean {
 
 function getGroupMeta(clip: Clip, mode: ClassificationMode): { key: string; label: string } {
   if (mode === 'domain') {
-    const domain = getDomainFromUrl(clip.sourceUrl) || '无网址';
+    const domain = getDomainFromUrl(clip.sourceUrl) || t('clipNoUrl');
     return { key: `domain:${domain}`, label: domain };
   }
   const label = formatGroupDate(clip.createdAt);
@@ -288,9 +291,9 @@ function getGroupMeta(clip: Clip, mode: ClassificationMode): { key: string; labe
 }
 
 function formatGroupDate(isoString: string | undefined): string {
-  if (!isoString) return '未知日期';
+  if (!isoString) return t('clipUnknownDate');
   const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) return '未知日期';
+  if (Number.isNaN(date.getTime())) return t('clipUnknownDate');
   return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
 }
 
@@ -316,7 +319,7 @@ watch(currentPage, () => {
 async function refreshClips(showMessage = true) {
   await performSearch(currentPage.value, pageSize, getSortOptions());
   if (showMessage) {
-    message.success('已刷新');
+    message.success(t('clipRefreshed'));
   }
 }
 

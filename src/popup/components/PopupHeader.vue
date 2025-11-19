@@ -19,13 +19,13 @@
       <a-col flex="none">
         <a-space :size="4">
           <a-tooltip placement="bottom" trigger="hover">
-            <template #title>刷新</template>
+            <template #title>{{ t('popupRefresh') }}</template>
             <a-button
               size="small"
               type="text"
               @click="$emit('refresh')"
               :loading="loading"
-              aria-label="刷新"
+              :aria-label="t('popupRefresh')"
             >
               <template #icon>
                 <ReloadOutlined />
@@ -33,12 +33,12 @@
             </a-button>
           </a-tooltip>
           <a-tooltip placement="bottom" trigger="hover">
-            <template #title>设置</template>
+            <template #title>{{ t('popupSettings') }}</template>
             <a-button
               size="small"
               type="text"
               @click="$emit('open-settings')"
-              aria-label="设置"
+              :aria-label="t('popupSettings')"
             >
               <template #icon>
                 <SettingOutlined />
@@ -53,6 +53,9 @@
 
 <script setup lang="ts">
 import { SettingOutlined, ReloadOutlined } from '@ant-design/icons-vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 defineProps<{
   displayUrl: string;

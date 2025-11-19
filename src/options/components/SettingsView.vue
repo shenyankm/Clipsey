@@ -19,7 +19,7 @@
 
         <a-tab-pane key="about" :tab="t('menuAbout')">
           <AboutSection
-            :texts="texts"
+            :texts="aboutTexts"
             :contact-email="contactEmail"
             :community-links="communityLinks"
           />
@@ -30,7 +30,8 @@
 </template>
 
 <script setup lang="ts">
-import { defineAsyncComponent, onMounted, reactive, ref, watch, type Component } from 'vue';
+import { defineAsyncComponent, onMounted, reactive, ref, watch, computed, type Component } from 'vue';
+import { useI18n } from 'vue-i18n';
 import BasicPreferences from './settings/BasicPreferences.vue';
 import AboutSection from './settings/AboutSection.vue';
 import {
@@ -42,6 +43,8 @@ import {
 } from '@/utils/settings-local';
 import { QqOutlined } from '@ant-design/icons-vue';
 import type { OptionsForm } from './settings/types';
+
+const { t } = useI18n();
 
 const ClipManager = defineAsyncComponent(() => import('./ClipManager.vue'));
 
@@ -59,10 +62,47 @@ const form = reactive<OptionsForm>({ ...DEFAULT_OPTIONS });
 const activeItem = ref<TabKey>('basic');
 
 const languageOptions = [
-  { label: '简体中文', value: 'zh-CN' },
+  { label: t('languageZhCN'), value: 'zh-CN' },
+  { label: t('languageEnUS'), value: 'en-US' },
 ];
 
-const highlightColorOptions = HIGHLIGHT_COLOR_OPTIONS;
+const texts = computed(() => ({
+  displayLanguage: t('displayLanguage'),
+  highlightColor: t('highlightColor'),
+  autoHighlightPageSummary: t('autoHighlightPageSummary'),
+  autoHighlightPageSummaryDescription: t('autoHighlightPageSummaryDescription'),
+  autoLocateFirstSummary: t('autoLocateFirstSummary'),
+  autoLocateFirstSummaryDescription: t('autoLocateFirstSummaryDescription'),
+  basicSettingsTitle: t('basicSettingsTitle'),
+  basicSettingsDescription: t('basicSettingsDescription'),
+  aiSummaryEnabled: t('aiSummaryEnabled'),
+  aiSummaryEnabledDescription: t('aiSummaryEnabledDescription'),
+  aiProviderLabel: t('aiProviderLabel'),
+  aiProvider: t('aiProvider'),
+  aiProviderQwen: t('aiProviderQwen'),
+  aiProviderDeepseek: t('aiProviderDeepseek'),
+  aiSummaryApiKeyLabel: t('aiSummaryApiKeyLabel'),
+  aiSummaryApiKey: t('aiSummaryApiKey'),
+  aiSummaryApiKeyPlaceholder: t('aiSummaryApiKeyPlaceholder'),
+  aiTestButton: t('aiTestButton'),
+  aiTestSuccess: t('aiTestSuccess'),
+  aiTestFailed: t('aiTestFailed'),
+  aiTesting: t('aiTesting'),
+}));
+
+const aboutTexts = computed(() => ({
+  aboutTitle: t('aboutTitle'),
+  aboutDescription: t('aboutDescription'),
+  contactEmailLabel: t('contactEmailLabel'),
+  communityLabel: t('communityLabel'),
+}));
+
+const highlightColorOptions = computed(() => 
+  HIGHLIGHT_COLOR_OPTIONS.map(option => ({
+    ...option,
+    label: t(option.label)
+  }))
+);
 
 const contactEmail = 'shenyankm@gmail.com';
 
@@ -70,38 +110,15 @@ const communityLinks: CommunityContact[] = [
   { label: 'QQ 交流群', value: '2155061751', icon: QqOutlined }
 ];
 
-const texts = {
-  title: 'Clipsey 设置',
-  menuBasic: '基础设置',
-  menuContent: '摘要管理',
-  menuAbout: '关于',
-  displayLanguage: '界面语言',
-  highlightColor: '高亮主题色',
-  languageZhCN: '简体中文',
-  autoHighlightPageSummary: '自动高亮页面摘要',
-  autoHighlightPageSummaryDescription: '打开含有已保存摘要的页面时自动恢复高亮，便于浏览定位。',
-  autoLocateFirstSummary: '进入页面时定位最新摘要',
-  autoLocateFirstSummaryDescription: '进入页面后自动滚动至最新的一条摘要，快速回到最新内容。',
-  basicSettingsTitle: '通用偏好',
-  basicSettingsDescription: '在此配置界面语言、主题色以及自动高亮体验，提升日常使用效率。',
-  aboutTitle: '关于',
-  aboutDescription: 'Clipsey 是一款专注网页摘录与回溯的浏览器扩展，帮助你快速保存灵感、同步高亮并一键定位原文。',
-  contactEmailLabel: '联系邮箱',
-  communityLabel: '交流群'
-};
-
-type TextKey = keyof typeof texts;
-
-function t(key: TextKey) {
-  return texts[key];
-}
-
 function createOptionsForm(current?: Partial<SettingsOptions>): OptionsForm {
   const base: OptionsForm = {
     language: DEFAULT_SETTINGS.language,
     highlightColor: DEFAULT_SETTINGS.highlightColor,
     autoHighlightPageSummary: DEFAULT_SETTINGS.autoHighlightPageSummary,
     autoLocateFirstSummary: DEFAULT_SETTINGS.autoLocateFirstSummary,
+    aiSummaryEnabled: DEFAULT_SETTINGS.aiSummaryEnabled,
+    aiProvider: DEFAULT_SETTINGS.aiProvider,
+    aiSummaryApiKey: DEFAULT_SETTINGS.aiSummaryApiKey,
   };
   const merged: OptionsForm = { ...base };
   if (!current) return merged;
@@ -112,6 +129,15 @@ function createOptionsForm(current?: Partial<SettingsOptions>): OptionsForm {
   }
   if (typeof current.autoLocateFirstSummary === 'boolean') {
     merged.autoLocateFirstSummary = current.autoLocateFirstSummary;
+  }
+  if (typeof current.aiSummaryEnabled === 'boolean') {
+    merged.aiSummaryEnabled = current.aiSummaryEnabled;
+  }
+  if (current.aiProvider) {
+    merged.aiProvider = current.aiProvider;
+  }
+  if (typeof current.aiSummaryApiKey === 'string') {
+    merged.aiSummaryApiKey = current.aiSummaryApiKey;
   }
   return merged;
 }
@@ -184,13 +210,17 @@ function persistActiveTabToStorage(tab: TabKey): void {
 }
 
 watch(
-  () => [form.highlightColor, form.autoHighlightPageSummary, form.autoLocateFirstSummary],
+  () => [form.language, form.highlightColor, form.autoHighlightPageSummary, form.autoLocateFirstSummary, form.aiSummaryEnabled, form.aiProvider, form.aiSummaryApiKey],
   async () => {
     try {
       await writeSettingsLocal({
+        language: form.language,
         highlightColor: form.highlightColor,
         autoHighlightPageSummary: form.autoHighlightPageSummary,
         autoLocateFirstSummary: form.autoLocateFirstSummary,
+        aiSummaryEnabled: form.aiSummaryEnabled,
+        aiProvider: form.aiProvider,
+        aiSummaryApiKey: form.aiSummaryApiKey,
       });
     } catch (error) {
       console.warn('Failed to save settings:', error);
