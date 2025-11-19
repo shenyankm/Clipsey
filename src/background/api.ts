@@ -3,6 +3,7 @@ import { highlightSyncService } from './services/highlight-sync-service';
 import { searchService, type SearchQuery, type SearchResult, type SearchType, type SortBy } from './services/search-service';
 import { exportService } from './services/export-service';
 import type { ErrorLogRecord } from '@/types/indexeddb';
+import { IndexedDBQuery } from './indexeddb-query';
 
 export interface SyncResponse {
   success: boolean;
@@ -50,6 +51,21 @@ export async function refreshClipsCache(): Promise<void> {
 // 搜索 Clips
 export async function searchClips(query: SearchQuery): Promise<SearchResult> {
   return searchService.search(query);
+}
+
+export async function getClipsByUrlPaged(params: {
+  url: string;
+  page: number;
+  pageSize: number;
+  sortOrder?: 'asc' | 'desc';
+}): Promise<{ items: Clip[]; total: number; page: number; pageSize: number }> {
+  const { url, page, pageSize, sortOrder = 'desc' } = params;
+  const { data, total } = await IndexedDBQuery.paginate('clips', page, pageSize, {
+    indexName: 'sourceUrl',
+    query: IDBKeyRange.only(url),
+    direction: sortOrder === 'asc' ? 'next' : 'prev'
+  });
+  return { items: data as Clip[], total, page, pageSize };
 }
 
 // 获取错误日志列表

@@ -3,7 +3,7 @@ import type { Clip } from './clip';
 // IndexedDB 数据库配置
 export const DB_CONFIG = {
   name: 'ClipseyDB',
-  version: 2,
+  version: 3,
   stores: {
     clips: 'clips',
     settings: 'settings',
@@ -117,6 +117,16 @@ export const STORE_CONFIGS: StoreConfig[] = [
         options: { unique: false }
       },
       {
+        name: 'updatedAt',
+        keyPath: 'updatedAt',
+        options: { unique: false }
+      },
+      {
+        name: 'title',
+        keyPath: 'title',
+        options: { unique: false }
+      },
+      {
         name: 'textContent',
         keyPath: 'textContent',
         options: { unique: false }
@@ -129,6 +139,11 @@ export const STORE_CONFIGS: StoreConfig[] = [
       {
         name: 'sourceUrl_createdAt',
         keyPath: ['sourceUrl', 'createdAt'],
+        options: { unique: false }
+      },
+      {
+        name: 'createdAt_id',
+        keyPath: ['createdAt', 'id'],
         options: { unique: false }
       }
     ]

@@ -73,6 +73,16 @@ export interface RefreshCacheMessage extends RuntimeMessage {
   type: 'REFRESH_CACHE';
 }
 
+export interface RequestClipsPagedMessage extends RuntimeMessage {
+  type: 'REQUEST_CLIPS_PAGED';
+  payload: {
+    url: string;
+    page: number;
+    pageSize: number;
+    sortOrder?: 'asc' | 'desc';
+  };
+}
+
 export interface SaveClipPayload {
   textContent: string;
   sourceUrl?: string;
@@ -111,6 +121,7 @@ export interface HighlightPayload {
 export type AppMessage =
   | SaveClipMessage
   | RequestClipsMessage
+  | RequestClipsPagedMessage
   | RequestSettingsMessage
   | ClearClipsMessage
   | OpenClipMessage

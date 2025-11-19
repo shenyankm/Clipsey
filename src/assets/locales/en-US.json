@@ -53,19 +53,13 @@
   "clipTotalCount": "clips",
   "clipClassificationLabel": "Classification",
   "clipClassificationNone": "None",
-  "clipClassificationDomain": "By Domain",
-  "clipClassificationDate": "By Date",
-  "clipGroupExpand": "Expand",
-  "clipGroupCollapse": "Collapse",
-  "clipGroupEmpty": "No data in current view",
+  "clipClassificationTimeline": "Timeline",
   "clipModalTitle": "Clip Details",
   "clipModalClose": "Close",
   "clipModalFieldTitle": "Title:",
   "clipModalFieldUrl": "URL:",
   "clipModalFieldContent": "Content:",
   "clipModalFieldCreatedAt": "Created At:",
-  "clipFromSource": "from",
-  "clipUnknownDate": "Unknown Date",
   "clipRefreshed": "Refreshed"
 }
 

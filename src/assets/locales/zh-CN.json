@@ -52,20 +52,14 @@
   "clipSearchOptionContent": "@content - 搜索内容",
   "clipTotalCount": "条摘录",
   "clipClassificationLabel": "分类视图",
-  "clipClassificationNone": "不分类",
-  "clipClassificationDomain": "按网址分类",
-  "clipClassificationDate": "按日期分类",
-  "clipGroupExpand": "展开",
-  "clipGroupCollapse": "收起",
-  "clipGroupEmpty": "当前视图暂无数据",
+  "clipClassificationNone": "默认",
+  "clipClassificationTimeline": "时间轴",
   "clipModalTitle": "摘抄详情",
   "clipModalClose": "关闭",
   "clipModalFieldTitle": "标题:",
   "clipModalFieldUrl": "URL:",
   "clipModalFieldContent": "内容:",
   "clipModalFieldCreatedAt": "创建时间:",
-  "clipFromSource": "来自",
-  "clipUnknownDate": "未知日期",
   "clipRefreshed": "已刷新"
 }
 

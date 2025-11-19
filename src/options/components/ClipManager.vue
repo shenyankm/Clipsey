@@ -6,10 +6,23 @@
           <div class="clip-toolbar__search">
             <a-input-search
               v-model:value="searchQuery"
-              :placeholder="t('clipSearchPlaceholder')"
+              :placeholder="searchPlaceholder"
               allow-clear
               enter-button
-            />
+            >
+              <template #addonBefore>
+                <a-tooltip placement="bottom">
+                  <template #title>
+                    <div style="text-align: left;">
+                      <div>{{ t('clipSearchOptionTitle') }}</div>
+                      <div>{{ t('clipSearchOptionWebsite') }}</div>
+                      <div>{{ t('clipSearchOptionContent') }}</div>
+                    </div>
+                  </template>
+                  <span style="cursor: help;">🔍</span>
+                </a-tooltip>
+              </template>
+            </a-input-search>
           </div>
           <div class="clip-toolbar__actions">
             <div class="clip-toolbar__stat">
@@ -30,8 +43,7 @@
             class="clip-toolbar__classification"
           >
             <a-radio-button value="none">{{ t('clipClassificationNone') }}</a-radio-button>
-            <a-radio-button value="domain">{{ t('clipClassificationDomain') }}</a-radio-button>
-            <a-radio-button value="date">{{ t('clipClassificationDate') }}</a-radio-button>
+            <a-radio-button value="timeline">{{ t('clipClassificationTimeline') }}</a-radio-button>
           </a-radio-group>
         </div>
       </div>
@@ -44,90 +56,73 @@
       </a-card>
 
       <template v-else>
-        <div v-if="isGroupedView" class="clip-group-area">
-          <div v-if="!groupedClips.length" class="clip-group-empty">
-            <a-empty :description="t('clipGroupEmpty')" />
-          </div>
-          <div v-else class="clip-group-list">
-            <a-card
-              v-for="group in groupedClips"
-              :key="group.key"
-              size="small"
-              :class="['clip-group-card', { 'clip-group-card--collapsed': !isGroupExpanded(group.key) }]"
-            >
-              <template #title>
-                <div class="clip-group-card__header">
-                  <span class="clip-group-card__title">{{ group.label }}</span>
-                  <span class="clip-group-card__count">({{ group.clips.length }})</span>
-                </div>
-              </template>
-              <template #extra>
-                <a-button type="link" size="small" @click="toggleGroupExpansion(group.key)">
-                  {{ isGroupExpanded(group.key) ? t('clipGroupCollapse') : t('clipGroupExpand') }}
-                </a-button>
-              </template>
-              <div v-if="isGroupExpanded(group.key)">
-                <div
-                  v-for="clipItem in group.clips"
-                  :key="clipItem.id"
-                  class="clip-group-item"
+        <div v-if="isTimelineView">
+          <a-card class="clip-timeline-card" size="small" bordered>
+            <div class="clip-timeline">
+              <a-timeline mode="left">
+                <a-timeline-item 
+                  v-for="(clipItem, index) in searchResults" 
+                  :key="clipItem.id" 
+                  class="clip-timeline-item"
+                  :color="getTimelineColor(index)"
                 >
-                  <div class="clip-group-item__content">
-                    <div class="clip-group-item__header">
-                      <div class="clip-group-item__title">
-                        {{ clipItem.title || t('clipNoTitle') }}
-                      </div>
-                      <div class="clip-group-item__tags">
-                        <span class="clip-badge" v-if="clipItem.sourceUrl && !isDomainClassification">
-                          {{ getDomainFromUrl(clipItem.sourceUrl) || t('clipNoUrl') }}
-                        </span>
-                        <span class="clip-badge clip-badge--muted" v-if="clipItem.createdAt">
-                          {{ formatDateDisplay(clipItem.createdAt) }}
-                        </span>
-                      </div>
+                  <template #dot>
+                    <div class="timeline-dot" :class="`timeline-dot--${getTimelineColorClass(index)}`">
+                      <span class="timeline-dot__index">{{ searchResults.length - index }}</span>
                     </div>
-                    <div class="clip-group-item__excerpt">{{ getClipPreview(clipItem) }}</div>
-                    <div class="clip-group-item__meta-row" v-if="isDomainClassification">
-                      <div class="clip-group-item__url">
-                        <template v-if="clipItem.sourceUrl">
-                          <a :href="clipItem.sourceUrl" target="_blank" rel="noreferrer">
-                            {{ clipItem.sourceUrl }}
-                          </a>
-                        </template>
-                        <template v-else>{{ t('clipNoUrlAlt') }}</template>
-                      </div>
+                  </template>
+                  <div class="timeline-card">
+                    <div class="timeline-card__timestamp">
+                      <span class="timeline-card__date">{{ formatTimelineDate(clipItem.createdAt) }}</span>
+                      <span class="timeline-card__time-detail">{{ formatTimelineTime(clipItem.createdAt) }}</span>
                     </div>
-                    <div class="clip-group-item__meta-row" v-else>
-                      <div class="clip-group-item__meta">
-                        <span>{{ formatDateDisplay(clipItem.createdAt) }}</span>
-                        <span v-if="clipItem.sourceUrl">
-                          {{ t('clipFromSource') }}
+                    <div class="timeline-card__main">
+                      <div class="timeline-card__header">
+                        <h4 class="timeline-card__title">{{ clipItem.title || t('clipNoTitle') }}</h4>
+                        <a-tag :color="getSourceColor(clipItem.sourceUrl)" class="timeline-card__source-tag">
                           {{ getDomainFromUrl(clipItem.sourceUrl) || t('clipNoUrl') }}
-                        </span>
+                        </a-tag>
+                      </div>
+                      <div class="timeline-card__content">
+                        <p class="timeline-card__excerpt">{{ getClipPreview(clipItem) }}</p>
+                      </div>
+                      <div class="timeline-card__footer">
+                        <div class="timeline-card__url">
+                          <template v-if="clipItem.sourceUrl">
+                            <svg class="timeline-card__link-icon" viewBox="0 0 1024 1024" width="12" height="12">
+                              <path d="M853.333333 469.333333a42.666667 42.666667 0 0 0-42.666666 42.666667v256a42.666667 42.666667 0 0 1-42.666667 42.666667H256a42.666667 42.666667 0 0 1-42.666667-42.666667V256a42.666667 42.666667 0 0 1 42.666667-42.666667h256a42.666667 42.666667 0 0 0 0-85.333333H256a128 128 0 0 0-128 128v512a128 128 0 0 0 128 128h512a128 128 0 0 0 128-128v-256a42.666667 42.666667 0 0 0-42.666667-42.666667z" fill="currentColor"/>
+                              <path d="M682.666667 213.333333h67.413333l-268.373333 268.373334a42.666667 42.666667 0 0 0 60.586666 60.586666L810.666667 273.92V341.333333a42.666667 42.666667 0 0 0 85.333333 0V170.666667a42.666667 42.666667 0 0 0-42.666667-42.666667h-170.666666a42.666667 42.666667 0 0 0 0 85.333333z" fill="currentColor"/>
+                            </svg>
+                            <a :href="clipItem.sourceUrl" target="_blank" rel="noreferrer" class="timeline-card__link">{{ clipItem.sourceUrl }}</a>
+                          </template>
+                          <template v-else>
+                            <span class="timeline-card__no-url">{{ t('clipNoUrlAlt') }}</span>
+                          </template>
+                        </div>
+                        <div class="timeline-card__actions">
+                          <a-button size="small" type="text" @click="openClipDetail(clipItem)">
+                            {{ t('clipViewButton') }}
+                          </a-button>
+                          <a-button
+                            size="small"
+                            type="primary"
+                            :disabled="!clipItem.sourceUrl"
+                            :loading="openingId === clipItem.id"
+                            @click="openClipAction(clipItem)"
+                          >
+                            {{ t('clipOpenButton') }}
+                          </a-button>
+                          <a-popconfirm :title="t('clipDeleteConfirm')" @confirm="deleteClip(clipItem.id)">
+                            <a-button size="small" danger type="text">{{ t('clipDeleteButton') }}</a-button>
+                          </a-popconfirm>
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div class="clip-group-item__actions">
-                    <a-button size="small" @click="openClipDetail(clipItem)">
-                      {{ t('clipViewButton') }}
-                    </a-button>
-                    <a-button
-                      size="small"
-                      type="primary"
-                      :disabled="!clipItem.sourceUrl"
-                      :loading="openingId === clipItem.id"
-                      @click="openClipAction(clipItem)"
-                    >
-                      {{ t('clipOpenButton') }}
-                    </a-button>
-                    <a-popconfirm :title="t('clipDeleteConfirm')" @confirm="deleteClip(clipItem.id)">
-                      <a-button size="small" danger>{{ t('clipDeleteButton') }}</a-button>
-                    </a-popconfirm>
-                  </div>
-                </div>
-              </div>
-            </a-card>
-          </div>
+                </a-timeline-item>
+              </a-timeline>
+            </div>
+          </a-card>
         </div>
         <div v-else>
           <a-card class="clip-table-card" size="small" bordered>
@@ -219,11 +214,11 @@ import { useClipSearch } from '../composables/useClipSearch';
 import { useClipCRUD } from '../composables/useClipCRUD';
 import { useBroadcastSync } from '@/composables/useBroadcastSync';
 import type { SortBy } from '@/background/services/search-service';
+import { parseSearchQuery } from '@/utils/search/query-parser';
 
 const { t } = useI18n();
 
-type ClassificationMode = 'none' | 'domain' | 'date';
-type ClipGroup = { key: string; label: string; clips: Clip[] };
+ type ClassificationMode = 'none' | 'timeline';
 
 const { searchQuery, searchResults, searchTotal, isSearching, performSearch } = useClipSearch();
 const currentPage = ref(1);
@@ -243,66 +238,31 @@ const selectedClip = ref<Clip | null>(null);
 const pageSize = 20;
 const classificationMode = ref<ClassificationMode>('none');
 
-const isDomainClassification = computed(() => classificationMode.value === 'domain');
-
-const groupExpansionState = ref<Record<string, boolean>>({});
-
-function isGroupExpanded(key: string): boolean {
-  const state = groupExpansionState.value[key];
-  return state !== undefined ? state : true;
-}
-
-function toggleGroupExpansion(key: string): void {
-  groupExpansionState.value = {
-    ...groupExpansionState.value,
-    [key]: !isGroupExpanded(key)
-  };
-}
+// 动态计算搜索框占位符
+const searchPlaceholder = computed(() => {
+  const trimmed = searchQuery.value.trim();
+  if (!trimmed) {
+    return t('clipSearchPlaceholder');
+  }
+  
+  const parsed = parseSearchQuery(trimmed);
+  if (parsed.type === 'title') {
+    return t('clipSearchPlaceholder') + ' (@title)';
+  } else if (parsed.type === 'website') {
+    return t('clipSearchPlaceholder') + ' (@website)';
+  } else if (parsed.type === 'content') {
+    return t('clipSearchPlaceholder') + ' (@content)';
+  }
+  return t('clipSearchPlaceholder');
+});
 
 const selectedClipCreatedAt = computed(() => {
   return formatClipDate(selectedClip.value?.createdAt);
 });
 
-const isGroupedView = computed(() => classificationMode.value !== 'none');
+const isTimelineView = computed(() => classificationMode.value === 'timeline');
 
-const groupedClips = computed<ClipGroup[]>(() => {
-  if (!isGroupedView.value) return [];
-  const mode = classificationMode.value;
-  const buckets: ClipGroup[] = [];
-  const map = new Map<string, ClipGroup>();
 
-  for (const clip of searchResults.value) {
-    const { key, label } = getGroupMeta(clip, mode);
-    let group = map.get(key);
-    if (!group) {
-      group = { key, label, clips: [] };
-      map.set(key, group);
-      buckets.push(group);
-    }
-    group.clips.push(clip);
-  }
-
-  return buckets;
-});
-
-watch(classificationMode, () => {
-  groupExpansionState.value = {};
-});
-
-watch(
-  () => groupedClips.value,
-  groups => {
-    const prevState = groupExpansionState.value;
-    const nextState: Record<string, boolean> = {};
-
-    for (const group of groups) {
-      nextState[group.key] = prevState[group.key] ?? true;
-    }
-
-    groupExpansionState.value = nextState;
-  },
-  { immediate: true }
-);
 
 type SortDirection = 'asc' | 'desc';
 const DEFAULT_SORT_COLUMN: SortBy = 'createdAt';
@@ -403,21 +363,6 @@ function clipHasRichContent(clip: Clip): boolean {
   return hasClipRichContent(clip);
 }
 
-function getGroupMeta(clip: Clip, mode: ClassificationMode): { key: string; label: string } {
-  if (mode === 'domain') {
-    const domain = getDomainFromUrl(clip.sourceUrl) || t('clipNoUrl');
-    return { key: `domain:${domain}`, label: domain };
-  }
-  const label = formatGroupDate(clip.createdAt);
-  return { key: `date:${label}`, label };
-}
-
-function formatGroupDate(isoString: string | undefined): string {
-  if (!isoString) return t('clipUnknownDate');
-  const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) return t('clipUnknownDate');
-  return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
-}
 
 const getClipPreview = (clip: Clip) => formatClipPreview(clip);
 const getDomainFromUrl = (url?: string) => getClipDomain(url);
@@ -461,6 +406,43 @@ const rowKey = (record: Clip) => record.id;
 
 function formatDateDisplay(value?: string): string {
   return formatClipDate(value);
+}
+
+function formatTimelineDate(isoString?: string): string {
+  if (!isoString) return t('clipUnknownDate');
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return t('clipUnknownDate');
+  return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function formatTimelineTime(isoString?: string): string {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function getTimelineColor(index: number): string {
+  const colors = ['blue', 'green', 'orange', 'purple', 'cyan', 'magenta'];
+  return colors[index % colors.length];
+}
+
+function getTimelineColorClass(index: number): string {
+  const classes = ['blue', 'green', 'orange', 'purple', 'cyan', 'magenta'];
+  return classes[index % classes.length];
+}
+
+function getSourceColor(url?: string): string {
+  if (!url) return 'default';
+  const domain = getDomainFromUrl(url);
+  if (!domain) return 'default';
+  
+  const hash = domain.split('').reduce((acc, char) => {
+    return char.charCodeAt(0) + ((acc << 5) - acc);
+  }, 0);
+  
+  const colors = ['blue', 'green', 'orange', 'purple', 'cyan', 'magenta', 'geekblue', 'red', 'volcano', 'gold'];
+  return colors[Math.abs(hash) % colors.length];
 }
 </script>
 
@@ -600,154 +582,278 @@ function formatDateDisplay(value?: string): string {
   color: #4096ff;
 }
 
-.clip-group-area {
-  width: 100%;
-}
-
-.clip-group-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 16px;
-}
-
-.clip-group-card {
-  border-radius: 8px;
-  border: 1px solid #d9d9d9;
-  min-height: 220px;
-  display: flex;
-  flex-direction: column;
-  transition: all 0.3s ease;
-}
-
-.clip-group-card:hover {
-  border-color: #4096ff;
-  box-shadow: 0 1px 2px -2px rgba(0, 0, 0, 0.16), 0 3px 6px 0 rgba(0, 0, 0, 0.12), 0 5px 12px 4px rgba(0, 0, 0, 0.09);
-}
-
-.clip-group-card__header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  font-size: 14px;
-}
-
-.clip-group-card__count {
-  color: #8c8c8c;
-  font-size: 12px;
-}
-
-.clip-group-item {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px 0;
-  border-top: 1px solid #f5f5f5;
-}
-
-.clip-group-item:first-of-type {
-  border-top: none;
-}
-
-.clip-group-item__content {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.clip-group-item__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.clip-group-item__title {
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 1.4;
-  min-width: 0;
-}
-
-.clip-group-item__tags {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.clip-badge {
-  background-color: #f0f5ff;
-  color: #1d39c4;
-  border-radius: 12px;
-  padding: 2px 10px;
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.clip-badge--muted {
-  background-color: #f5f5f5;
-  color: #595959;
-}
-
-.clip-group-item__excerpt {
-  font-size: 13px;
-  color: #595959;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.clip-group-item__meta-row {
-  font-size: 12px;
-  color: #8c8c8c;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.clip-group-item__meta {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.clip-group-item__url {
-  font-size: 12px;
-  color: #8c8c8c;
-  word-break: break-all;
-}
-
-.clip-group-item__url a {
-  color: #1677ff;
-  text-decoration: none;
-}
-
-.clip-group-item__url a:hover {
-  text-decoration: underline;
-}
-
-.clip-group-item__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.clip-group-empty {
-  padding: 32px 0;
-}
-
 .clip-table-card {
   margin-top: 8px;
   border-radius: 8px;
   border: 1px solid #d9d9d9;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+}
+
+.clip-timeline-card {
+  margin-top: 8px;
+  border-radius: 8px;
+  border: 1px solid #d9d9d9;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+  background: linear-gradient(to bottom, #fafafa 0%, #ffffff 100%);
+}
+
+.clip-timeline {
+  max-height: 75vh;
+  overflow-y: auto;
+  padding: 16px 8px 16px 0;
+}
+
+.clip-timeline::-webkit-scrollbar {
+  width: 6px;
+}
+
+.clip-timeline::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 3px;
+}
+
+.clip-timeline::-webkit-scrollbar-thumb {
+  background: #bfbfbf;
+  border-radius: 3px;
+}
+
+.clip-timeline::-webkit-scrollbar-thumb:hover {
+  background: #8c8c8c;
+}
+
+.clip-timeline-item {
+  animation: slideInFromLeft 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.clip-timeline-item:hover .timeline-card {
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.timeline-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 12px;
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  z-index: 2;
+}
+
+.timeline-dot:hover {
+  transform: scale(1.15) rotate(5deg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.timeline-dot--blue {
+  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+}
+
+.timeline-dot--green {
+  background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
+}
+
+.timeline-dot--orange {
+  background: linear-gradient(135deg, #fa8c16 0%, #d46b08 100%);
+}
+
+.timeline-dot--purple {
+  background: linear-gradient(135deg, #722ed1 0%, #531dab 100%);
+}
+
+.timeline-dot--cyan {
+  background: linear-gradient(135deg, #13c2c2 0%, #08979c 100%);
+}
+
+.timeline-dot--magenta {
+  background: linear-gradient(135deg, #eb2f96 0%, #c41d7f 100%);
+}
+
+.timeline-dot__index {
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-card {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid #e8e8e8;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.timeline-card::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 16px;
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-right: 8px solid #e8e8e8;
+}
+
+.timeline-card::after {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 16px;
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-right: 8px solid white;
+}
+
+.timeline-card__timestamp {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.timeline-card__date {
+  font-size: 15px;
+  font-weight: 600;
+  color: #262626;
+  letter-spacing: 0.3px;
+}
+
+.timeline-card__time-detail {
+  font-size: 12px;
+  color: #8c8c8c;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  background: #f5f5f5;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.timeline-card__main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.timeline-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.timeline-card__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+  line-height: 1.5;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-card__source-tag {
+  flex-shrink: 0;
+  font-size: 12px;
+  border-radius: 4px;
+  padding: 0 10px;
+  font-weight: 500;
+}
+
+.timeline-card__content {
+  margin: 0;
+}
+
+.timeline-card__excerpt {
+  margin: 0;
+  font-size: 14px;
+  color: #595959;
+  line-height: 1.7;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timeline-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f5f5f5;
+  flex-wrap: wrap;
+}
+
+.timeline-card__url {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.timeline-card__link-icon {
+  flex-shrink: 0;
+  color: #1677ff;
+}
+
+.timeline-card__link {
+  color: #1677ff;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.3s ease;
+}
+
+.timeline-card__link:hover {
+  color: #4096ff;
+  text-decoration: underline;
+}
+
+.timeline-card__no-url {
+  color: #bfbfbf;
+  font-style: italic;
+}
+
+.timeline-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .clip-pagination {
@@ -763,6 +869,10 @@ function formatDateDisplay(value?: string): string {
 
   .clip-toolbar__classification {
     justify-content: flex-start;
+  }
+
+  .clip-timeline {
+    max-height: none;
   }
 }
 </style>

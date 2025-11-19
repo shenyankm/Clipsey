@@ -91,6 +91,18 @@ export default defineConfig({
   },
   
   vite: () => ({
+    plugins: [
+      {
+        name: 'manual-chunks-guard',
+        outputOptions(options) {
+          const o = options as any;
+          if (o && o.inlineDynamicImports) {
+            delete o.manualChunks;
+          }
+          return options;
+        }
+      }
+    ],
     resolve: {
       alias: {
         '@': '/src'
@@ -101,6 +113,28 @@ export default defineConfig({
     },
     json: {
       stringify: true
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            const has = (s: string) => id.includes(s);
+            const hasAny = (arr: string[]) => arr.some(has);
+            if (has('node_modules')) {
+              if (hasAny(['\\vue\\', '/vue/'])) return 'vendor-vue';
+              if (hasAny(['ant-design-vue', '@ant-design/icons-vue'])) return 'vendor-antd';
+              if (hasAny(['vue-i18n'])) return 'vendor-i18n';
+              return 'vendor';
+            }
+            if (hasAny(['\\src\\options', '/src/options'])) {
+              return 'options';
+            }
+            if (hasAny(['\\src\\popup', '/src/popup'])) {
+              return 'popup';
+            }
+          }
+        }
+      }
     }
   }),
 

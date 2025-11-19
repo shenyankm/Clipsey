@@ -58,16 +58,16 @@ export class IndexedDB {
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
-        this.upgradeDatabase(db, event.oldVersion, event.newVersion || DB_CONFIG.version);
+        const tx = (event.target as IDBOpenDBRequest).transaction!;
+        this.upgradeDatabase(db, event.oldVersion, event.newVersion || DB_CONFIG.version, tx);
       };
     });
   }
 
   // 升级时删除配置外旧 store，并按 STORE_CONFIGS 重建索引结构
-  private upgradeDatabase(db: IDBDatabase, oldVersion: number, newVersion: number): void {
+  private upgradeDatabase(db: IDBDatabase, oldVersion: number, newVersion: number, tx: IDBTransaction): void {
     console.log(`Upgrading database from version ${oldVersion} to ${newVersion}`);
 
-    // 删除旧的 object stores（如果存在）
     const existingStoreNames = Array.from(db.objectStoreNames);
     existingStoreNames.forEach(storeName => {
       if (!STORE_CONFIGS.find(config => config.name === storeName)) {
@@ -75,34 +75,36 @@ export class IndexedDB {
       }
     });
 
-    // 创建新的 object stores
     STORE_CONFIGS.forEach(storeConfig => {
-      this.createObjectStore(db, storeConfig);
+      const hasStore = db.objectStoreNames.contains(storeConfig.name);
+      let store: IDBObjectStore;
+      if (!hasStore) {
+        store = db.createObjectStore(storeConfig.name, {
+          keyPath: storeConfig.keyPath,
+          autoIncrement: storeConfig.autoIncrement
+        });
+      } else {
+        store = tx.objectStore(storeConfig.name);
+      }
+
+      const existingIndexes = new Set<string>(Array.from(store.indexNames));
+      for (const indexConfig of storeConfig.indexes) {
+        if (!existingIndexes.has(indexConfig.name)) {
+          store.createIndex(indexConfig.name, indexConfig.keyPath, indexConfig.options);
+        }
+      }
     });
   }
 
   // 确保 store 结构与配置一致：如已存在则删除后重建索引
   private createObjectStore(db: IDBDatabase, config: StoreConfig): void {
-    // 如果 store 已存在，先删除
-    if (db.objectStoreNames.contains(config.name)) {
-      db.deleteObjectStore(config.name);
-    }
-
-    // 创建 object store
     const store = db.createObjectStore(config.name, {
       keyPath: config.keyPath,
       autoIncrement: config.autoIncrement
     });
-
-    // 创建索引
     config.indexes.forEach(indexConfig => {
-      store.createIndex(
-        indexConfig.name,
-        indexConfig.keyPath,
-        indexConfig.options
-      );
+      store.createIndex(indexConfig.name, indexConfig.keyPath, indexConfig.options);
     });
-
     console.log(`Created object store: ${config.name} with ${config.indexes.length} indexes`);
   }
 

@@ -10,41 +10,36 @@
         <a-typography-text
           v-if="displayUrl"
           type="secondary"
-          :ellipsis="{ tooltip: tooltipUrl }"
-          class="popup-header__url"
+          class="popup-header__url popup-header__url--ellipsis"
         >
           {{ displayUrl }}
         </a-typography-text>
       </a-col>
       <a-col flex="none">
         <a-space :size="4">
-          <a-tooltip placement="bottom" trigger="hover">
-            <template #title>{{ t('popupRefresh') }}</template>
-            <a-button
-              size="small"
-              type="text"
-              @click="$emit('refresh')"
-              :loading="loading"
-              :aria-label="t('popupRefresh')"
-            >
-              <template #icon>
-                <ReloadOutlined />
-              </template>
-            </a-button>
-          </a-tooltip>
-          <a-tooltip placement="bottom" trigger="hover">
-            <template #title>{{ t('popupSettings') }}</template>
-            <a-button
-              size="small"
-              type="text"
-              @click="$emit('open-settings')"
-              :aria-label="t('popupSettings')"
-            >
-              <template #icon>
-                <SettingOutlined />
-              </template>
-            </a-button>
-          </a-tooltip>
+          <a-button
+            size="small"
+            type="text"
+            @click="$emit('refresh')"
+            :loading="loading"
+            :aria-label="t('popupRefresh')"
+            :title="t('popupRefresh')"
+          >
+            <template #icon>
+              <ReloadOutlined />
+            </template>
+          </a-button>
+          <a-button
+            size="small"
+            type="text"
+            @click="$emit('open-settings')"
+            :aria-label="t('popupSettings')"
+            :title="t('popupSettings')"
+          >
+            <template #icon>
+              <SettingOutlined />
+            </template>
+          </a-button>
         </a-space>
       </a-col>
     </a-row>
@@ -81,5 +76,13 @@ defineEmits<{
 .popup-header__url {
   font-size: 12px;
   color: #888;
+}
+
+.popup-header__url--ellipsis {
+  display: inline-block;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

@@ -12,7 +12,8 @@ import { ResponseBuilder, wrapHandler } from './middleware/response';
 import {
   isSaveClipPayload,
   isOpenClipPayload,
-  isImportDataPayload
+  isImportDataPayload,
+  isRequestClipsPagedPayload
 } from './middleware/validator';
 
 type RuntimeMessageListener = Parameters<WxtBrowser['runtime']['onMessage']['addListener']>[0];
@@ -100,5 +101,14 @@ registry.register('IMPORT_DATA', async (message) => {
 
 registry.register('REFRESH_CACHE', async () => {
   return wrapHandler(() => refreshClipsCache(), 'Refresh cache');
+});
+
+registry.register('REQUEST_CLIPS_PAGED', async (message) => {
+  if (!isRequestClipsPagedPayload(message.payload)) {
+    return ResponseBuilder.validationError('Invalid REQUEST_CLIPS_PAGED payload');
+  }
+  const { getClipsByUrlPaged } = await import('@/background/api');
+  const payload = message.payload as { url: string; page: number; pageSize: number; sortOrder?: 'asc' | 'desc' };
+  return wrapHandler(() => getClipsByUrlPaged(payload), 'Request clips paged by URL');
 });
 

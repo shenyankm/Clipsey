@@ -1,6 +1,6 @@
 <template>
   <div class="popup-container">
-    <popup-header
+    <PopupHeader
       :display-url="displayUrl"
       :tooltip-url="currentUrl"
       :loading="loading"
@@ -10,8 +10,15 @@
     <a-divider style="margin: 8px 0;" />
     <a-spin :spinning="loading">
       <div class="clips-content">
-        <template v-if="filteredClips.length > 0">
-          <clip-list :clips="filteredClips" />
+        <template v-if="clips.length > 0">
+          <ClipList :clips="clips" />
+          <div class="pagination-controls">
+            <a-space>
+              <a-button size="small" :disabled="currentPage === 1" @click="handlePrevPage">上一页</a-button>
+              <span>第 {{ currentPage }} / {{ Math.max(1, Math.ceil(total / pageSize)) }} 页</span>
+              <a-button size="small" :disabled="currentPage >= Math.max(1, Math.ceil(total / pageSize))" @click="handleNextPage">下一页</a-button>
+            </a-space>
+          </div>
         </template>
         <a-empty 
           v-else 
@@ -30,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
 import { message, Empty } from 'ant-design-vue';
 import { useI18n } from 'vue-i18n';
 import { browser } from 'wxt/browser';
@@ -38,20 +45,19 @@ import type { Clip } from '@/types/clip';
 import ClipList from './components/ClipList.vue';
 import PopupHeader from './components/PopupHeader.vue';
 import { sendMessage, isChromeExtensionEnv } from '@/utils/chrome';
-import { useClipFilter } from '@/composables/useClipFilter';
-import { useClipSort } from '@/composables/useClipSort';
 import { useBroadcastSync } from '@/composables/useBroadcastSync';
 
 const { t } = useI18n();
 const clips = ref<Clip[]>([]);
+const currentPage = ref(1);
+const pageSize = 20;
+const total = ref(0);
 const loading = ref(false);
 const currentUrl = ref<string>('');
 const chromeEnv = isChromeExtensionEnv();
 const emptyImage = Empty.PRESENTED_IMAGE_SIMPLE;
 
-// 使用组合式函数
-const { filteredClips: urlFilteredClips } = useClipFilter(clips, currentUrl);
-const { sortedClips: filteredClips } = useClipSort(urlFilteredClips, 'desc');
+// 列表直接使用后端分页返回数据
 
 // 使用BroadcastChannel同步
 useBroadcastSync('clipsey-storage-sync', (data) => {
@@ -103,7 +109,7 @@ async function getCurrentTabUrl(): Promise<void> {
 /** 加载剪辑数据：支持静默刷新与缓存强制更新（默认显示加载状态） */
 async function loadClips(showLoader: boolean = true, refreshCache: boolean = false): Promise<void> {
   if (showLoader) {
-    loading.value = true;
+    if (!unmounted) loading.value = true;
   }
   try {
     // 先刷新后端缓存，避免读取到过时数据
@@ -113,11 +119,15 @@ async function loadClips(showLoader: boolean = true, refreshCache: boolean = fal
       console.debug('[Popup] Cache refresh failed (non-critical):', error);
     }
     
-    const response = await sendMessage<{ success: boolean; data?: Clip[]; error?: string }>({
-      type: 'REQUEST_CLIPS'
+    // 精确按当前页面 URL 分页读取
+    const response = await sendMessage<{ success: boolean; data?: { items: Clip[]; total: number }; error?: string }>({
+      type: 'REQUEST_CLIPS_PAGED',
+      payload: { url: currentUrl.value, page: currentPage.value, pageSize, sortOrder: 'desc' }
     });
+    if (unmounted) return;
     if (response?.success) {
-      clips.value = response.data ?? [];
+      clips.value = response.data?.items ?? [];
+      total.value = response.data?.total ?? 0;
     } else {
       // 只在显示loader时才显示错误消息,静默刷新失败不打扰用户
       if (showLoader) {
@@ -132,7 +142,7 @@ async function loadClips(showLoader: boolean = true, refreshCache: boolean = fal
     console.error('加载剪辑失败:', error);
   } finally {
     if (showLoader) {
-      loading.value = false;
+      if (!unmounted) loading.value = false;
     }
   }
 }
@@ -174,8 +184,29 @@ async function handleRefresh(): Promise<void> {
  * 组件挂载时初始化
  */
 onMounted(async () => {
-  await Promise.all([loadClips(true, true), getCurrentTabUrl()]);
+  await getCurrentTabUrl();
+  await loadClips(true, true);
 });
+
+let unmounted = false;
+onBeforeUnmount(() => {
+  unmounted = true;
+});
+
+function handlePrevPage(): void {
+  if (currentPage.value > 1) {
+    currentPage.value -= 1;
+    void loadClips(true, false);
+  }
+}
+
+function handleNextPage(): void {
+  const totalPages = Math.max(1, Math.ceil(total.value / pageSize));
+  if (currentPage.value < totalPages) {
+    currentPage.value += 1;
+    void loadClips(true, false);
+  }
+}
 </script>
 
 <style scoped>

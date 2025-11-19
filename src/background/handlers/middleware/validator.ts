@@ -34,3 +34,18 @@ export function isOpenClipPayload(payload: unknown): payload is { id: string } {
 export function isImportDataPayload(payload: unknown): payload is { clips?: any[]; errorLogs?: any[] } {
   return typeof payload === 'object' && payload !== null;
 }
+
+export function isRequestClipsPagedPayload(payload: unknown): payload is {
+  url: string;
+  page: number;
+  pageSize: number;
+  sortOrder?: 'asc' | 'desc';
+} {
+  if (typeof payload !== 'object' || payload === null) return false;
+  const p = payload as any;
+  if (typeof p.url !== 'string') return false;
+  if (typeof p.page !== 'number') return false;
+  if (typeof p.pageSize !== 'number') return false;
+  if (p.sortOrder !== undefined && p.sortOrder !== 'asc' && p.sortOrder !== 'desc') return false;
+  return true;
+}

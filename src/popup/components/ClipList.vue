@@ -2,7 +2,7 @@
   <a-list v-if="clips.length > 0" :data-source="clips" :split="false" item-layout="vertical">
     <template #renderItem="{ item }">
       <a-list-item style="padding: 0 0 10px 0;">
-        <clip-item :clip="item" :opening="openingId === item.id" @open="handleOpen" />
+        <ClipItem :clip="item" :opening="openingId === item.id" @open="handleOpen" />
       </a-list-item>
     </template>
   </a-list>

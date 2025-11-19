@@ -104,10 +104,8 @@ export class IndexedDBQuery {
   }> {
     const offset = (page - 1) * pageSize;
     
-    // 获取总数
-    const total = await indexedDBManager.count(storeName, options.query);
+    const total = await this.count(storeName, options.indexName, options.query);
     
-    // 获取分页数据
     const data = await this.getAll(storeName, {
       ...options,
       limit: pageSize,
@@ -121,6 +119,83 @@ export class IndexedDBQuery {
       pageSize,
       totalPages: Math.ceil(total / pageSize)
     };
+  }
+
+  static async count<K extends keyof DBSchema>(
+    storeName: K,
+    indexName?: string,
+    query?: IDBValidKey | IDBKeyRange
+  ): Promise<number> {
+    return indexedDBManager.executeTransaction(storeName as string, 'readonly', async (transaction) => {
+      const store = transaction.objectStore(storeName as string);
+      if (indexName) {
+        const index = store.index(indexName);
+        return await new Promise<number>((resolve, reject) => {
+          const req = index.count(query);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error ?? new Error('Index count failed'));
+        });
+      }
+      return await new Promise<number>((resolve, reject) => {
+        const req = store.count(query);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error ?? new Error('Store count failed'));
+      });
+    });
+  }
+
+  static async keysetPaginate<K extends keyof DBSchema>(
+    storeName: K,
+    pageSize: number,
+    options: {
+      indexName?: string;
+      direction?: 'next' | 'prev';
+      pageToken?: IDBValidKey;
+    } = {}
+  ): Promise<{ items: DBSchema[K]['value'][]; nextPageToken?: IDBValidKey; hasNext: boolean }> {
+    const indexName = options.indexName ?? 'createdAt_id';
+    const direction: IDBCursorDirection = options.direction === 'next' ? 'next' : 'prev';
+
+    return indexedDBManager.executeTransaction(storeName as string, 'readonly', async (transaction) => {
+      const store = transaction.objectStore(storeName as string);
+      const index = store.index(indexName);
+
+      let range: IDBKeyRange | undefined;
+      if (options.pageToken !== undefined) {
+        if (direction === 'prev') {
+          range = IDBKeyRange.upperBound(options.pageToken, true);
+        } else {
+          range = IDBKeyRange.lowerBound(options.pageToken, true);
+        }
+      }
+
+      return await new Promise<{ items: DBSchema[K]['value'][]; nextPageToken?: IDBValidKey; hasNext: boolean }>((resolve, reject) => {
+        const items: DBSchema[K]['value'][] = [];
+        let lastKey: IDBValidKey | undefined;
+        let collected = 0;
+        let hasNext = false;
+
+        const req = index.openCursor(range, direction);
+        req.onsuccess = () => {
+          const cursor = req.result as IDBCursorWithValue | null;
+          if (!cursor) {
+            resolve({ items, nextPageToken: lastKey, hasNext });
+            return;
+          }
+          if (collected < pageSize) {
+            items.push(cursor.value as DBSchema[K]['value']);
+            lastKey = cursor.key as IDBValidKey;
+            collected += 1;
+            cursor.continue();
+            return;
+          }
+          // 已收集满，探测是否存在下一项
+          hasNext = true;
+          resolve({ items, nextPageToken: lastKey, hasNext });
+        };
+        req.onerror = () => reject(req.error ?? new Error('Keyset paginate failed'));
+      });
+    });
   }
 
   static async bulkAdd<K extends keyof DBSchema>(

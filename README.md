@@ -19,9 +19,9 @@ Clipsey 是一款专注于网页摘录的浏览器扩展。无需注册，数据
 
 基于 [WXT](https://wxt.dev/) + Vue 3 + TypeScript 构建。
 
-```bash
+```powershell
 pnpm install
-pnpm dev
+pnpm run dev
 ```
 
 更多细节请查看 [开发文档](./DEVELOPMENT.md)。

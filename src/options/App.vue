@@ -1,6 +1,6 @@
 <template>
   <a-config-provider>
-    <settings-view />
+    <SettingsView />
   </a-config-provider>
   
 </template>
