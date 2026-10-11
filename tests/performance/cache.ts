@@ -31,6 +31,7 @@ try {
   const { syncManager } = await import('../../src/background/storage/sync-manager');
   const results = [];
   const allocations = [];
+  let allocationFixture: Clip[] | null = null;
   for (const records of [100, 10000]) for (const completeDates of [false, true]) {
     const clips: Clip[] = Array.from({ length: records }, (_, i) => ({
       id: String(i).padStart(5, '0'), highlightId: `highlight-${i}`,
@@ -72,8 +73,12 @@ try {
     } finally { Date.now = clock; }
     results.push({ records, completeDates, coldAll, coldUrl, update, warmAll, warmUrl, coldUrlClockReads: clockReads });
     const suffix = completeDates ? 'complete-dates' : 'missing-updatedAt';
-    allocations.push({ records, name: `coldAll-${suffix}`, prepare: seed, operation: coldAllOperation });
-    allocations.push({ records, name: `coldUrl-${suffix}`, prepare: seed, operation: coldUrlOperation });
+    const prepareAllocation = async () => {
+      cacheManager.clear();
+      if (allocationFixture !== clips) { await seed(); allocationFixture = clips; }
+    };
+    allocations.push({ records, name: `coldAll-${suffix}`, prepare: prepareAllocation, operation: coldAllOperation });
+    allocations.push({ records, name: `coldUrl-${suffix}`, prepare: prepareAllocation, operation: coldUrlOperation });
     allocations.push({ records, name: `update-${suffix}`, prepare: () => { cacheManager.clear(); }, operation: () => cacheManager.update(clips) });
   }
   (window as any).__cacheAllocationCases = allocations;

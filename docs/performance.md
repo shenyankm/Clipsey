@@ -1,6 +1,6 @@
 # 性能审查与验收
 
-本文件保存首轮审查与验收；当前进展和代价见[批量写入与单库 URL 索引验收](./performance-write-index.md)，上一候选见[按网址读取的生产候选与验收](./performance-indexed-url-cache.md)。
+本文件保存首轮审查与验收；当前进展见[缓存读取与字段处理验收](./performance-cache-snapshot.md)，单库索引接入及其代价见[批量写入与单库 URL 索引验收](./performance-write-index.md)，上一候选见[按网址读取的生产候选与验收](./performance-indexed-url-cache.md)。
 
 ## 结论
 

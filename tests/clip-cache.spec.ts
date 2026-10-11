@@ -1,12 +1,29 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CacheManager } from '@/background/storage/cache-manager';
 import type { Clip } from '@/types/clip';
+import { CLIP_URL_KEY } from '@/types/indexeddb';
 
 const clip = (id: string): Clip => ({
   id, textContent: id, sourceUrl: 'https://example.com', createdAt: '2025-01-01T00:00:00.000Z'
 });
 
 describe('clip cache invalidation', () => {
+  it.each(['whole', 'page'])('keeps private snapshot fields out of %s results without changing frozen inputs', async path => {
+    const cache = new CacheManager();
+    const key = Object.freeze(['https://example.com/', clip('stored').createdAt, 'stored']);
+    const stored = Object.freeze({ ...clip('stored'), updatedAt: '2025-01-02', [CLIP_URL_KEY]: key });
+    const load = path === 'whole'
+      ? () => cache.get(async () => [stored])
+      : () => cache.getByUrl(stored.sourceUrl, async () => { throw new Error('Unexpected full load'); }, async () => [stored]);
+    const rows = await load();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject(clip('stored'));
+    expect(Object.hasOwn(rows[0], CLIP_URL_KEY)).toBe(false);
+    rows[0].textContent = 'caller';
+    expect((await load())[0].textContent).toBe('stored');
+    expect(stored[CLIP_URL_KEY]).toBe(key);
+  });
+
   it('shares same-base page loads, isolates results, and never exposes the page as all clips', async () => {
     const cache = new CacheManager();
     const input = [{ ...clip('page'), sourceUrl: 'https://example.com/?q=a' }];

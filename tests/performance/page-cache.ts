@@ -72,6 +72,7 @@ try {
   upgraded.close();
 
   const results = [], allocations = [];
+  let allocationFixture: Clip[] | null = null;
   const sizes = [100, 10000];
   if (location.search) sizes.reverse();
   for (const records of sizes) {
@@ -96,7 +97,10 @@ try {
       verify();
       assert((await getClips()).length === records, 'Page leaked into whole-cache read');
       results.push({ records, hits, cold, warm });
-      if ([1, 100, 256, 257, 10000].includes(hits)) allocations.push({ records, name: `page-${hits}`, prepare: seed, operation, verify });
+      if ([1, 100, 256, 257, 1000, 2500, 10000].includes(hits)) allocations.push({ records, name: `page-${hits}`, prepare: async () => {
+        cacheManager.clear();
+        if (allocationFixture !== clips) { await seed(); allocationFixture = clips; }
+      }, operation, verify });
     }
   }
   (window as any).__cacheAllocationCases = allocations;

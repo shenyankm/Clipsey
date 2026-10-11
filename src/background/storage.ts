@@ -123,14 +123,20 @@ async function loadClipsForBase(base: string): Promise<Clip[] | null> {
     for (const url of new Set(clips.map(clip => clip.sourceUrl))) {
       if (createIndexKeys(url).at(-1) !== base) return null;
     }
-    return clips.reverse().map(clip => IndexedDB.readRecord(store, clip));
+    return clips.reverse();
   });
 }
 
 async function loadClipsFromStorage(): Promise<Clip[]> {
-  return IndexedDBQuery.getAll('clips', {
-    indexName: 'createdAt_id',
-    direction: 'desc'
+  // 内部快照随即经缓存标准化；不先删除字段，避免临时对象分配。
+  return indexedDBManager.executeTransaction('clips', 'readonly', async transaction => {
+    const request = transaction.objectStore('clips').index('createdAt_id').getAll();
+    return new Promise<Clip[]>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result.reverse());
+      request.onerror = () => reject(new IndexedDBError(
+        'Failed to query records', 'QUERY_ERROR', request.error || undefined
+      ));
+    });
   });
 }
 

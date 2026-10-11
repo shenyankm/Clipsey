@@ -27,6 +27,11 @@ const clip = (id: string): Clip => ({
 });
 
 
+function observeFullSnapshots() {
+  const read = vi.spyOn(IDBIndex.prototype, 'getAll');
+  return () => read.mock.contexts.filter(index => index.name === 'createdAt_id' && index.objectStore.name === 'clips').length;
+}
+
 async function urlRecords() {
   return indexedDBManager.executeTransaction('clips', 'readonly', transaction => new Promise((resolve, reject) => {
     const request = transaction.objectStore('clips').getAll();
@@ -88,9 +93,9 @@ describe('clip storage transactions', () => {
       request.onsuccess = () => { store.put({ ...request.result, sourceUrl: 'https://different.com' }); resolve(); };
       request.onerror = () => reject(request.error);
     }));
-    const full = vi.spyOn(IndexedDBQuery, 'getAll');
+    const full = observeFullSnapshots();
     expect((await getClipsForUrl(clip('').sourceUrl)).map(clip => clip.id)).toEqual(['valid']);
-    expect(full).toHaveBeenCalledOnce();
+    expect(full()).toBe(1);
   });
 
   it('derives the index from the same snapshot that is written when an input has getters', async () => {
@@ -105,20 +110,20 @@ describe('clip storage transactions', () => {
 
   it('uses the bulk snapshot for dense small databases without counting all bodies', async () => {
     await saveClips(Array.from({ length: 100 }, (_, i) => clip(String(i))));
-    const full = vi.spyOn(IndexedDBQuery, 'getAll');
+    const full = observeFullSnapshots();
     const count = vi.spyOn(IDBObjectStore.prototype, 'count');
     expect(await getClipsForUrl(clip('').sourceUrl)).toHaveLength(100);
-    expect(full).toHaveBeenCalledTimes(1);
+    expect(full()).toBe(1);
     expect(count).not.toHaveBeenCalled();
   });
 
   it('falls back to one full snapshot above the bounded page-cache limit', async () => {
     await saveClips(Array.from({ length: 2501 }, (_, i) => clip(String(i))));
-    const full = vi.spyOn(IndexedDBQuery, 'getAll');
+    const full = observeFullSnapshots();
     expect(await getClipsForUrl(clip('').sourceUrl)).toHaveLength(2501);
     expect(cacheManager.has()).toBe(true);
     expect(await getClipsForUrl(clip('').sourceUrl)).toHaveLength(2501);
-    expect(full).toHaveBeenCalledTimes(1);
+    expect(full()).toBe(1);
   });
 
   it('reads a sparse canonical page without loading all clips and preserves query priority', async () => {
@@ -126,14 +131,14 @@ describe('clip storage transactions', () => {
     clips[0] = { ...clip('exact'), sourceUrl: 'https://example.com/article/?a=1&b=2#fragment' };
     clips[1] = { ...clip('base'), createdAt: '2026-01-01', sourceUrl: 'https://example.com/article?other=1' };
     await saveClips(clips);
-    const full = vi.spyOn(IndexedDBQuery, 'getAll');
+    const full = observeFullSnapshots();
     expect((await getClipsForUrl('https://example.com/article?b=2&a=1')).map(item => item.id)).toEqual(['exact', 'base']);
     expect((await getClipsForUrl('https://example.com/article?other=1')).map(item => item.id)).toEqual(['base', 'exact']);
     expect(await getClipsForUrl('https://example.com/missing')).toEqual([]);
-    expect(full).not.toHaveBeenCalled();
+    expect(full()).toBe(0);
     expect(cacheManager.has()).toBe(false);
     expect(await getClips()).toHaveLength(100);
-    expect(full).toHaveBeenCalledTimes(1);
+    expect(full()).toBe(1);
   });
 
   it('maintains URL records through all mutations and rolls them back with the body', async () => {
@@ -160,7 +165,7 @@ describe('clip storage transactions', () => {
 
   it('invalidates sparse page reads on add, URL changes, and delete', async () => {
     await saveClips(Array.from({ length: 100 }, (_, i) => ({ ...clip(String(i)), sourceUrl: `https://other.com/${i}` })));
-    const full = vi.spyOn(IndexedDBQuery, 'getAll');
+    const full = observeFullSnapshots();
     expect(await getClipsForUrl(clip('').sourceUrl)).toEqual([]);
     await addClip(clip('new'));
     expect((await getClipsForUrl(clip('').sourceUrl)).map(item => item.id)).toEqual(['new']);
@@ -169,16 +174,16 @@ describe('clip storage transactions', () => {
     expect((await getClipsForUrl('https://changed.com'))[0].id).toBe('new');
     await deleteClip('new');
     expect(await getClipsForUrl('https://changed.com')).toEqual([]);
-    expect(full).not.toHaveBeenCalled();
+    expect(full()).toBe(0);
   });
 
   it('falls back for legacy IDs so normalization deduplicates across pages', async () => {
     await saveClips(Array.from({ length: 100 }, (_, i) => ({ ...clip(String(i)), sourceUrl: `https://other.com/${i}` })));
     await indexedDBManager.put('clips', { ...clip('legacy'), id: 123 as unknown as string, highlightId: 'global-id' });
     await indexedDBManager.put('clips', { ...clip('global-id'), sourceUrl: 'https://other.com', createdAt: '2026-01-01' });
-    const full = vi.spyOn(IndexedDBQuery, 'getAll');
+    const full = observeFullSnapshots();
     expect(await getClipsForUrl(clip('').sourceUrl)).toEqual([]);
-    expect(full).toHaveBeenCalledTimes(1);
+    expect(full()).toBe(1);
   });
 
   it('uses only primary keys and the highlight index for writes', async () => {
@@ -300,22 +305,36 @@ describe('clip storage transactions', () => {
   });
 
   it('does not cache database read failures as an empty list', async () => {
-    const read = vi.spyOn(IndexedDBQuery, 'getAll').mockRejectedValueOnce(new Error('Read failed'));
+    const read = vi.spyOn(IDBIndex.prototype, 'getAll').mockImplementationOnce(() => { throw new Error('Read failed'); });
     await expect(getClips()).rejects.toThrow('Read failed');
     read.mockRestore();
     await indexedDBManager.put('clips', clip('old'));
     expect(await getClips()).toHaveLength(1);
   });
 
+  it('preserves the query error and original cause on asynchronous snapshot failure, then retries', async () => {
+    const cause = new DOMException('Read failed', 'UnknownError');
+    const read = vi.spyOn(IDBIndex.prototype, 'getAll').mockImplementationOnce(() => {
+      const request = { error: cause, onerror: null } as unknown as IDBRequest<Clip[]>;
+      queueMicrotask(() => request.onerror!(new Event('error')));
+      return request;
+    });
+    await expect(getClips()).rejects.toMatchObject({ code: 'QUERY_ERROR', originalError: cause });
+    expect(cacheManager.has()).toBe(false);
+    read.mockRestore();
+    await saveClips([clip('retry')]);
+    expect((await getClips()).map(clip => clip.id)).toEqual(['retry']);
+  });
+
   it('uses the URL index without requesting full cache copies', async () => {
     await saveClips([clip('matching'), { ...clip('other'), sourceUrl: 'https://other.com' }]);
     const fullCacheRead = vi.spyOn(cacheManager, 'get');
-    const databaseRead = vi.spyOn(IndexedDBQuery, 'getAll');
+    const databaseRead = observeFullSnapshots();
     const matches = await getClipsForUrl('https://example.com/article');
     expect(matches.map(item => item.id)).toEqual(['matching']);
     matches[0].textContent = 'changed';
     expect((await getClipsForUrl('https://example.com/article'))[0].textContent).toBe('Text matching');
-    expect(databaseRead).not.toHaveBeenCalled();
+    expect(databaseRead()).toBe(0);
     expect(fullCacheRead).not.toHaveBeenCalled();
   });
 
