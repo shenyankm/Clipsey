@@ -1,6 +1,6 @@
 // 真实 Chrome + IndexedDB；临时用户目录，不访问已安装扩展或用户摘录。
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { createServer } from 'vite';
@@ -19,6 +19,7 @@ const pageCache = process.argv.includes('--page-cache');
 const writeLayout = process.argv.includes('--write-layout');
 const keyLayout = process.argv.includes('--key-layout');
 const allocations = process.argv.includes('--allocations');
+if (process.env.PROFILE && allocations) throw new Error('Run CPU profiling separately from allocation sampling');
 if (allocations && !cache && !index && !normalize && !urlRead && !pageCache && !keyLayout && !highlights) throw new Error('--allocations requires a cache or highlight benchmark');
 if (urlRead && baseline) throw new Error('--url-read compares the current cache path and experimental strategies in one run');
 const baselineRef = baseline
@@ -115,6 +116,10 @@ try {
     socket.send(JSON.stringify({ id: requestId, method, params }));
   });
   await send('Runtime.enable');
+  if (process.env.PROFILE) {
+    await send('Profiler.enable');
+    await send('Profiler.start');
+  }
   const query = new URLSearchParams();
   if (allocations && highlights) query.set('allocations', '1');
   if (highlightScheduling && process.argv.includes('--timer-yield')) query.set('timer-yield', '1');
@@ -129,6 +134,10 @@ try {
     result = response.result.value;
   }
   if (result.error) throw new Error(result.error);
+  if (process.env.PROFILE) {
+    const { profile: cpuProfile } = await send('Profiler.stop');
+    await writeFile(process.env.PROFILE, JSON.stringify(cpuProfile));
+  }
   if (allocations) {
     const caseList = highlights ? '__highlightAllocationCases' : '__cacheAllocationCases';
     const describe = await send('Runtime.evaluate', {
@@ -174,7 +183,7 @@ try {
     }
   }
   await send('Runtime.evaluate', { expression: 'window.__performanceCleanup?.()' });
-  console.log(JSON.stringify({ mode: baseline ? 'baseline' : 'working-tree', baselineRef: baseline ? baselineRef : undefined, ...result }, null, 2));
+  console.log(JSON.stringify({ mode: baseline ? 'baseline' : 'working-tree', baselineRef: baseline ? baselineRef : undefined, cpuProfiled: Boolean(process.env.PROFILE), ...result }, null, 2));
 } finally {
   socket?.close();
   if (chrome?.pid && chrome.exitCode === null) {

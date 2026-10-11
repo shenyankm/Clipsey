@@ -80,6 +80,24 @@ it('checks a fragmented parent once per walker and sees changed styles on the ne
   expect(styles).toHaveBeenCalledTimes(6);
 });
 
+it('avoids another ancestor query below a visible parent while excluding special elements themselves', () => {
+  const p = document.createElement('p');
+  const target = document.createElement('b'); target.textContent = 'target';
+  p.append('prefix', target);
+  for (const tag of ['script', 'style', 'noscript', 'svg', 'canvas']) {
+    const excluded = document.createElement(tag);
+    if (tag === 'script') excluded.setAttribute('type', 'application/json');
+    excluded.textContent = 'excluded'; p.append(excluded);
+  }
+  document.body.append(p);
+  const closest = vi.spyOn(target, 'closest');
+  const walker = createTextNodeWalker()!;
+  expect(walker.nextNode()?.textContent).toBe('prefix');
+  expect(walker.nextNode()?.textContent).toBe('target');
+  expect(walker.nextNode()).toBeNull();
+  expect(closest).not.toHaveBeenCalled();
+});
+
 it('retries a style read after a transient failure and keeps excluded elements filtered', () => {
   const p = document.createElement('p');
   p.append('first', 'second', 'third');

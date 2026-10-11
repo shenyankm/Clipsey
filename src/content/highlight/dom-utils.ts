@@ -31,13 +31,17 @@ export function createTextNodeWalker(root: Node = document.body, includeWhitespa
         if (!includeWhitespace && !(node.textContent ?? '').trim()) return NodeFilter.FILTER_SKIP;
         let visible = visibleParents.get(parent);
         if (visible === undefined) {
-          const excluded = parent.closest('script, style, noscript, svg, canvas');
+          const ancestor = parent.parentElement;
+          const excludedSelector = 'script, style, noscript, svg, canvas';
+          const excluded = ancestor && visibleParents.get(ancestor) === true
+            ? (parent.matches(excludedSelector) ? parent : null)
+            : parent.closest(excludedSelector);
           if (excluded) {
             visible = false;
             barriers.set(parent, excluded);
           } else {
             try {
-              let barrier = hiddenAncestor(parent.parentElement);
+              let barrier = hiddenAncestor(ancestor);
               if (!barrier) {
                 const style = getComputedStyle(parent);
                 if (style?.display === 'none') barrier = parent;
