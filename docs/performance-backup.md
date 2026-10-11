@@ -63,4 +63,4 @@ PLAYWRIGHT_MODULE='/path/to/playwright/index.mjs' CHROME_PATH='/path/to/Chrome f
 
 原始逐次时间、分配样本尺寸直方图、产物路径、源码哈希及检查范围：[performance-backup-results.json](./performance-backup-results.json)。省略没有调用栈树对应的采样 node ID，保留样本尺寸计数及总字节数，原始完整数组仍在本机产物文件中。
 
-新备份文本不再缩进。Edge/Firefox 运行时、远端 CI、低端硬件、真实用户数据分布及精确峰值仍未验证；既有大 chunk 与 Firefox 发布配置警告保留。整个性能目标仍在进行。
+新备份文本不再缩进。后续[Firefox 真实扩展验收](./performance-firefox.md)补充了备份、恢复、分页与管理页搜索/排序，不代表 Firefox 全功能覆盖。Edge 运行时、远端 CI、低端硬件、真实用户数据分布及精确峰值仍未验证；既有大 chunk 与 Firefox 发布配置警告保留。整个性能目标仍在进行。
