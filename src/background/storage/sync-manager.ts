@@ -1,5 +1,6 @@
 import type { Clip } from '@/types/clip';
 import { browser } from 'wxt/browser';
+import { cacheManager } from './cache-manager';
 
 /** 数据变更监听回调。 */
 type ChangeListener = (changes: any, areaName: string) => void;
@@ -16,15 +17,22 @@ type SyncPayload = {
 export class SyncManager {
   private changeListeners: ChangeListener[] = [];
   private syncChannel: BroadcastChannel | null = null;
+  private runtimeListener: Parameters<typeof browser.runtime.onMessage.addListener>[0] = message => {
+    if (message?.type === 'CLIPS_CHANGED') cacheManager.clear();
+  };
 
   constructor() {
     this.initSyncChannel();
+    browser.runtime?.onMessage?.addListener(this.runtimeListener);
   }
 
   /** 初始化同步通道 */
   private initSyncChannel(): void {
     try {
       this.syncChannel = new BroadcastChannel('clipsey-storage-sync');
+      this.syncChannel.onmessage = event => {
+        if (event.data?.type === 'CLIPS_CHANGED') cacheManager.clear();
+      };
     } catch (error) {
       console.warn('[Sync Manager] BroadcastChannel not supported:', error);
     }
@@ -119,6 +127,7 @@ export class SyncManager {
 
   /** 关闭同步通道并释放资源 */
   close(): void {
+    browser.runtime?.onMessage?.removeListener(this.runtimeListener);
     if (this.syncChannel) {
       this.syncChannel.close();
       this.syncChannel = null;

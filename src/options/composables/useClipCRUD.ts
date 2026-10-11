@@ -1,7 +1,7 @@
 import { ref } from 'vue';
 import { message } from 'ant-design-vue';
 import { useI18n } from 'vue-i18n';
-import { deleteClipById } from '@/background/api';
+import { sendRuntimeMessage } from '@/utils/chrome';
 import type { Clip } from '@/types/clip';
 import { ErrorHandler } from '@/utils/error-handler';
 import { useClipOpener } from '@/utils/clip/opener';
@@ -18,7 +18,8 @@ export function useClipCRUD() {
 
     isDeleting.value = true;
     try {
-      await deleteClipById(id);
+      const response = await sendRuntimeMessage({ type: 'DELETE_CLIP', payload: { id } });
+      if (!response.success) throw new Error(response.error ?? '删除失败');
       message.success('删除成功');
       return true;
     } catch (error) {

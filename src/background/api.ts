@@ -29,12 +29,8 @@ export async function getClips(): Promise<Clip[]> {
 
 // 删除指定 ID 的 Clip；若该 Clip 有高亮则刷新对应页面高亮
 export async function deleteClipById(id: string): Promise<void> {
-  const { getClips, saveClips } = await import('./storage');
-  const clips = await getClips();
-  const deletedClip = clips.find(clip => clip.id === id);
-  const updated = clips.filter(clip => clip.id !== id);
-  
-  await saveClips(updated);
+  const { deleteClip } = await import('./storage');
+  const deletedClip = await deleteClip(id);
   
   // 如果删除的是有高亮的 Clip，通知对应页面移除高亮
   if (deletedClip?.highlightId && deletedClip?.sourceUrl) {

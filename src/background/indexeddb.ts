@@ -14,9 +14,7 @@ export class IndexedDB {
   private db: IDBDatabase | null = null;
   private dbPromise: Promise<IDBDatabase> | null = null;
 
-  private constructor() {
-    this.initializeDB();
-  }
+  private constructor() {}
 
   static async create(dbName: string, version: number): Promise<IndexedDB> {
     const instance = new IndexedDB();
@@ -141,23 +139,7 @@ export class IndexedDB {
     mode: TransactionMode = 'readonly'
   ): Promise<IDBTransaction> {
     const db = await this.getDB();
-    const transaction = db.transaction(storeNames, mode);
-
-    return new Promise((resolve, reject) => {
-      transaction.onerror = () => {
-        reject(new IndexedDBError(
-          'Transaction failed',
-          'TRANSACTION_ERROR',
-          transaction.error || undefined
-        ));
-      };
-
-      transaction.onabort = () => {
-        reject(new IndexedDBError('Transaction aborted', 'TRANSACTION_ABORTED'));
-      };
-
-      resolve(transaction);
-    });
+    return db.transaction(storeNames, mode);
   }
 
   // 统一事务包装：执行操作并等待 oncomplete，发生异常时主动 abort
@@ -167,20 +149,21 @@ export class IndexedDB {
     operation: (transaction: IDBTransaction) => Promise<T>
   ): Promise<T> {
     const transaction = await this.createTransaction(storeNames, mode);
-    
-    try {
-      const result = await operation(transaction);
-      
-      // 等待事务完成
-      await new Promise<void>((resolve, reject) => {
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = () => reject(transaction.error);
-        transaction.onabort = () => reject(new Error('Transaction aborted'));
-      });
+    const completed = new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error('Transaction failed'));
+      transaction.onabort = () => reject(transaction.error ?? new Error('Transaction aborted'));
+    });
 
+    try {
+      const [result] = await Promise.all([
+        Promise.resolve().then(() => operation(transaction)),
+        completed
+      ]);
       return result;
     } catch (error) {
-      transaction.abort();
+      // 事务可能已自动回滚，不能让再次 abort 的异常覆盖原始错误。
+      try { transaction.abort(); } catch {}
       throw error;
     }
   }

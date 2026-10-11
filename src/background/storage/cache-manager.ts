@@ -7,6 +7,7 @@ export class CacheManager {
   private cachedClips: Clip[] | null = null;
   private clipIndex: ClipIndex = new Map();
   private inflightLoad: Promise<Clip[]> | null = null;
+  private revision = 0;
 
   // 获取缓存的剪辑（必要时触发加载并建立索引）
   async get(loader: () => Promise<Clip[]>): Promise<Clip[]> {
@@ -15,17 +16,20 @@ export class CacheManager {
     }
 
     if (!this.inflightLoad) {
-      this.inflightLoad = loader()
+      const revision = this.revision;
+      const request = loader()
         .then(clips => {
+          if (revision !== this.revision) return this.get(loader);
           this.update(clips);
-          return this.cachedClips ?? [];
+          return this.clone(this.cachedClips ?? []);
         })
         .finally(() => {
-          this.inflightLoad = null;
+          if (this.inflightLoad === request) this.inflightLoad = null;
         });
+      this.inflightLoad = request;
     }
 
-    return this.inflightLoad;
+    return this.clone(await this.inflightLoad);
   }
 
   // 按 URL 查找剪辑
@@ -35,6 +39,8 @@ export class CacheManager {
 
   // 更新缓存并重建索引
   update(clips: Clip[]): void {
+    this.revision += 1;
+    this.inflightLoad = null;
     const normalized = normalizeClips(clips);
     this.cachedClips = this.clone(normalized);
     this.clipIndex = buildClipIndex(this.cachedClips);
@@ -42,6 +48,7 @@ export class CacheManager {
 
   // 清空缓存
   clear(): void {
+    this.revision += 1;
     this.cachedClips = null;
     this.clipIndex.clear();
     this.inflightLoad = null;

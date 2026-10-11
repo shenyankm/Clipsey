@@ -6,10 +6,7 @@ import { cacheManager } from './storage/cache-manager';
 import { syncManager, storage } from './storage/sync-manager';
 import { normalizeClips } from './storage/utils/clip-normalizer';
 
-const MAX_CLIP_ENTRIES = 200;
-
 let initAttempt: Promise<void> | null = null;
-let addClipMutex: Promise<void> = Promise.resolve();
 
 async function ensureInitialized(): Promise<void> {
   if (indexedDBManager.isInitialized()) {
@@ -39,210 +36,97 @@ export async function getClipsForUrl(url: string): Promise<Clip[]> {
   return cacheManager.getByUrl(url);
 }
 
-// 保存剪辑：清空旧库、批量写入并更新缓存与通知
+// 替换全部剪辑：删除和写入必须一起提交或回滚。
 export async function saveClips(clips: Clip[]): Promise<void> {
-  await ensureInitialized();
-  
-  try {
-    const oldClips = cacheManager.has() ? await getClips() : [];
-    const normalizedClips = normalizeClips(clips);
-    const oldIds = new Set(oldClips.map(c => c.id));
-    const newIds = new Set(normalizedClips.map(c => c.id));
-    const toDelete: string[] = [];
-    for (const id of oldIds) {
-      if (!newIds.has(id)) toDelete.push(id);
-    }
-    if (toDelete.length > 0) {
-      await IndexedDBQuery.bulkDelete('clips', toDelete, { batchSize: 100 });
-    }
-    if (normalizedClips.length > 0) {
-      await IndexedDBQuery.bulkPut('clips', normalizedClips, { batchSize: 50 });
-    }
-    
-    // 更新缓存
-    cacheManager.update(normalizedClips);
-    
-    // 通知变化
-    syncManager.notifyChange(oldClips, normalizedClips);
-    
-  } catch (error) {
-    throw new IndexedDBError(
-      'Failed to save clips',
-      'SAVE_ERROR',
-      error instanceof Error ? error : undefined
-    );
+  const normalizedClips = normalizeClips(clips);
+  if (normalizedClips.length !== clips.length) {
+    throw new Error('Clips contain invalid records or duplicate IDs');
   }
-}
 
-// 添加单个剪辑（去重同高亮并限制总数）
-export async function addClip(clip: Clip): Promise<void> {
   await ensureInitialized();
-  
-  // 等待前一个 addClip 完成
-  await addClipMutex;
-
-  // 创建新的互斥锁
-  let releaseMutex: () => void;
-  addClipMutex = new Promise(resolve => {
-    releaseMutex = resolve;
+  const oldClips = await indexedDBManager.executeTransaction('clips', 'readwrite', async transaction => {
+    const store = transaction.objectStore('clips');
+    const currentClips = await requestResult<Clip[]>(store.getAll());
+    store.clear();
+    for (const clip of normalizedClips) store.put(clip);
+    return currentClips;
   });
 
-  try {
-    const normalizedClip = normalizeClips([clip])[0];
-    if (!normalizedClip) {
-      return;
-    }
-
-    // 在同一个事务中读取旧数据
-    const oldClips = await indexedDBManager.executeTransaction('clips', 'readwrite', async (transaction) => {
-      const store = transaction.objectStore('clips');
-      
-      // 读取当前所有数据
-      const currentClips = await new Promise<Clip[]>((resolve, reject) => {
-        const request = store.getAll();
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error ?? new Error('Failed to read clips'));
-      });
-
-      // 执行写入操作
-      await deleteDuplicateHighlights(store, normalizedClip);
-      await putClipRecord(store, normalizedClip);
-      await trimClipsToLimit(store, MAX_CLIP_ENTRIES);
-
-      return currentClips;
-    });
-
-    // 重新加载缓存
-    const newClips = await reloadCacheFromStorage();
-    
-    // 通知变化
-    syncManager.notifyChange(oldClips, newClips);
-  } catch (error) {
-    throw new IndexedDBError(
-      'Failed to add clip',
-      'ADD_ERROR',
-      error instanceof Error ? error : undefined
-    );
-  } finally {
-    // 释放互斥锁
-    releaseMutex!();
-  }
+  cacheManager.clear();
+  syncManager.notifyChange(oldClips, normalizedClips);
 }
 
-// 清空所有剪辑
-export async function clearClips(): Promise<void> {
+// 添加单个剪辑：只去重同页面的同高亮，不淘汰历史记录。
+export async function addClip(clip: Clip): Promise<void> {
+  const normalizedClip = normalizeClips([clip])[0];
+  if (!normalizedClip) {
+    throw new Error('Invalid clip');
+  }
+
   await ensureInitialized();
+  const oldClips = await indexedDBManager.executeTransaction('clips', 'readwrite', async transaction => {
+    const store = transaction.objectStore('clips');
+    const currentClips = await requestResult<Clip[]>(store.getAll());
+    const duplicates = currentClips.filter(existing =>
+      normalizedClip.highlightId &&
+      existing.highlightId === normalizedClip.highlightId &&
+      existing.sourceUrl === normalizedClip.sourceUrl &&
+      existing.id !== normalizedClip.id
+    );
+    for (const existing of duplicates) store.delete(existing.id);
+    store.put(normalizedClip);
+    return currentClips;
+  });
+
+  const newClips = oldClips.filter(existing =>
+    existing.id !== normalizedClip.id &&
+    !(normalizedClip.highlightId &&
+      existing.highlightId === normalizedClip.highlightId &&
+      existing.sourceUrl === normalizedClip.sourceUrl)
+  );
+  newClips.push(normalizedClip);
+  cacheManager.clear();
+  syncManager.notifyChange(oldClips, newClips);
+}
+
+// 按 ID 删除，不把其他页面的旧快照写回数据库。
+export async function deleteClip(id: string): Promise<Clip | undefined> {
+  await ensureInitialized();
+  const oldClips = await indexedDBManager.executeTransaction('clips', 'readwrite', async transaction => {
+    const store = transaction.objectStore('clips');
+    const currentClips = await requestResult<Clip[]>(store.getAll());
+    store.delete(id);
+    return currentClips;
+  });
+
+  cacheManager.clear();
+  syncManager.notifyChange(oldClips, oldClips.filter(clip => clip.id !== id));
+  return oldClips.find(clip => clip.id === id);
+}
+
+export async function clearClips(): Promise<void> {
   await saveClips([]);
 }
 
-// 从 IndexedDB 加载剪辑并标准化
+function requestResult<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed'));
+  });
+}
+
+// 读取失败必须向上抛出，不能把失败缓存成“没有摘录”。
 async function loadClipsFromStorage(): Promise<Clip[]> {
-  try {
-    const clips = await IndexedDBQuery.getAll('clips', {
-      direction: 'desc'
-    });
-    
-    return normalizeClips(clips);
-  } catch (error) {
-    console.error('Failed to load clips from IndexedDB:', error);
-    return [];
-  }
-}
-
-async function reloadCacheFromStorage(): Promise<Clip[]> {
-  const clips = await loadClipsFromStorage();
-  cacheManager.update(clips);
-  return clips;
-}
-
-async function deleteDuplicateHighlights(store: IDBObjectStore, clip: Clip): Promise<void> {
-  // 空值检查：空字符串也视为无效
-  if (!clip.highlightId || clip.highlightId.trim() === '') {
-    return;
-  }
-
-  const highlightId = clip.highlightId.trim();
-
-  await new Promise<void>((resolve, reject) => {
-    const index = store.index('highlightId');
-    const request = index.openCursor(IDBKeyRange.only(highlightId));
-    
-    const deletePromises: Promise<void>[] = [];
-
-    request.onsuccess = () => {
-      const cursor = request.result as IDBCursorWithValue | null;
-      if (!cursor) {
-        // 等待所有删除操作完成
-        Promise.all(deletePromises)
-          .then(() => resolve())
-          .catch(reject);
-        return;
-      }
-
-      const value = cursor.value as Clip;
-      
-      // 删除同一 URL 下相同 highlightId 的旧记录
-      if (value.sourceUrl === clip.sourceUrl && value.id !== clip.id) {
-        const deletePromise = new Promise<void>((resolveDelete, rejectDelete) => {
-          const deleteRequest = cursor.delete();
-          deleteRequest.onsuccess = () => resolveDelete();
-          deleteRequest.onerror = () => rejectDelete(deleteRequest.error ?? new Error('Failed to delete duplicate'));
-        });
-        deletePromises.push(deletePromise);
-      }
-      
-      cursor.continue();
-    };
-
-    request.onerror = () => reject(request.error ?? new Error('Failed to dedupe highlights'));
+  const clips = await IndexedDBQuery.getAll('clips', {
+    indexName: 'createdAt_id',
+    direction: 'desc'
   });
+  return normalizeClips(clips);
 }
 
-async function putClipRecord(store: IDBObjectStore, clip: Clip): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const request = store.put(clip);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error ?? new Error('Failed to write clip'));
-  });
-}
-
-async function trimClipsToLimit(store: IDBObjectStore, limit: number): Promise<void> {
-  const total = await new Promise<number>((resolve, reject) => {
-    const countRequest = store.count();
-    countRequest.onsuccess = () => resolve(countRequest.result);
-    countRequest.onerror = () => reject(countRequest.error ?? new Error('Failed to count clips'));
-  });
-
-  if (total <= limit) {
-    return;
-  }
-
-  const deleteCount = total - limit;
-  await new Promise<void>((resolve, reject) => {
-    const index = store.index('createdAt');
-    let removed = 0;
-    const request = index.openCursor(undefined, 'next');
-
-    request.onsuccess = () => {
-      const cursor = request.result as IDBCursorWithValue | null;
-      if (!cursor || removed >= deleteCount) {
-        resolve();
-        return;
-      }
-
-      cursor.delete();
-      removed += 1;
-      cursor.continue();
-    };
-
-    request.onerror = () => reject(request.error ?? new Error('Failed to trim clips'));
-  });
-}
-
-// 刷新缓存：强制重载 IndexedDB 数据
 export async function refreshCache(): Promise<Clip[]> {
   cacheManager.clear();
-  return cacheManager.get(() => loadClipsFromStorage());
+  return getClips();
 }
 
 // 获取存储统计（数量、大小、最早/最新时间）

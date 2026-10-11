@@ -7,7 +7,7 @@ import { handleClearClips } from './clear-clips';
 import { handleOpenClip } from './open-clip';
 import { handleRequestSettings } from './request-settings';
 import { handleLogError } from './log-error';
-import { exportAllData, importAllData, refreshClipsCache } from '@/background/api';
+import { deleteClipById, exportAllData, importAllData, refreshClipsCache } from '@/background/api';
 import { ResponseBuilder, wrapHandler } from './middleware/response';
 import {
   isSaveClipPayload,
@@ -77,6 +77,14 @@ registry.register('REQUEST_SETTINGS', async () => {
 
 registry.register('CLEAR_CLIPS', async () => {
   return wrapHandler(() => handleClearClips(), 'Clear clips');
+});
+
+registry.register('DELETE_CLIP', async (message) => {
+  if (!isOpenClipPayload(message.payload) || !message.payload.id.trim()) {
+    return ResponseBuilder.validationError('Invalid DELETE_CLIP payload');
+  }
+  const { id } = message.payload;
+  return wrapHandler(() => deleteClipById(id), 'Delete clip');
 });
 
 registry.register('OPEN_CLIP', async (message) => {

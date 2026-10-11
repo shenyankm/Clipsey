@@ -40,7 +40,7 @@ export class ExportService {
     let errorLogsImported = 0;
     
     // 导入 clips
-    if (Array.isArray(data.clips) && data.clips.length > 0) {
+    if (Array.isArray(data.clips)) {
       const { saveClips } = await import('@/background/storage');
       await saveClips(data.clips);
       clipsImported = data.clips.length;

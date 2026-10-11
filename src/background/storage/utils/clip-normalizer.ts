@@ -1,15 +1,12 @@
 import type { Clip } from '@/types/clip';
 import { hashString } from '../utils/hash';
 
-const MAX_CLIP_ENTRIES = 200;
-
-/** 标准化剪辑数据：去重、验证必填字段、限制数量。 */
+/** 标准化剪辑数据：去重并验证必填字段，不删除历史记录。 */
 export function normalizeClips(clips: Clip[]): Clip[] {
-  const limited = clips.slice(0, MAX_CLIP_ENTRIES);
   const normalized: Clip[] = [];
   const seen = new Set<string>();
   
-  for (const clip of limited) {
+  for (const clip of clips) {
     if (!clip || typeof clip !== 'object') {
       continue;
     }
@@ -51,7 +48,7 @@ export function normalizeClips(clips: Clip[]): Clip[] {
       textContent,
       htmlContent: typeof clip.htmlContent === 'string' ? clip.htmlContent : undefined,
       createdAt: typeof clip.createdAt === 'string' ? clip.createdAt : new Date().toISOString(),
-      updatedAt: new Date(now).toISOString(),
+      updatedAt: typeof clip.updatedAt === 'string' ? clip.updatedAt : new Date(now).toISOString(),
       highlightId,
       contextBefore,
       contextAfter,

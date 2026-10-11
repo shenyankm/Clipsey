@@ -32,7 +32,10 @@ export function isOpenClipPayload(payload: unknown): payload is { id: string } {
 
 // 类型守卫：验证 IMPORT_DATA 的 payload
 export function isImportDataPayload(payload: unknown): payload is { clips?: any[]; errorLogs?: any[] } {
-  return typeof payload === 'object' && payload !== null;
+  if (typeof payload !== 'object' || payload === null) return false;
+  const data = payload as { clips?: unknown; errorLogs?: unknown };
+  return (data.clips === undefined || Array.isArray(data.clips)) &&
+    (data.errorLogs === undefined || Array.isArray(data.errorLogs));
 }
 
 export function isRequestClipsPagedPayload(payload: unknown): payload is {

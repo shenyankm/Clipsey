@@ -3,7 +3,8 @@ import { browser } from 'wxt/browser';
 
 import type { Clip } from '@/types/clip';
 import type { ErrorLogRecord } from '@/types/indexeddb';
-import { saveClips } from './storage';
+import { refreshCache, IndexedDBQuery } from './storage';
+import { normalizeClips } from './storage/utils/clip-normalizer';
 import { indexedDBManager } from './indexeddb';
 
 // 迁移剪辑数据（browser.storage.local -> IndexedDB）
@@ -27,8 +28,14 @@ export async function migrateClipsFromChromeStorage(): Promise<{
       return { success: true, migratedCount: 0 };
     }
 
-    // 迁移到 IndexedDB
-    await saveClips(oldClips as Clip[]);
+    const clips = normalizeClips(oldClips as Clip[]);
+    if (clips.length !== oldClips.length) {
+      throw new Error('Legacy clips contain invalid records or duplicate IDs; original data retained');
+    }
+
+    // 单事务合并，保留 IndexedDB 中已有记录；确认提交后才能删除旧副本。
+    await IndexedDBQuery.bulkPut('clips', clips, { batchSize: clips.length });
+    await refreshCache();
 
     // 迁移成功后，从 browser.storage.local 中移除旧数据
     await browser.storage.local.remove('clips');

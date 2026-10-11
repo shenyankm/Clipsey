@@ -33,6 +33,11 @@ export interface ClearClipsMessage extends RuntimeMessage {
   type: 'CLEAR_CLIPS';
 }
 
+export interface DeleteClipMessage extends RuntimeMessage {
+  type: 'DELETE_CLIP';
+  payload: { id: string };
+}
+
 export interface OpenClipMessage extends RuntimeMessage {
   type: 'OPEN_CLIP';
   payload: { id: string };
@@ -124,6 +129,7 @@ export type AppMessage =
   | RequestClipsPagedMessage
   | RequestSettingsMessage
   | ClearClipsMessage
+  | DeleteClipMessage
   | OpenClipMessage
   | RequestSelectionMessage
   | FocusClipMessage

@@ -203,33 +203,7 @@ export class IndexedDBQuery {
     records: DBSchema[K]['value'][],
     options: BulkOperationOptions = {}
   ): Promise<DBSchema[K]['key'][]> {
-    const { batchSize = 100 } = options;
-    const results: DBSchema[K]['key'][] = [];
-    const errors: Error[] = [];
-
-    // 分批处理，尽量避免单事务数据量过大
-    for (let i = 0; i < records.length; i += batchSize) {
-      const batch = records.slice(i, i + batchSize);
-      
-      try {
-        const batchResults = await this.processBatch(
-          storeName,
-          batch,
-          'add',
-          false
-        );
-        results.push(...batchResults);
-      } catch (error) {
-        errors.push(error as Error);
-        // 继续处理下一批
-      }
-    }
-
-    if (errors.length > 0) {
-      console.warn(`Bulk add completed with ${errors.length} errors:`, errors);
-    }
-
-    return results;
+    return this.writeBatches(storeName, records, 'add', options);
   }
 
   static async bulkPut<K extends keyof DBSchema>(
@@ -237,147 +211,54 @@ export class IndexedDBQuery {
     records: DBSchema[K]['value'][],
     options: BulkOperationOptions = {}
   ): Promise<DBSchema[K]['key'][]> {
-    const { batchSize = 100 } = options;
-    const results: DBSchema[K]['key'][] = [];
-    const errors: Error[] = [];
+    return this.writeBatches(storeName, records, 'put', options);
+  }
 
+  private static async writeBatches<K extends keyof DBSchema>(
+    storeName: K,
+    records: DBSchema[K]['value'][],
+    operation: 'add' | 'put',
+    { batchSize = 100 }: BulkOperationOptions
+  ): Promise<DBSchema[K]['key'][]> {
+    if (!Number.isSafeInteger(batchSize) || batchSize < 1) {
+      throw new Error('batchSize must be a positive integer');
+    }
+    const results: DBSchema[K]['key'][] = [];
+    // 每批独立提交；失败必须抛出，不能将部分写入报告为成功。
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
-      
-      try {
-        const batchResults = await this.processBatch(
-          storeName,
-          batch,
-          'put',
-          false
-        );
-        results.push(...batchResults);
-      } catch (error) {
-        errors.push(error as Error);
-        // 继续处理下一批
-      }
+      const keys = await indexedDBManager.executeTransaction(storeName, 'readwrite', transaction => {
+        const store = transaction.objectStore(storeName);
+        return Promise.all(batch.map(record => new Promise<DBSchema[K]['key']>((resolve, reject) => {
+          const request = store[operation](record);
+          request.onsuccess = () => resolve(request.result as DBSchema[K]['key']);
+          request.onerror = () => reject(request.error ?? new Error(`Failed to ${operation} record`));
+        })));
+      });
+      results.push(...keys);
     }
-
-    if (errors.length > 0) {
-      console.warn(`Bulk put completed with ${errors.length} errors:`, errors);
-    }
-
     return results;
   }
 
   static async bulkDelete<K extends keyof DBSchema>(
     storeName: K,
     keys: DBSchema[K]['key'][],
-    options: BulkOperationOptions = {}
+    { batchSize = 100 }: BulkOperationOptions = {}
   ): Promise<void> {
-    const { batchSize = 100 } = options;
-    const errors: Error[] = [];
-
+    if (!Number.isSafeInteger(batchSize) || batchSize < 1) {
+      throw new Error('batchSize must be a positive integer');
+    }
     for (let i = 0; i < keys.length; i += batchSize) {
       const batch = keys.slice(i, i + batchSize);
-      
-      try {
-        await this.deleteBatch(storeName, batch, false);
-      } catch (error) {
-        errors.push(error as Error);
-        // 继续处理下一批
-      }
+      await indexedDBManager.executeTransaction(storeName, 'readwrite', async transaction => {
+        const store = transaction.objectStore(storeName);
+        await Promise.all(batch.map(key => new Promise<void>((resolve, reject) => {
+          const request = store.delete(key);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error ?? new Error('Failed to delete record'));
+        })));
+      });
     }
-
-    if (errors.length > 0) {
-      console.warn(`Bulk delete completed with ${errors.length} errors:`, errors);
-    }
-  }
-
-  private static async processBatch<K extends keyof DBSchema>(
-    storeName: K,
-    records: DBSchema[K]['value'][],
-    operation: 'add' | 'put',
-    continueOnError: boolean
-  ): Promise<DBSchema[K]['key'][]> {
-    return indexedDBManager.executeTransaction(
-      storeName as string,
-      'readwrite',
-      async (transaction) => {
-        const store = transaction.objectStore(storeName as string);
-        const results: DBSchema[K]['key'][] = [];
-        const promises: Promise<DBSchema[K]['key']>[] = [];
-
-        for (const record of records) {
-          const promise = new Promise<DBSchema[K]['key']>((resolve, reject) => {
-            const request = operation === 'add' ? store.add(record) : store.put(record);
-            
-            request.onsuccess = () => {
-              resolve(request.result as DBSchema[K]['key']);
-            };
-            
-            request.onerror = () => {
-              const error = new IndexedDBError(
-                `Failed to ${operation} record`,
-                operation === 'add' ? 'ADD_ERROR' : 'PUT_ERROR',
-                request.error || undefined
-              );
-              
-              if (continueOnError) {
-                console.warn(`${operation} error:`, error);
-                resolve(null as any); // 继续处理其他记录
-              } else {
-                reject(error);
-              }
-            };
-          });
-          
-          promises.push(promise);
-        }
-
-        const batchResults = await Promise.all(promises);
-        return batchResults.filter(result => result !== null);
-      }
-    );
-  }
-
-  private static async deleteBatch<K extends keyof DBSchema>(
-    storeName: K,
-    keys: DBSchema[K]['key'][],
-    continueOnError: boolean
-  ): Promise<void> {
-    return indexedDBManager.executeTransaction(
-      storeName as string,
-      'readwrite',
-      async (transaction) => {
-        const store = transaction.objectStore(storeName as string);
-        const promises: Promise<void>[] = [];
-
-        for (const key of keys) {
-          const promise = new Promise<void>((resolve, reject) => {
-            const request = store.delete(key);
-            
-            request.onsuccess = () => {
-              resolve();
-            };
-            
-            request.onerror = () => {
-              const error = new IndexedDBError(
-                'Failed to delete record',
-                'DELETE_ERROR',
-                request.error || undefined
-              );
-              
-              if (continueOnError) {
-                console.warn('Delete error:', error);
-                resolve(); // 继续处理其他记录
-              } else {
-                reject(error);
-              }
-            };
-          });
-          
-          promises.push(promise);
-        }
-
-        await Promise.all(promises);
-      }
-    );
   }
 
   static async getRange<K extends keyof DBSchema>(
