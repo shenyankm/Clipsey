@@ -40,7 +40,7 @@ export interface DeleteClipMessage extends RuntimeMessage {
 
 export interface OpenClipMessage extends RuntimeMessage {
   type: 'OPEN_CLIP';
-  payload: { id: string };
+  payload: { id: string; useTextFragment?: boolean };
 }
 
 export interface RequestSelectionMessage extends RuntimeMessage {

@@ -1,4 +1,5 @@
 import type { Clip } from '@/types/clip';
+import { stripTextFragment } from '@/utils/clip/text-fragment';
 import { highlightSyncService } from './services/highlight-sync-service';
 import { searchService, type SearchQuery, type SearchResult, type SearchType, type SortBy } from './services/search-service';
 import { exportService } from './services/export-service';
@@ -58,7 +59,7 @@ export async function getClipsByUrlPaged(params: {
   const { url, page, pageSize, sortOrder = 'desc' } = params;
   const { data, total } = await IndexedDBQuery.paginate('clips', page, pageSize, {
     indexName: 'sourceUrl',
-    query: IDBKeyRange.only(url),
+    query: IDBKeyRange.only(stripTextFragment(url)),
     direction: sortOrder === 'asc' ? 'next' : 'prev'
   });
   return { items: data as Clip[], total, page, pageSize };

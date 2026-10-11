@@ -2,6 +2,7 @@ import type { Clip } from '@/types/clip';
 import { clipService } from '@/background/services/clip-service';
 import { createId, isSupportedHttpUrl } from '@/utils/helpers';
 import type { SaveClipPayload } from '@/types/message';
+import { stripTextFragment } from '@/utils/clip/text-fragment';
 
 export async function handleSaveClip(payload: SaveClipPayload): Promise<void> {
   // 验证必填字段
@@ -17,7 +18,7 @@ export async function handleSaveClip(payload: SaveClipPayload): Promise<void> {
     throw new Error('textContent 超过最大长度限制');
   }
 
-  const sourceUrl = payload.sourceUrl ?? '';
+  const sourceUrl = stripTextFragment(payload.sourceUrl ?? '');
   if (!sourceUrl) {
     throw new Error('缺少必需的 sourceUrl 字段');
   }

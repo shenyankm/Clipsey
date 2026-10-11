@@ -92,7 +92,7 @@ registry.register('OPEN_CLIP', async (message) => {
     return ResponseBuilder.validationError('Invalid OPEN_CLIP payload');
   }
   const payload = message.payload;
-  return wrapHandler(() => handleOpenClip(payload.id), 'Open clip');
+  return wrapHandler(() => handleOpenClip(payload.id, payload.useTextFragment), 'Open clip');
 });
 
 registry.register('EXPORT_DATA', async () => {

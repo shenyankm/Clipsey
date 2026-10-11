@@ -21,12 +21,13 @@ export function isSaveClipPayload(payload: unknown): payload is SaveClipPayload 
 }
 
 // 类型守卫：验证 OPEN_CLIP 的 payload
-export function isOpenClipPayload(payload: unknown): payload is { id: string } {
+export function isOpenClipPayload(payload: unknown): payload is { id: string; useTextFragment?: boolean } {
   return (
     typeof payload === 'object' &&
     payload !== null &&
     'id' in payload &&
-    typeof (payload as { id: unknown }).id === 'string'
+    typeof (payload as { id: unknown }).id === 'string' &&
+    (!('useTextFragment' in payload) || typeof payload.useTextFragment === 'boolean')
   );
 }
 

@@ -3,11 +3,12 @@ import type { Clip } from '@/types/clip';
 import { clipService } from '@/background/services/clip-service';
 import { contentScriptService } from '@/background/services/content-script-service';
 import { delay, isSupportedHttpUrl } from '@/utils/helpers';
+import { createTextFragmentUrl } from '@/utils/clip/text-fragment';
 
 const FOCUS_MAX_ATTEMPTS = 5;
 const FOCUS_RETRY_DELAY_MS = 400;
 
-export async function handleOpenClip(clipId?: string): Promise<void> {
+export async function handleOpenClip(clipId?: string, useTextFragment = false): Promise<void> {
   if (!clipId) {
     throw new Error('缺少剪辑 ID');
   }
@@ -31,11 +32,16 @@ export async function handleOpenClip(clipId?: string): Promise<void> {
 
   // 获取当前活动标签页
   const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
-  if (!activeTab?.id) {
+  if (activeTab?.id === undefined) {
     throw new Error('无法获取当前标签页');
   }
 
   const tabId = activeTab.id;
+  if (useTextFragment && clip.textContent.trim()) {
+    await browser.tabs.update(tabId, { url: createTextFragmentUrl(clip) });
+    return;
+  }
+
   const currentUrl = activeTab.url || '';
   
   // 检查当前标签页是否已经在目标页面
@@ -87,9 +93,10 @@ function isSamePageUrl(url1: string, url2: string): boolean {
     const parsed1 = new URL(url1);
     const parsed2 = new URL(url2);
     return (
-      parsed1.protocol === parsed2.protocol &&
-      parsed1.hostname === parsed2.hostname &&
-      parsed1.pathname === parsed2.pathname
+      parsed1.origin === parsed2.origin &&
+      parsed1.pathname === parsed2.pathname &&
+      parsed1.search === parsed2.search &&
+      parsed1.hash.split(':~:')[0] === parsed2.hash.split(':~:')[0]
     );
   } catch {
     return false;

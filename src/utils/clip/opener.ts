@@ -20,7 +20,7 @@ export function useClipOpener(closeWindow = false) {
     try {
       const response = await sendMessage<MessageResponse>({
         type: 'OPEN_CLIP',
-        payload: { id: clip.id }
+        payload: { id: clip.id, useTextFragment: 'fragmentDirective' in document }
       });
       if (!response?.success) {
         throw new Error(response?.error ?? '无法打开剪辑');

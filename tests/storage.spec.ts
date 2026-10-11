@@ -7,6 +7,8 @@ import { cacheManager } from '@/background/storage/cache-manager';
 import { syncManager } from '@/background/storage/sync-manager';
 import { migrateClipsFromChromeStorage } from '@/background/migration';
 import { exportService } from '@/background/services/export-service';
+import { getClipsByUrlPaged } from '@/background/api';
+import { handleSaveClip } from '@/background/handlers/save-clip';
 import type { Clip } from '@/types/clip';
 
 const local = vi.hoisted(() => ({ get: vi.fn(), remove: vi.fn() }));
@@ -106,6 +108,15 @@ describe('clip storage transactions', () => {
     await saveClips([clip('old')]);
     await expect(exportService.importAll({ clips: [null as unknown as Clip] })).rejects.toThrow('invalid');
     expect((await getClips()).map(item => item.id)).toEqual(['old']);
+  });
+
+  it('lists clips after native text-fragment navigation and saves a canonical source URL', async () => {
+    await handleSaveClip({ textContent: 'quoted text', sourceUrl: 'https://example.com/article#:~:text=quoted%20text' });
+    const result = await getClipsByUrlPaged({
+      url: 'https://example.com/article#:~:text=quoted%20text', page: 1, pageSize: 20
+    });
+    expect(result.total).toBe(1);
+    expect(result.items[0].sourceUrl).toBe('https://example.com/article');
   });
 
   it('restores an empty backup by clearing existing clips', async () => {
