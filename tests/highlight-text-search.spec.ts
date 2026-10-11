@@ -4,6 +4,34 @@ import { findTextRangeInNode, normalizeWhitespace } from '@/content/highlight/te
 beforeEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ''; });
 
 describe('text range search', () => {
+  it('preserves range boundaries through every Latin-1 code unit and whitespace run', () => {
+    for (let code = 0; code <= 0xff; code++) {
+      const prefix = document.createTextNode('prefix' + String.fromCharCode(code).repeat(3));
+      const target = document.createElement('b'); target.textContent = 'TARGET!';
+      document.body.replaceChildren(prefix, target);
+      const full = findTextRangeInNode(document.body, normalizeWhitespace(document.body.textContent!).toLowerCase());
+      expect(full?.startContainer, `full start at ${code}`).toBe(prefix);
+      expect(full?.startOffset).toBe(0);
+      expect(full?.endContainer).toBe(target.firstChild);
+      expect(full?.endOffset, `full end at ${code}`).toBe(7);
+      const tail = findTextRangeInNode(document.body, 'target!');
+      expect(tail?.startContainer, `tail start at ${code}`).toBe(target.firstChild);
+      expect(tail?.startOffset).toBe(0);
+      expect(tail?.endOffset).toBe(7);
+    }
+  });
+
+  it.each(['\u1680', '\u2000', '\u2003', '\u2028', '\u2029', '\u202f', '\u205f', '\u3000', '\ufeff', '中文', 'İ', 'ΣΟΣ', '𐐀', '🙂'])('preserves the non-Latin-1 path around %s', prefix => {
+    const before = document.createTextNode('前文 ' + prefix.repeat(3));
+    const target = document.createElement('b'); target.textContent = 'İSTANBUL\u2003\u3000中文🙂';
+    document.body.replaceChildren(before, target);
+    const range = findTextRangeInNode(document.body, 'i\u0307stanbul 中文🙂');
+    expect(range?.toString()).toBe(target.textContent);
+    expect(range?.startContainer).toBe(target.firstChild);
+    expect(range?.startOffset).toBe(0);
+    expect(range?.endOffset).toBe(target.textContent.length);
+  });
+
   it.each([
     ['aab', 'ab'],
     ['aaab', 'aab'],

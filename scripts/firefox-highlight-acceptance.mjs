@@ -79,6 +79,19 @@ try{
  assert(bulkProof.timerCount>0&&bulkProof.timerCount<1000,'Page timer must run before the batch finishes');record('page timer runs during native restoration of 1000 highlights');
  assert.equal((await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:bulk.highlights,autoLocate:false}})).success,true);assert.equal(await inFixture(()=>document.querySelectorAll('[data-clipsey-id]').length),1000);
  await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[],autoLocate:false}});assert.equal(await inFixture(()=>document.querySelectorAll('[data-clipsey-id]').length),0);assert.equal(await inFixture(()=>document.body.textContent),bulk.original);record('native reversed 1000-item batch, repeat and clear preserve original text');
+ const mixed=await inFixture(()=>{
+  const prefix=document.createElement('p');prefix.id='mixed-prefix';prefix.textContent='prefix'+Array.from({length:256},(_,code)=>String.fromCharCode(code).repeat(3)).join('')+' 中文İΣΟΣ𐐀🙂\u1680\u2003\u3000';
+  const target=document.createElement('strong');target.id='mixed-target';target.textContent='İSTANBUL\u2003\u3000中文🙂 Café';
+  document.body.replaceChildren(prefix,target);return{original:document.body.textContent,quote:target.textContent};
+ });
+ assert.equal((await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[{highlightId:'mixed-boundaries',textContent:'i\u0307stanbul 中文🙂 café'}],autoLocate:false}})).success,true);
+ assert.equal(await inFixture(()=>document.querySelector('#mixed-target [data-clipsey-id="mixed-boundaries"]')?.textContent),mixed.quote);
+ assert.equal(await inFixture(()=>document.querySelectorAll('#mixed-prefix [data-clipsey-id]').length),0);
+ assert.equal(await inFixture(()=>document.body.textContent),mixed.original);
+ await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[],autoLocate:false}});
+ assert.equal(await inFixture(()=>document.body.textContent),mixed.original);
+ record('Latin-1 control prefix, Unicode spaces and case expansion restore the complete original quote');
+
 
  await inFixture(()=>{document.body.innerHTML='<p>one two three</p>'});const adjacent=[{textContent:'three',textOffset:8,highlightId:'three'},{textContent:'one',textOffset:0,highlightId:'one'},{textContent:'two',textOffset:4,highlightId:'two'}];assert.equal((await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:adjacent,autoLocate:false}})).success,true);assert.deepEqual(await inFixture(highs=>highs.map(h=>document.querySelector(`[data-clipsey-id="${h.highlightId}"]`)?.textContent),adjacent),adjacent.map(h=>h.textContent));record('adjacent quotes in a single text node retain live ranges');
  await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[],autoLocate:false}});
@@ -112,7 +125,7 @@ try{
  assert.equal(await inFixture(()=>document.querySelector('#override [data-clipsey-id="override"]')?.textContent),'visible override');
  record('visible descendants of visibility:hidden and display:contents remain highlightable');
  await command('/moz/context',{context:'chrome'});const extensionErrors=await run('return Services.console.getMessageArray().filter(m=>m.sourceName?.startsWith(arguments[0])&&!(m.flags&1)).map(m=>({message:m.errorMessage,source:m.sourceName,line:m.lineNumber}))',[`moz-extension://${uuid}/`]);assert.deepEqual(extensionErrors,[]);await command('/moz/context',{context:'content'});record('no extension URL script errors');
- await writeFile(join(artifactRoot,'result.json'),JSON.stringify({capabilities:started.capabilities,extensionRoot,fixtureUrl,paragraphs:10000,passed,extensionErrors,bulkAcceptance:{fixtureParagraphs:1000,payloadHighlights:1000,renderedCount:bulkProof.count,correctTargets:bulkProof.correct,pageTimerAtCount:bulkProof.timerCount},finalLibraryRecords:selectedVisible.data.clips.length},null,2));console.log('ARTIFACTS',artifactRoot);
+ await writeFile(join(artifactRoot,'result.json'),JSON.stringify({capabilities:started.capabilities,extensionRoot,fixtureUrl,paragraphs:10000,passed,extensionErrors,bulkAcceptance:{fixtureParagraphs:1000,payloadHighlights:1000,renderedCount:bulkProof.count,correctTargets:bulkProof.correct,pageTimerAtCount:bulkProof.timerCount},finalLibraryRecords:selectedVisible.data.clips.length,mixedTextAcceptance:{latin1PrefixCodeUnits:256,quote:mixed.quote}},null,2));console.log('ARTIFACTS',artifactRoot);
 }finally{
  if(session)try{await command('',undefined,'DELETE')}catch(e){console.error('CLEANUP',e.message)}
  driver.kill('SIGTERM');await new Promise(r=>fixtureServer.close(r));await writeFile(join(artifactRoot,'geckodriver.log'),log);await rm(profileRoot,{recursive:true,force:true});

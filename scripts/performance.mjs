@@ -9,7 +9,8 @@ const baseline = process.argv.includes('--baseline');
 const writes = process.argv.includes('--writes');
 const search = process.argv.includes('--search');
 const highlightScheduling = process.argv.includes('--highlight-scheduling');
-const highlights = process.argv.includes('--highlights') || highlightScheduling;
+const textMapping = process.argv.includes('--text-mapping');
+const highlights = process.argv.includes('--highlights') || highlightScheduling || textMapping;
 const cache = process.argv.includes('--cache');
 const index = process.argv.includes('--index');
 const normalize = process.argv.includes('--normalize');
@@ -61,7 +62,7 @@ const server = await createServer({
       server.middlewares.use((req, res, next) => {
         if (req.url?.split('?')[0] !== '/') return next();
         res.setHeader('Content-Type', 'text/html');
-        res.end(`<!doctype html><script type="module" src="/tests/performance/${keyLayout ? 'key-layout' : writeLayout ? 'write-layout' : pageCache ? 'page-cache' : writes ? 'writes' : urlRead ? 'url-read' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : search ? 'search' : highlightScheduling ? 'highlight-scheduling' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
+        res.end(`<!doctype html><script type="module" src="/tests/performance/${keyLayout ? 'key-layout' : writeLayout ? 'write-layout' : pageCache ? 'page-cache' : writes ? 'writes' : urlRead ? 'url-read' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : search ? 'search' : textMapping ? 'text-mapping' : highlightScheduling ? 'highlight-scheduling' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
       });
     }
   }]

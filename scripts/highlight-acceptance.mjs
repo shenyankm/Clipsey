@@ -95,6 +95,19 @@ try{
  await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[],autoLocate:false}});
  assert.equal(await page.locator('[data-clipsey-id]').count(),0);assert.equal(await page.evaluate(()=>document.body.textContent),bulk.original);
  record('native reversed 1000-item batch, repeat and clear preserve original text');
+ const mixed=await page.evaluate(()=>{
+  const prefix=document.createElement('p');prefix.id='mixed-prefix';prefix.textContent='prefix'+Array.from({length:256},(_,code)=>String.fromCharCode(code).repeat(3)).join('')+' 中文İΣΟΣ𐐀🙂\u1680\u2003\u3000';
+  const target=document.createElement('strong');target.id='mixed-target';target.textContent='İSTANBUL\u2003\u3000中文🙂 Café';
+  document.body.replaceChildren(prefix,target);return{original:document.body.textContent,quote:target.textContent};
+ });
+ assert.equal((await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[{highlightId:'mixed-boundaries',textContent:'i\u0307stanbul 中文🙂 café'}],autoLocate:false}})).success,true);
+ assert.equal(await page.evaluate(()=>document.querySelector('#mixed-target [data-clipsey-id="mixed-boundaries"]')?.textContent),mixed.quote);
+ assert.equal(await page.evaluate(()=>document.querySelectorAll('#mixed-prefix [data-clipsey-id]').length),0);
+ assert.equal(await page.evaluate(()=>document.body.textContent),mixed.original);
+ await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[],autoLocate:false}});
+ assert.equal(await page.evaluate(()=>document.body.textContent),mixed.original);
+ record('Latin-1 control prefix, Unicode spaces and case expansion restore the complete original quote');
+
  await page.evaluate(()=>{document.body.innerHTML='<p>one two three</p>';});
  const adjacent=[{textContent:'three',textOffset:8,highlightId:'three'},{textContent:'one',textOffset:0,highlightId:'one'},{textContent:'two',textOffset:4,highlightId:'two'}];
  assert.equal((await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:adjacent,autoLocate:false}})).success,true);
@@ -186,7 +199,7 @@ try{
  record('visible descendants of visibility:hidden and display:contents remain highlightable');
  assert.deepEqual(errors,[]);record('no extension or fixture page exceptions');
  await page.screenshot({path:join(artifacts,'highlights.png'),fullPage:true});
- await writeFile(join(artifacts,'result.json'),JSON.stringify({browser:await context.browser().version(),extensionPath:root,passed,errors,bulkAcceptance:{fixtureParagraphs:1000,payloadHighlights:1000,renderedCount:bulkProof.count,correctTargets:bulkProof.correct,pageTimerAtCount:bulkProof.timerCount},finalLibraryRecords:selectedVisible.data.clips.length},null,2));
+ await writeFile(join(artifacts,'result.json'),JSON.stringify({browser:await context.browser().version(),extensionPath:root,passed,errors,bulkAcceptance:{fixtureParagraphs:1000,payloadHighlights:1000,renderedCount:bulkProof.count,correctTargets:bulkProof.correct,pageTimerAtCount:bulkProof.timerCount},finalLibraryRecords:selectedVisible.data.clips.length,mixedTextAcceptance:{latin1PrefixCodeUnits:256,quote:mixed.quote}},null,2));
  console.log('ARTIFACTS:',artifacts);
 }catch(error){for(const [i,page]of (context?.pages() ?? []).entries())await page.screenshot({path:join(artifacts,`failure-${i}.png`),fullPage:false}).catch(()=>{});throw error;}
 finally{try{await context?.close();}finally{await rm(profile,{recursive:true,force:true});}}

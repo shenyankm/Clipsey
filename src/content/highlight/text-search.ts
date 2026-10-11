@@ -12,9 +12,12 @@ function mapNormalizedRangeToOriginal(original: string, normalizedStart: number,
   let start: number | undefined;
   const whitespacePattern = /\s/;
   for (let i = 0; i < original.length; i += 1) {
-    const char = original.charAt(i);
-    const whitespace = whitespacePattern.test(char);
-    const length = whitespace ? (inWhitespace ? 0 : 1) : char.toLowerCase().length;
+    const code = original.charCodeAt(i);
+    const latin1 = code <= 0xff;
+    const char = latin1 ? '' : original.charAt(i);
+    // Latin-1 小写仍占一个 UTF-16 单元，无需逐字符创建字符串。
+    const whitespace = latin1 ? code === 32 || code === 160 || (code >= 9 && code <= 13) : whitespacePattern.test(char);
+    const length = whitespace ? (inWhitespace ? 0 : 1) : latin1 ? 1 : char.toLowerCase().length;
     if (start === undefined && count + length > normalizedStart) start = i;
     if (count + length > normalizedEnd) return [start ?? i, i + 1];
     count += length;
