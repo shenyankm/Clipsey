@@ -150,6 +150,22 @@ try{
   await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[],autoLocate:false}});
   await page.evaluate(()=>document.querySelector('#changing-prefix').remove());
  }
+ await page.evaluate(()=>{document.body.innerHTML='<div id="hidden" style="display:none"><span>target</span></div><p>before <b id="visible">target</b> after</p>'});
+ assert.equal((await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[{highlightId:'hidden-fallback',textContent:'target',textOffset:13,anchorSelector:'#hidden span'}],autoLocate:false}})).success,true);
+ assert.equal(await page.evaluate(()=>document.querySelector('#visible [data-clipsey-id="hidden-fallback"]')?.textContent),'target');
+ assert.equal(await page.evaluate(()=>document.querySelectorAll('#hidden [data-clipsey-id]').length),0);
+ record('hidden duplicate and hidden selector are skipped when an older offset no longer matches');
+ await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[],autoLocate:false}});
+ await page.evaluate(()=>{const range=document.createRange();range.selectNodeContents(Array.from(document.querySelector('#visible').childNodes).find(node=>node.nodeType===Node.TEXT_NODE&&node.textContent==='target'));window.getSelection().removeAllRanges();window.getSelection().addRange(range)});
+ assert.equal((await send({type:'REQUEST_SELECTION'})).success,true);
+ const selectedVisible=await options.evaluate(()=>chrome.runtime.sendMessage({type:'EXPORT_DATA'}));
+ const visibleClip=selectedVisible.data.clips.find(c=>c.textContent==='target');assert(visibleClip);assert.equal(visibleClip.textOffset,7);assert.equal(visibleClip.contextBefore,'before ');assert.equal(visibleClip.contextAfter,' after');
+ record('native selection excludes nested hidden text from the saved offset and contexts');
+ await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[],autoLocate:false}});
+ await page.evaluate(()=>{document.body.innerHTML='<div style="visibility:hidden"><span id="override" style="visibility:visible;display:contents">visible override</span></div>'});
+ assert.equal((await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[{highlightId:'override',textContent:'visible override'}],autoLocate:false}})).success,true);
+ assert.equal(await page.evaluate(()=>document.querySelector('#override [data-clipsey-id="override"]')?.textContent),'visible override');
+ record('visible descendants of visibility:hidden and display:contents remain highlightable');
  assert.deepEqual(errors,[]);record('no extension or fixture page exceptions');
  await page.screenshot({path:join(artifacts,'highlights.png'),fullPage:true});
  await writeFile(join(artifacts,'result.json'),JSON.stringify({browser:await context.browser().version(),extensionPath:root,passed,errors},null,2));

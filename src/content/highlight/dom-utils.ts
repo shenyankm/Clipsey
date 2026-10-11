@@ -1,17 +1,34 @@
 // DOM 工具模块：安全选择器、文本节点遍历等
 
 // 创建文本节点 TreeWalker（默认 document.body，可传入自定义根节点）
-export function createTextNodeWalker(root: Node = document.body): TreeWalker | null {
+export function createTextNodeWalker(root: Node = document.body, includeWhitespace = false): TreeWalker | null {
   if (!root) return null;
   try {
     // 调用方同步遍历；下一次定位使用新 walker，重新检查页面样式。
     const visibleParents = new WeakMap<Element, boolean>();
+    const displayedAncestors = new WeakMap<Element, boolean>();
+    function ancestorsDisplayed(element: Element | null): boolean {
+      if (!element) return true;
+      const cached = displayedAncestors.get(element);
+      if (cached !== undefined) return cached;
+      const pending: Element[] = [];
+      let displayed = true;
+      while (element) {
+        const cached = displayedAncestors.get(element);
+        if (cached !== undefined) { displayed = cached; break; }
+        pending.push(element);
+        if (getComputedStyle(element)?.display === 'none') { displayed = false; break; }
+        element = element.parentElement;
+      }
+      for (const ancestor of pending) displayedAncestors.set(ancestor, displayed);
+      return displayed;
+    }
     return document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
         const parent = (node as Text).parentElement;
         if (!parent) return NodeFilter.FILTER_REJECT;
         const content = (node as Text).textContent ?? '';
-        if (!content.trim()) {
+        if (!includeWhitespace && !content.trim()) {
           return NodeFilter.FILTER_SKIP;
         }
         let visible = visibleParents.get(parent);
@@ -20,8 +37,15 @@ export function createTextNodeWalker(root: Node = document.body): TreeWalker | n
             visible = false;
           } else {
             try {
-              const style = getComputedStyle(parent);
-              visible = !style || (style.visibility !== 'hidden' && style.display !== 'none');
+              visible = ancestorsDisplayed(parent.parentElement);
+              if (!visible) displayedAncestors.set(parent, false);
+              if (visible) {
+                const style = getComputedStyle(parent);
+                const displayed = style?.display !== 'none';
+                displayedAncestors.set(parent, displayed);
+                // visibility 可由子元素覆盖，display:none 祖先则隐藏整个子树。
+                visible = displayed && style?.visibility !== 'hidden';
+              }
             } catch {
               // 样式读取失败不缓存，后续节点仍可重试。
               return NodeFilter.FILTER_ACCEPT;

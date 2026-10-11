@@ -78,6 +78,22 @@ try{
   if(mode==='media')await command('/window/rect',{width:700,height:700});
   assert.equal((await inOptions(()=>window.__pendingActivation)).success,true);await waitFixture(()=>window.__secondPaintDisplay!==undefined);assert.equal(await inFixture(()=>window.__secondPaintDisplay),'none');assert.equal(await inFixture(()=>getComputedStyle(document.querySelector('#before')).display),'none');assert.equal(await inFixture(()=>document.querySelector('#original [data-clipsey-id="second"]')?.textContent),'two');assert.equal(await inFixture(()=>document.querySelectorAll('#duplicate [data-clipsey-id="second"]').length),0);record(`${mode} preceding hiding retains the original duplicate quote`);await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[],autoLocate:false}});await inFixture(()=>document.querySelector('#changing-prefix').remove());
  }
+ await inFixture(()=>{document.body.innerHTML='<div id="hidden" style="display:none"><span>target</span></div><p>before <b id="visible">target</b> after</p>'});
+ assert.equal((await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[{highlightId:'hidden-fallback',textContent:'target',textOffset:13,anchorSelector:'#hidden span'}],autoLocate:false}})).success,true);
+ assert.equal(await inFixture(()=>document.querySelector('#visible [data-clipsey-id="hidden-fallback"]')?.textContent),'target');
+ assert.equal(await inFixture(()=>document.querySelectorAll('#hidden [data-clipsey-id]').length),0);
+ record('hidden duplicate and hidden selector are skipped when an older offset no longer matches');
+ await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[],autoLocate:false}});
+ await inFixture(()=>{const range=document.createRange();range.selectNodeContents(Array.from(document.querySelector('#visible').childNodes).find(node=>node.nodeType===Node.TEXT_NODE&&node.textContent==='target'));window.getSelection().removeAllRanges();window.getSelection().addRange(range)});
+ assert.equal((await send({type:'REQUEST_SELECTION'})).success,true);
+ const selectedVisible=await inOptions(()=>browser.runtime.sendMessage({type:'EXPORT_DATA'}));
+ const visibleClip=selectedVisible.data.clips.find(c=>c.textContent==='target');assert(visibleClip);assert.equal(visibleClip.textOffset,7);assert.equal(visibleClip.contextBefore,'before ');assert.equal(visibleClip.contextAfter,' after');
+ record('native selection excludes nested hidden text from the saved offset and contexts');
+ await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[],autoLocate:false}});
+ await inFixture(()=>{document.body.innerHTML='<div style="visibility:hidden"><span id="override" style="visibility:visible;display:contents">visible override</span></div>'});
+ assert.equal((await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[{highlightId:'override',textContent:'visible override'}],autoLocate:false}})).success,true);
+ assert.equal(await inFixture(()=>document.querySelector('#override [data-clipsey-id="override"]')?.textContent),'visible override');
+ record('visible descendants of visibility:hidden and display:contents remain highlightable');
  await command('/moz/context',{context:'chrome'});const extensionErrors=await run('return Services.console.getMessageArray().filter(m=>m.sourceName?.startsWith(arguments[0])&&!(m.flags&1)).map(m=>({message:m.errorMessage,source:m.sourceName,line:m.lineNumber}))',[`moz-extension://${uuid}/`]);assert.deepEqual(extensionErrors,[]);await command('/moz/context',{context:'content'});record('no extension URL script errors');
  await writeFile(join(artifactRoot,'result.json'),JSON.stringify({capabilities:started.capabilities,extensionRoot,fixtureUrl,paragraphs:10000,passed,extensionErrors},null,2));console.log('ARTIFACTS',artifactRoot);
 }finally{

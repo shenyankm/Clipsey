@@ -1,6 +1,8 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { captureHighlightMetadata } from '@/content/highlight/metadata';
 import { createTextNodeWalker } from '@/content/highlight/dom-utils';
+import { locateByOffset } from '@/content/highlight/locators/offset-locator';
+import { LocationStrategy } from '@/content/highlight/locators';
 
 beforeEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ''; });
 
@@ -49,7 +51,7 @@ it('stops visiting the tail once the following 64 characters have been captured'
   const expected = fullDocumentContext(range);
   const styles = vi.spyOn(window, 'getComputedStyle');
   expect(captureHighlightMetadata(range, null, 'fixture')).toMatchObject(expected);
-  expect(styles).toHaveBeenCalledTimes(3);
+  expect(styles).toHaveBeenCalledTimes(5);
 });
 
 it('avoids scanning for element boundaries or detached text that cannot provide an offset', () => {
@@ -71,11 +73,11 @@ it('checks a fragmented parent once per walker and sees changed styles on the ne
   const styles = vi.spyOn(window, 'getComputedStyle');
   let walker = createTextNodeWalker()!;
   expect([walker.nextNode()?.textContent, walker.nextNode()?.textContent, walker.nextNode()?.textContent]).toEqual(['one', 'two', 'three']);
-  expect(styles).toHaveBeenCalledTimes(1);
+  expect(styles).toHaveBeenCalledTimes(3);
   p.style.display = 'none';
   walker = createTextNodeWalker()!;
   expect(walker.nextNode()).toBeNull();
-  expect(styles).toHaveBeenCalledTimes(2);
+  expect(styles).toHaveBeenCalledTimes(6);
 });
 
 it('retries a style read after a transient failure and keeps excluded elements filtered', () => {
@@ -88,7 +90,26 @@ it('retries a style read after a transient failure and keeps excluded elements f
   const walker = createTextNodeWalker()!;
   expect(walker.nextNode()?.textContent).toBe('first');
   expect(walker.nextNode()).toBeNull();
-  expect(styles).toHaveBeenCalledTimes(2);
+  expect(styles).toHaveBeenCalledTimes(4);
   document.body.innerHTML = '<script>secret</script><style>body{}</style><svg><text>svg</text></svg><canvas>canvas</canvas><p>visible</p>';
   expect(createTextNodeWalker()!.nextNode()?.textContent).toBe('visible');
+});
+
+it('excludes nested hidden text from offsets and restores records with older offsets', () => {
+  document.body.innerHTML = '<div style="display:none"><b>hidden prefix </b></div><p>before <span id="target">target</span> after</p>';
+  const text = document.querySelector('#target')!.firstChild!;
+  const range = document.createRange();
+  range.selectNodeContents(text);
+  expect(captureHighlightMetadata(range, null, 'visible')).toMatchObject({ textOffset: 7, contextBefore: 'before ', contextAfter: ' after' });
+  expect(locateByOffset(7, 6)?.startContainer).toBe(text);
+  expect(LocationStrategy.locate({ text: 'target', textOffset: 21 })?.startContainer).toBe(text);
+});
+
+it('does not read the style of every descendant of a hidden ancestor', () => {
+  document.body.innerHTML = '<div style="display:none">' + '<p>prefix <b>quote</b> tail</p>'.repeat(100) + '</div><p>visible</p>';
+  const styles = vi.spyOn(window, 'getComputedStyle');
+  const walker = createTextNodeWalker()!;
+  expect(walker.nextNode()?.textContent).toBe('visible');
+  expect(walker.nextNode()).toBeNull();
+  expect(styles).toHaveBeenCalledTimes(4);
 });

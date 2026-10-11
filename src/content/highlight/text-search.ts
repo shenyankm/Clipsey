@@ -1,3 +1,5 @@
+import { createTextNodeWalker } from './dom-utils';
+
 // 规范化空白：连续空白合并为单个空格。
 export function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
@@ -38,23 +40,11 @@ export function findTextRangeInNode(root: Node, text: string, skipHighlighted = 
   const query = normalizeWhitespace(text).toLowerCase();
   if (!query) return null;
 
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode(node) {
-      const parent = node.parentElement;
-      if (!parent || parent.closest('script, style, noscript, svg, canvas')) {
-        return NodeFilter.FILTER_REJECT;
-      }
-      try {
-        const style = getComputedStyle(parent);
-        if (style.visibility === 'hidden' || style.display === 'none') {
-          return NodeFilter.FILTER_REJECT;
-        }
-      } catch {}
-      return NodeFilter.FILTER_ACCEPT;
-    }
-  });
+  const walker = createTextNodeWalker(root, true);
+  if (!walker) return null;
   const nodes: Text[] = [];
-  if (root instanceof Text) nodes.push(root);
+  const filter = walker.filter as { acceptNode(node: Node): number };
+  if (root instanceof Text && filter.acceptNode(root) === NodeFilter.FILTER_ACCEPT) nodes.push(root);
   let node = walker.nextNode();
   while (node) {
     nodes.push(node as Text);

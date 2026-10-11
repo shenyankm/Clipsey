@@ -125,8 +125,23 @@ try {
     };
     results.push({ paragraphs: texts.length, fragmented, captures, restore, textSearch, activation, fallbackActivation });
   }
+  const hiddenResults = [];
+  for (const hiddenParagraphs of reverse ? [10000, 100] : [100, 10000]) {
+    const hidden = '<div id="hidden" style="display:none">' + Array.from({ length: hiddenParagraphs }, (_, i) => `<p>hidden prefix ${i} <b>hidden-quote-${i}</b> tail</p>`).join('') + '</div>';
+    document.body.innerHTML = hidden + '<p>before <b id="visible">visible-target</b> after</p>';
+    const target = document.querySelector('#visible')!.firstChild!;
+    const search = measure(() => {
+      const range = findTextRangeInNode(document.body, 'visible-target');
+      assert(range?.startContainer === target && range.toString() === 'visible-target', 'Wrong visible target after hidden content');
+    });
+    const missing = measure(() => { assert(findTextRangeInNode(document.body, 'missing-target') === null, 'Unexpected match'); });
+    const range = document.createRange();
+    range.selectNodeContents(target);
+    const metadata = captureHighlightMetadata(range, null, 'visible');
+    hiddenResults.push({ hiddenParagraphs, search, missing, textOffset: metadata?.textOffset, expectedVisibleOffset: 7 });
+  }
   window.getComputedStyle = readStyle;
-  (window as any).__performanceResult = { userAgent: navigator.userAgent, scenario: 'highlights', reverse, results };
+  (window as any).__performanceResult = { userAgent: navigator.userAgent, scenario: 'highlights', reverse, results, hiddenResults };
 } catch (error) {
   (window as any).__performanceResult = { error: String(error) };
 }

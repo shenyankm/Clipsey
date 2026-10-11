@@ -39,6 +39,21 @@ describe('text range search', () => {
     expect(findTextRangeInNode(document.body, 'missing')).toBeNull();
   });
 
+  it('ignores hidden ancestors outside custom element and text roots', () => {
+    document.body.innerHTML = '<div style="display:none"><span id="hidden">target</span></div><p id="visible">target</p>';
+    const hidden = document.querySelector('#hidden')!;
+    expect(findTextRangeInNode(document.body, 'target')?.startContainer).toBe(document.querySelector('#visible')!.firstChild);
+    expect(findTextRangeInNode(hidden, 'target')).toBeNull();
+    expect(findTextRangeInNode(hidden.firstChild!, 'target')).toBeNull();
+    (hidden.parentElement as HTMLElement).style.display = 'block';
+    expect(findTextRangeInNode(hidden.firstChild!, 'target')?.toString()).toBe('target');
+  });
+
+  it('keeps visible overrides and text under display:contents', () => {
+    document.body.innerHTML = '<div style="visibility:hidden"><span style="visibility:visible;display:contents">target</span></div>';
+    expect(findTextRangeInNode(document.body, 'target')?.toString()).toBe('target');
+  });
+
   it('maps late matches across whitespace and case-expansion boundaries', () => {
     document.body.innerHTML = '<p>prefix \t\n <span>İ</span><b>STANBUL</b> \r\n <i>🙂</i>  suffix</p>';
     const range = findTextRangeInNode(document.body, 'i\u0307stanbul 🙂');
