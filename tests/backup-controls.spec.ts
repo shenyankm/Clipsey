@@ -18,6 +18,7 @@ const backup = { clips: [{ id: 'saved', textContent: 'Quote: "你好 👋"\nNext
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv('BROWSER', 'chrome');
   vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:backup'), revokeObjectURL: vi.fn() }));
   vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
   container = document.createElement('div');
@@ -32,6 +33,7 @@ afterEach(() => {
   container.remove();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 async function chooseFile(data: unknown, invalidJSON = false) {
@@ -44,8 +46,9 @@ async function chooseFile(data: unknown, invalidJSON = false) {
   await vi.waitFor(() => expect(ui.confirm.mock.calls.length + ui.error.mock.calls.length).toBeGreaterThan(0));
 }
 
-it('downloads a JSON backup and releases the object URL', async () => {
-  vi.mocked(sendRuntimeMessage).mockResolvedValue({ success: true, data: backup });
+it.each(['chrome', 'edge', 'firefox'])('downloads a %s JSON backup and releases the object URL', async browser => {
+  vi.stubEnv('BROWSER', browser);
+  vi.mocked(sendRuntimeMessage).mockResolvedValue({ success: true, data: browser === 'firefox' ? JSON.stringify(backup) : backup });
   container.querySelector('button')!.click();
   await vi.waitFor(() => expect(ui.success).toHaveBeenCalledWith('backupExported'));
   const blob = vi.mocked(URL.createObjectURL).mock.calls[0][0] as Blob;
@@ -55,12 +58,23 @@ it('downloads a JSON backup and releases the object URL', async () => {
     reader.readAsText(blob);
   });
   expect(JSON.parse(text)).toEqual(backup);
+  expect(text).toBe(JSON.stringify(backup));
+  expect(sendRuntimeMessage).toHaveBeenCalledWith({ type: browser === 'firefox' ? 'EXPORT_BACKUP_JSON' : 'EXPORT_DATA' });
   expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1);
   expect((vi.mocked(HTMLAnchorElement.prototype.click).mock.instances[0] as HTMLAnchorElement).download).toMatch(/^clipsey-backup-.*\.json$/);
   await vi.waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:backup'));
 });
 
-it('reports an export failure without creating a download', async () => {
+it.each(['chrome', 'firefox'])('reports a %s export failure without creating a download', async browser => {
+  vi.stubEnv('BROWSER', browser);
+  vi.mocked(sendRuntimeMessage).mockResolvedValueOnce({ success: false, error: 'Failed to read storage' });
+  container.querySelector('button')!.click();
+  await vi.waitFor(() => expect(ui.error).toHaveBeenCalledWith('backupExportFailed'));
+  expect(URL.createObjectURL).not.toHaveBeenCalled();
+  expect(ui.success).not.toHaveBeenCalled();
+});
+
+it('reports an unavailable runtime without creating a download', async () => {
   vi.mocked(sendRuntimeMessage).mockRejectedValueOnce(new Error('No receiver'));
   container.querySelector('button')!.click();
   await vi.waitFor(() => expect(ui.error).toHaveBeenCalledWith('backupExportFailed'));

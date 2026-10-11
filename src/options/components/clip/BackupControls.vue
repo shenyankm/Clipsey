@@ -22,9 +22,11 @@ const fileInput = ref<HTMLInputElement | null>(null);
 async function exportBackup() {
   busy.value = true;
   try {
-    const response = await sendRuntimeMessage<Awaited<ReturnType<typeof exportAllData>>>({ type: 'EXPORT_DATA' });
+    const response = await sendRuntimeMessage<string | Awaited<ReturnType<typeof exportAllData>>>({
+      type: import.meta.env.BROWSER === 'firefox' ? 'EXPORT_BACKUP_JSON' : 'EXPORT_DATA'
+    });
     if (!response.success || !response.data) throw new Error(response.error);
-    const blob = new Blob([JSON.stringify(response.data)], { type: 'application/json' });
+    const blob = new Blob([typeof response.data === 'string' ? response.data : JSON.stringify(response.data)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     try {
       const link = document.createElement('a');

@@ -60,13 +60,14 @@ try{
    if(i)fullSamples.push(result.ms);
   }
   record(`${size}: real import, URL page two, full record order/fields and private-field isolation`);
-  const samples={pretty:[],compact:[]};
-  await evaluate(()=>{window.__backupOperation=async mode=>{const start=performance.now();const response=await browser.runtime.sendMessage({type:'EXPORT_DATA'});const replied=performance.now();if(!response.success)throw new Error('Export failed');const json=mode==='pretty'?JSON.stringify(response.data,null,2):JSON.stringify(response.data);const serialized=performance.now();const blob=new Blob([json],{type:'application/json'});const end=performance.now();window.__backupBlob=blob;return{messageMs:replied-start,serializeMs:serialized-replied,blobMs:end-serialized,totalMs:end-start,bytes:blob.size}}});
+  const samples={pretty:[],compact:[],backgroundJson:[]};
+  await evaluate(()=>{window.__backupOperation=async mode=>{const start=performance.now();const response=await browser.runtime.sendMessage({type:mode==='backgroundJson'?'EXPORT_BACKUP_JSON':'EXPORT_DATA'});const replied=performance.now();if(!response.success)throw new Error('Export failed');const json=mode==='backgroundJson'?response.data:mode==='pretty'?JSON.stringify(response.data,null,2):JSON.stringify(response.data);if(typeof json!=='string')throw new Error('Not a JSON string');const serialized=performance.now();const blob=new Blob([json],{type:'application/json'});const end=performance.now();window.__backupBlob=blob;return{messageMs:replied-start,serializeMs:serialized-replied,blobMs:end-serialized,totalMs:end-start,bytes:blob.size}}});
   const validateBackup=()=>evaluate(async()=>{const data=JSON.parse(await window.__backupBlob.text());const expected=window.__clips.toReversed();if(data.version!=='2.0'||isNaN(Date.parse(data.exportedAt))||data.errorLogs.length!==0||data.clips.length!==expected.length)throw new Error('Backup envelope changed');for(let i=0;i<expected.length;i++){const c=data.clips[i];if('__clipseyUrlKey' in c||Object.keys(c).length!==Object.keys(expected[i]).length||Object.entries(expected[i]).some(([k,v])=>c[k]!==v))throw new Error('Backup data changed');}return true});
-  for(const mode of ['pretty','compact']){await evaluate(mode=>window.__backupOperation(mode),mode);assert(await validateBackup())}
-  for(let i=0;i<7;i++)for(const mode of (i+Number(process.argv.includes('--reverse')))%2?['compact','pretty']:['pretty','compact']){await evaluate(()=>{window.__backupBlob=null});samples[mode].push(await evaluate(mode=>window.__backupOperation(mode),mode));assert(await validateBackup())}
+  const modes=Object.keys(samples);if(process.argv.includes('--reverse'))modes.reverse();
+  for(const mode of modes){await evaluate(mode=>window.__backupOperation(mode),mode);assert(await validateBackup())}
+  for(let i=0;i<7;i++)for(const mode of [...modes.slice(i%3),...modes.slice(0,i%3)]){await evaluate(()=>{window.__backupBlob=null});samples[mode].push(await evaluate(mode=>window.__backupOperation(mode),mode));assert(await validateBackup())}
   results.push({size,importMs:imported.ms,pageSamples,fullSamples,samples});
-  record(`${size}: both backup encodings preserve every field in all measured samples`);
+  record(`${size}: all backup transports and encodings preserve every field in all measured samples`);
   await evaluate(()=>{const input=document.querySelector('.clip-manager input.ant-input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'@content NEEDLE');input.dispatchEvent(new Event('input',{bubbles:true}));});
   await waitFor(size=>document.querySelector('.clip-toolbar__stat-value')?.textContent===String(size/2)&&!document.querySelector('.ant-spin-spinning'),size);
   assert.deepEqual(await run('return Array.from(document.querySelectorAll("tr.ant-table-row td:first-child"),e=>e.textContent)'),clips.filter(c=>c.textContent.includes('Needle')).toReversed().slice(0,20).map(c=>c.title));

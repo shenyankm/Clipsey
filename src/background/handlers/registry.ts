@@ -99,6 +99,12 @@ registry.register('EXPORT_DATA', async () => {
   return wrapHandler(() => exportAllData(), 'Export data');
 });
 
+if (import.meta.env.BROWSER === 'firefox') {
+  registry.register('EXPORT_BACKUP_JSON', async () => {
+    return wrapHandler(async () => JSON.stringify(await exportAllData()), 'Export data');
+  });
+}
+
 registry.register('IMPORT_DATA', async (message) => {
   if (!isImportDataPayload(message.payload)) {
     return ResponseBuilder.validationError('Invalid IMPORT_DATA payload');

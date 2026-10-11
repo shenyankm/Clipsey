@@ -71,6 +71,10 @@ export interface ExportDataMessage extends RuntimeMessage {
   type: 'EXPORT_DATA';
 }
 
+export interface ExportBackupJsonMessage extends RuntimeMessage {
+  type: 'EXPORT_BACKUP_JSON';
+}
+
 export interface ImportDataMessage extends RuntimeMessage {
   type: 'IMPORT_DATA';
   payload: {
@@ -142,5 +146,6 @@ export type AppMessage =
   | RemoveHighlightMessage
   | LogErrorMessage
   | ExportDataMessage
+  | ExportBackupJsonMessage
   | ImportDataMessage
   | RefreshCacheMessage;

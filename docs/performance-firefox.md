@@ -2,6 +2,8 @@
 
 2026-10-12；源码基准 `8ad216d`。以 10,000 条摘录为主要规模，兼顾 100 条。本阶段只增加测试脚本和证据，没有修改生产源码、依赖、权限或数据库版本。
 
+后续[Firefox 备份消息传输优化](./performance-firefox-backup.md)将正式备份改为后台返回紧凑 JSON，并重新执行上述流程。下面保留本阶段的测量与边界；当前脚本已增加后台 JSON 的比较。
+
 ## 环境和方法
 
 macOS arm64，Node.js 22.23.2，Playwright 下载的测试用 Firefox 153.0（Nightly，build ID `20260722112722`），geckodriver 0.37.1。它包含 Playwright 补丁，不等同于当前正式发行版。本轮通过原生 WebDriver 加载当前 `.output/firefox-mv2`，没有使用浏览器 API 桩，也没有通过 Playwright 自动化 Firefox。
