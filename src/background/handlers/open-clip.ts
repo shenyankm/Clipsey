@@ -38,6 +38,7 @@ export async function handleOpenClip(clipId?: string, useTextFragment = false): 
 
   const tabId = activeTab.id;
   if (useTextFragment && clip.textContent.trim()) {
+    // shortcut: 原生匹配失败时仅打开原文，需要自动回退时再增加匹配确认。
     await browser.tabs.update(tabId, { url: createTextFragmentUrl(clip) });
     return;
   }

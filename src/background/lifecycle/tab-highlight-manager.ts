@@ -69,7 +69,7 @@ export class TabHighlightManager {
     await delay(HIGHLIGHT_INITIAL_DELAY_MS);
 
     for (let attempt = 0; attempt < HIGHLIGHT_MAX_ATTEMPTS; attempt += 1) {
-      const success = await sendHighlightsToTab(tabId, highlights);
+      const success = await sendHighlightsToTab(tabId, highlights, !url.includes(':~:text='));
       if (success) {
         console.log(`[Highlight] Successfully activated highlights on attempt ${attempt + 1}`);
         return;

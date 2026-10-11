@@ -59,7 +59,7 @@ export interface RemoveHighlightMessage extends RuntimeMessage {
 
 export interface ActivateHighlightsMessage extends RuntimeMessage {
   type: 'ACTIVATE_HIGHLIGHTS';
-  payload: { highlights: HighlightPayload[] };
+  payload: { highlights: HighlightPayload[]; autoLocate?: boolean };
 }
 
 export interface LogErrorMessage extends RuntimeMessage {

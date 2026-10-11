@@ -94,7 +94,9 @@ export function initSelectionContentScript(): () => void {
           .then(async success => {
             sendResponse({ success } satisfies MessageResponse);
             try {
-              await tryAutoLocateLatestSummaryIfEnabled(success);
+              if (message?.payload?.autoLocate !== false) {
+                await tryAutoLocateLatestSummaryIfEnabled(success);
+              }
             } catch {
               // 忽略自动定位失败，避免影响用户操作
             }

@@ -75,11 +75,11 @@ export function buildHighlightPayloads(clips: Clip[]): HighlightPayload[] {
   return highlights;
 }
 
-export async function sendHighlightsToTab(tabId: number, highlights: HighlightPayload[]): Promise<boolean> {
+export async function sendHighlightsToTab(tabId: number, highlights: HighlightPayload[], autoLocate = true): Promise<boolean> {
   const sendRequest = async (): Promise<boolean> => {
     const response = await contentScriptService.sendMessageToTab<MessageResponse<unknown>>(tabId, {
       type: 'ACTIVATE_HIGHLIGHTS',
-      payload: { highlights }
+      payload: { highlights, autoLocate }
     });
     return Boolean(response?.success);
   };
