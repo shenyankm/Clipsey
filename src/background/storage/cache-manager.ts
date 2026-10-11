@@ -11,17 +11,21 @@ export class CacheManager {
 
   // 获取缓存的剪辑（必要时触发加载并建立索引）
   async get(loader: () => Promise<Clip[]>): Promise<Clip[]> {
+    return this.clone(await this.load(loader));
+  }
+
+  private async load(loader: () => Promise<Clip[]>): Promise<Clip[]> {
     if (this.cachedClips) {
-      return this.clone(this.cachedClips);
+      return this.cachedClips;
     }
 
     if (!this.inflightLoad) {
       const revision = this.revision;
       const request = loader()
         .then(clips => {
-          if (revision !== this.revision) return this.get(loader);
+          if (revision !== this.revision) return this.load(loader);
           this.update(clips);
-          return this.clone(this.cachedClips ?? []);
+          return this.cachedClips!;
         })
         .finally(() => {
           if (this.inflightLoad === request) this.inflightLoad = null;
@@ -29,11 +33,12 @@ export class CacheManager {
       this.inflightLoad = request;
     }
 
-    return this.clone(await this.inflightLoad);
+    return this.inflightLoad;
   }
 
-  // 按 URL 查找剪辑
-  getByUrl(url: string): Clip[] {
+  // 只克隆 URL 命中的记录，避免为确保加载而复制整个缓存。
+  async getByUrl(url: string, loader: () => Promise<Clip[]>): Promise<Clip[]> {
+    await this.load(loader);
     return this.clone(lookupClipsForUrl(this.clipIndex, url));
   }
 

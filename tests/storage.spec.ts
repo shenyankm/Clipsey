@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { indexedDBManager } from '@/background/indexeddb';
 import { IndexedDBQuery } from '@/background/indexeddb-query';
-import { addClip, clearClips, deleteClip, getClips, saveClips } from '@/background/storage';
+import { addClip, clearClips, deleteClip, getClips, getClipsForUrl, saveClips } from '@/background/storage';
 import { cacheManager } from '@/background/storage/cache-manager';
 import { syncManager } from '@/background/storage/sync-manager';
 import { migrateClipsFromChromeStorage } from '@/background/migration';
@@ -102,6 +102,18 @@ describe('clip storage transactions', () => {
     read.mockRestore();
     await indexedDBManager.put('clips', clip('old'));
     expect(await getClips()).toHaveLength(1);
+  });
+
+  it('uses the URL index without requesting full cache copies', async () => {
+    await saveClips([clip('matching'), { ...clip('other'), sourceUrl: 'https://other.com' }]);
+    const fullCacheRead = vi.spyOn(cacheManager, 'get');
+    const databaseRead = vi.spyOn(IndexedDBQuery, 'getAll');
+    const matches = await getClipsForUrl('https://example.com/article');
+    expect(matches.map(item => item.id)).toEqual(['matching']);
+    matches[0].textContent = 'changed';
+    expect((await getClipsForUrl('https://example.com/article'))[0].textContent).toBe('Text matching');
+    expect(databaseRead).toHaveBeenCalledTimes(1);
+    expect(fullCacheRead).not.toHaveBeenCalled();
   });
 
   it('rejects malformed backups before modifying existing data', async () => {

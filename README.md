@@ -33,6 +33,8 @@ pnpm build:all
 
 依赖采用最新稳定兼容版本。TypeScript 暂使用 6.0.3：当前 vue-tsc 3.3.13 无法调用 TypeScript 7 的编译器入口，待上游兼容后再升级。测试使用 jsdom 与 fake-indexeddb，覆盖存储事务、迁移、缓存同步、高亮和原文链接；真实网页的原生滚动效果仍需浏览器验收。
 
+性能审查、真实 Chrome 对照数据与复跑方式见 [性能验收记录](docs/performance.md)。
+
 ---
 
 [提交反馈](https://github.com/Shenean/Clipsey/issues) | [GitHub](https://github.com/Shenean/Clipsey)

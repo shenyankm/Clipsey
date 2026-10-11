@@ -32,8 +32,7 @@ export async function getClips(): Promise<Clip[]> {
 // 按 URL 获取剪辑（使用缓存）
 export async function getClipsForUrl(url: string): Promise<Clip[]> {
   await ensureInitialized();
-  await cacheManager.get(() => loadClipsFromStorage());
-  return cacheManager.getByUrl(url);
+  return cacheManager.getByUrl(url, () => loadClipsFromStorage());
 }
 
 // 替换全部剪辑：删除和写入必须一起提交或回滚。

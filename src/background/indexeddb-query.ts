@@ -49,8 +49,13 @@ export class IndexedDBQuery {
 
             // 跳过 offset 指定数量的记录
             if (skipped < offset) {
-              skipped++;
-              cursor.continue();
+              if (Number.isSafeInteger(offset) && offset <= 0xffffffff) {
+                skipped = offset;
+                cursor.advance(offset);
+              } else {
+                skipped++;
+                cursor.continue();
+              }
               return;
             }
 
