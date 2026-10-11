@@ -9,10 +9,13 @@ const baseline = process.argv.includes('--baseline');
 const writes = process.argv.includes('--writes');
 const search = process.argv.includes('--search');
 const highlights = process.argv.includes('--highlights');
+const cache = process.argv.includes('--cache');
+const allocations = process.argv.includes('--allocations');
+if (allocations && !cache) throw new Error('--allocations requires --cache');
 const baselineRef = baseline
   ? execFileSync('git', ['rev-parse', process.env.BASELINE_REF ?? 'HEAD'], { encoding: 'utf8' }).trim()
   : undefined;
-const legacyUrlLookup = baseline && !writes && !search && !highlights && !/async getByUrl\(/.test(
+const legacyUrlLookup = baseline && !writes && !search && !highlights && !cache && !/async getByUrl\(/.test(
   execFileSync('git', ['show', `${baselineRef}:src/background/storage/cache-manager.ts`], { encoding: 'utf8' })
 );
 const profile = await mkdtemp(join(tmpdir(), 'clipsey-perf-'));
@@ -28,6 +31,7 @@ const server = await createServer({
       const path = id.split('?')[0];
       const files = writes
         ? ['src/background/storage.ts', 'src/background/storage/sync-manager.ts']
+        : cache ? ['src/background/storage.ts', 'src/background/storage/cache-manager.ts']
         : search ? ['src/background/services/search-service.ts', 'src/background/indexeddb-query.ts']
         : highlights ? ['src/content/highlight/dom-utils.ts', 'src/content/highlight/metadata.ts', 'src/content/highlight/locators/offset-locator.ts', 'src/content/highlight-engine.ts']
         : ['src/background/storage/cache-manager.ts', 'src/background/indexeddb-query.ts'];
@@ -45,7 +49,7 @@ const server = await createServer({
       server.middlewares.use((req, res, next) => {
         if (req.url !== '/') return next();
         res.setHeader('Content-Type', 'text/html');
-        res.end(`<!doctype html><script type="module" src="/tests/performance/${writes ? 'writes' : search ? 'search' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
+        res.end(`<!doctype html><script type="module" src="/tests/performance/${writes ? 'writes' : cache ? 'cache' : search ? 'search' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
       });
     }
   }]
@@ -107,6 +111,34 @@ try {
     result = response.result.value;
   }
   if (result.error) throw new Error(result.error);
+  if (allocations) {
+    const describe = await send('Runtime.evaluate', {
+      expression: 'window.__cacheAllocationCases.map(({ records, name }) => ({ records, name }))', returnByValue: true
+    });
+    const cases = describe.result.value;
+    if (!Array.isArray(cases)) throw new Error('Missing cache allocation cases');
+    const evaluate = async expression => {
+      const reply = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+      if (reply.exceptionDetails) throw new Error(JSON.stringify(reply.exceptionDetails));
+    };
+    const size = node => node.selfSize + node.children.reduce((sum, child) => sum + size(child), 0);
+    result.allocationSamples = [];
+    for (const [index, scenario] of cases.entries()) {
+      const samplesBytes = [];
+      for (let i = 0; i < 7; i++) {
+        await evaluate(`window.__cacheAllocationCases[${index}].prepare()`);
+        await send('HeapProfiler.collectGarbage');
+        await send('HeapProfiler.startSampling', {
+          samplingInterval: 16384, includeObjectsCollectedByMajorGC: true, includeObjectsCollectedByMinorGC: true
+        });
+        await evaluate(`window.__cacheAllocationCases[${index}].operation()`);
+        const { profile } = await send('HeapProfiler.stopSampling');
+        samplesBytes.push(size(profile.head));
+      }
+      result.allocationSamples.push({ ...scenario, medianBytes: samplesBytes.toSorted((a, b) => a - b)[3], samplesBytes });
+    }
+  }
+  await send('Runtime.evaluate', { expression: 'window.__performanceCleanup?.()' });
   console.log(JSON.stringify({ mode: baseline ? 'baseline' : 'working-tree', baselineRef: baseline ? baselineRef : undefined, ...result }, null, 2));
 } finally {
   socket?.close();

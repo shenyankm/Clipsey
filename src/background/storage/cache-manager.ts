@@ -46,8 +46,7 @@ export class CacheManager {
   update(clips: Clip[]): void {
     this.revision += 1;
     this.inflightLoad = null;
-    const normalized = normalizeClips(clips);
-    this.cachedClips = this.clone(normalized);
+    this.cachedClips = normalizeClips(clips);
     this.clipIndex = buildClipIndex(this.cachedClips);
   }
 

@@ -57,4 +57,20 @@ describe('clip cache invalidation', () => {
     result[0].textContent = 'changed by caller';
     expect((await cache.get(loader))[0].textContent).toBe('saved');
   });
+
+  it('isolates input records and keeps normalization at the cache boundary', async () => {
+    const cache = new CacheManager();
+    const input = [{ ...clip('saved'), highlightId: 'highlight' }, clip('saved'), { ...clip('empty'), textContent: '' }];
+    cache.update(input);
+    input[0].textContent = 'changed externally';
+    input[0].sourceUrl = 'https://other.com';
+    input.length = 0;
+    const loader = vi.fn();
+    expect(await cache.get(loader)).toEqual([expect.objectContaining({
+      id: 'saved', textContent: 'saved', highlightId: 'highlight', highlightStyle: 'inline'
+    })]);
+    expect((await cache.getByUrl('https://example.com', loader)).map(item => item.id)).toEqual(['saved']);
+    expect(await cache.getByUrl('https://other.com', loader)).toEqual([]);
+    expect(loader).not.toHaveBeenCalled();
+  });
 });

@@ -40,7 +40,7 @@ macOS、Node.js 22.23.2、Headless Chrome for Testing 153.0.8010.12；加载构�
 | 主动全量读取并建立缓存 | 17.52MB |
 | 删除一条，缓存失效 | 0.72MB |
 
-分页不会永久保留全库记录，全量缓存失效后可回收。以上是操作边界的堆快照；没有连续采样，不能当作峰值内存上限或长时间无泄漏的证明。单次 full-cache 的标准化和复制仍值得测量。
+分页不会永久保留全库记录，全量缓存失效后可回收。以上是操作边界的堆快照；没有连续采样，不能当作峰值内存上限或长时间无泄漏的证明。单次 full-cache 的标准化和复制已在[后续优化](./performance-cache.md)中测量并减少。
 
 原始逐次样本、环境、后台快照及验收：[performance-popup-results.json](./performance-popup-results.json)。
 
@@ -60,4 +60,4 @@ EXTENSION_PATH='/path/to/baseline-build' CHROME_PATH='/path/to/Chrome for Testin
 
 基线应先在临时 checkout 构建 `aa12a80` 并保存产物；脚本不负责切换分支。所有用户目录在结束或启动失败后清理。可设置 `PROFILE` 保存一次原生 CPU profile。
 
-后台缓存的冷读取和临时对象峰值仍需继续测量；Edge/Firefox 运行时、低端硬件、服务工作线程休眠后启动及远端 CI 尚未验收。整个性能优化目标仍在进行。
+后台缓存的冷读取与采样分配量已完成[后续对照](./performance-cache.md)，连续峰值仍待测量；Edge/Firefox 运行时、低端硬件、服务工作线程休眠后启动及远端 CI 尚未验收。整个性能优化目标仍在进行。

@@ -101,11 +101,10 @@ function requestResult<T>(request: IDBRequest<T>): Promise<T> {
 
 // 读取失败必须向上抛出，不能把失败缓存成“没有摘录”。
 async function loadClipsFromStorage(): Promise<Clip[]> {
-  const clips = await IndexedDBQuery.getAll('clips', {
+  return IndexedDBQuery.getAll('clips', {
     indexName: 'createdAt_id',
     direction: 'desc'
   });
-  return normalizeClips(clips);
 }
 
 export async function refreshCache(): Promise<Clip[]> {
