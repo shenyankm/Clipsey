@@ -13,8 +13,9 @@ const cache = process.argv.includes('--cache');
 const index = process.argv.includes('--index');
 const normalize = process.argv.includes('--normalize');
 const urlRead = process.argv.includes('--url-read');
+const pageCache = process.argv.includes('--page-cache');
 const allocations = process.argv.includes('--allocations');
-if (allocations && !cache && !index && !normalize && !urlRead) throw new Error('--allocations requires --cache, --index, --normalize or --url-read');
+if (allocations && !cache && !index && !normalize && !urlRead && !pageCache) throw new Error('--allocations requires a cache benchmark');
 if (urlRead && baseline) throw new Error('--url-read compares the current cache path and experimental strategies in one run');
 const baselineRef = baseline
   ? execFileSync('git', ['rev-parse', process.env.BASELINE_REF ?? 'HEAD'], { encoding: 'utf8' }).trim()
@@ -33,11 +34,13 @@ const server = await createServer({
     load(id) {
       if (!baseline) return;
       const path = id.split('?')[0];
-      const files = writes
-        ? ['src/background/storage.ts', 'src/background/storage/sync-manager.ts', 'src/background/storage/utils/clip-normalizer.ts']
+      const databaseFiles = ['src/background/indexeddb.ts', 'src/background/indexeddb-query.ts', 'src/types/indexeddb.ts'];
+      const cacheFiles = ['src/background/storage.ts', 'src/background/storage/cache-manager.ts', 'src/background/storage/clip-index.ts', 'src/background/storage/utils/clip-normalizer.ts'];
+      const files = pageCache ? [...cacheFiles, ...databaseFiles] : writes
+        ? ['src/background/storage.ts', 'src/background/storage/sync-manager.ts', 'src/background/storage/utils/clip-normalizer.ts', ...databaseFiles]
         : normalize ? ['src/background/storage/utils/clip-normalizer.ts']
         : index ? ['src/background/storage/clip-index.ts']
-        : cache ? ['src/background/storage.ts', 'src/background/storage/cache-manager.ts', 'src/background/storage/clip-index.ts', 'src/background/storage/utils/clip-normalizer.ts']
+        : cache ? [...cacheFiles, ...databaseFiles]
         : search ? ['src/background/services/search-service.ts', 'src/background/indexeddb-query.ts']
         : highlights ? ['src/content/highlight/dom-utils.ts', 'src/content/highlight/metadata.ts', 'src/content/highlight/locators/offset-locator.ts', 'src/content/highlight-engine.ts']
         : ['src/background/storage/cache-manager.ts', 'src/background/indexeddb-query.ts', 'src/background/storage/clip-index.ts', 'src/background/storage/utils/clip-normalizer.ts'];
@@ -55,7 +58,7 @@ const server = await createServer({
       server.middlewares.use((req, res, next) => {
         if (req.url?.split('?')[0] !== '/') return next();
         res.setHeader('Content-Type', 'text/html');
-        res.end(`<!doctype html><script type="module" src="/tests/performance/${writes ? 'writes' : urlRead ? 'url-read' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : search ? 'search' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
+        res.end(`<!doctype html><script type="module" src="/tests/performance/${pageCache ? 'page-cache' : writes ? 'writes' : urlRead ? 'url-read' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : search ? 'search' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
       });
     }
   }]
@@ -108,7 +111,7 @@ try {
     socket.send(JSON.stringify({ id: requestId, method, params }));
   });
   await send('Runtime.enable');
-  await send('Page.navigate', { url: server.resolvedUrls.local[0] + (urlRead && process.argv.includes('--reverse') ? '?reverse=1' : '') });
+  await send('Page.navigate', { url: server.resolvedUrls.local[0] + ((urlRead || pageCache) && process.argv.includes('--reverse') ? '?reverse=1' : '') });
   let result;
   while (!result) {
     if (Date.now() > deadline) throw new Error('Performance run timed out');

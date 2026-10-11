@@ -3,9 +3,10 @@ import type { Clip } from './clip';
 // IndexedDB 数据库配置
 export const DB_CONFIG = {
   name: 'ClipseyDB',
-  version: 3,
+  version: 4,
   stores: {
     clips: 'clips',
+    clipUrls: 'clipUrls',
     settings: 'settings',
     metadata: 'metadata',
     errorLogs: 'errorLogs'
@@ -14,6 +15,10 @@ export const DB_CONFIG = {
 
 // Object Store 配置
 export interface DBSchema {
+  clipUrls: {
+    key: IDBValidKey;
+    value: { id: IDBValidKey; key?: IDBValidKey };
+  };
   clips: {
     key: string;
     value: Clip;
@@ -102,6 +107,11 @@ export interface StoreConfig {
 
 // 数据库升级配置
 export const STORE_CONFIGS: StoreConfig[] = [
+  {
+    name: 'clipUrls',
+    keyPath: 'id',
+    indexes: [{ name: 'urlKey', keyPath: 'key' }]
+  },
   {
     name: 'clips',
     keyPath: 'id',

@@ -50,9 +50,11 @@ try {
     const remove = await measure(() => indexedDBManager.put('clips', target), () => deleteClip(target.id));
     assert(!await indexedDBManager.get('clips', target.id), 'Deletion failed');
     assert(await indexedDBManager.count('clips') === records + 1, 'Deletion lost unrelated records');
+    const replaceAll = await measure(async () => {}, () => saveClips(clips));
+    assert(await indexedDBManager.count('clips') === records, 'Replacement lost records');
     const clear = await measure(() => IndexedDBQuery.bulkPut('clips', clips, { batchSize: 1000 }), () => saveClips([]));
     assert(await indexedDBManager.count('clips') === 0, 'Clear failed');
-    results.push({ records, add, replace, remove, clear });
+    results.push({ records, add, replace, remove, replaceAll, clear });
   }
   syncManager.close();
   indexedDBManager.close();

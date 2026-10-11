@@ -36,6 +36,84 @@ beforeEach(async () => {
 afterAll(() => indexedDBManager.close());
 
 describe('clip storage transactions', () => {
+  it('uses the bulk snapshot for dense small databases without counting all bodies', async () => {
+    await saveClips(Array.from({ length: 100 }, (_, i) => clip(String(i))));
+    const full = vi.spyOn(IndexedDBQuery, 'getAll');
+    const count = vi.spyOn(IDBObjectStore.prototype, 'count');
+    expect(await getClipsForUrl(clip('').sourceUrl)).toHaveLength(100);
+    expect(full).toHaveBeenCalledTimes(1);
+    expect(count).not.toHaveBeenCalled();
+  });
+
+  it('falls back to one full snapshot above the bounded page-cache limit', async () => {
+    await saveClips(Array.from({ length: 2501 }, (_, i) => clip(String(i))));
+    const full = vi.spyOn(IndexedDBQuery, 'getAll');
+    expect(await getClipsForUrl(clip('').sourceUrl)).toHaveLength(2501);
+    expect(cacheManager.has()).toBe(true);
+    expect(await getClipsForUrl(clip('').sourceUrl)).toHaveLength(2501);
+    expect(full).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads a sparse canonical page without loading all clips and preserves query priority', async () => {
+    const clips = Array.from({ length: 100 }, (_, i) => ({ ...clip(String(i)), sourceUrl: `https://other.com/${i}` }));
+    clips[0] = { ...clip('exact'), sourceUrl: 'https://example.com/article/?a=1&b=2#fragment' };
+    clips[1] = { ...clip('base'), createdAt: '2026-01-01', sourceUrl: 'https://example.com/article?other=1' };
+    await saveClips(clips);
+    const full = vi.spyOn(IndexedDBQuery, 'getAll');
+    expect((await getClipsForUrl('https://example.com/article?b=2&a=1')).map(item => item.id)).toEqual(['exact', 'base']);
+    expect((await getClipsForUrl('https://example.com/article?other=1')).map(item => item.id)).toEqual(['base', 'exact']);
+    expect(await getClipsForUrl('https://example.com/missing')).toEqual([]);
+    expect(full).not.toHaveBeenCalled();
+    expect(cacheManager.has()).toBe(false);
+    expect(await getClips()).toHaveLength(100);
+    expect(full).toHaveBeenCalledTimes(1);
+  });
+
+  it('maintains URL records through all mutations and rolls them back with the body', async () => {
+    await saveClips([clip('old')]);
+    await indexedDBManager.add('clips', clip('added'));
+    await indexedDBManager.put('clips', { ...clip('old'), sourceUrl: 'https://changed.com' });
+    await IndexedDBQuery.bulkPut('clips', [clip('bulk')]);
+    await IndexedDBQuery.bulkDelete('clips', ['added']);
+    await indexedDBManager.deleteData('clips', 'bulk');
+    expect(await indexedDBManager.getAllData('clipUrls')).toEqual([{ id: 'old', key: ['https://changed.com/', clip('old').createdAt, 'old'] }]);
+    const original = await indexedDBManager.getAllData('clipUrls');
+    const put = IDBObjectStore.prototype.put;
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, value, key) {
+      if (this.name === 'clips') throw new DOMException('Quota exceeded', 'QuotaExceededError');
+      return put.call(this, value, key);
+    });
+    await expect(saveClips([clip('replacement')])).rejects.toThrow('Quota exceeded');
+    expect(await indexedDBManager.getAllData('clipUrls')).toEqual(original);
+    expect(await indexedDBManager.get('clips', 'old')).toMatchObject({ sourceUrl: 'https://changed.com' });
+    vi.restoreAllMocks();
+    await indexedDBManager.clear('clips');
+    expect(await indexedDBManager.count('clipUrls')).toBe(0);
+  });
+
+  it('invalidates sparse page reads on add, URL changes, and delete', async () => {
+    await saveClips(Array.from({ length: 100 }, (_, i) => ({ ...clip(String(i)), sourceUrl: `https://other.com/${i}` })));
+    const full = vi.spyOn(IndexedDBQuery, 'getAll');
+    expect(await getClipsForUrl(clip('').sourceUrl)).toEqual([]);
+    await addClip(clip('new'));
+    expect((await getClipsForUrl(clip('').sourceUrl)).map(item => item.id)).toEqual(['new']);
+    await addClip({ ...clip('new'), sourceUrl: 'https://changed.com' });
+    expect(await getClipsForUrl(clip('').sourceUrl)).toEqual([]);
+    expect((await getClipsForUrl('https://changed.com'))[0].id).toBe('new');
+    await deleteClip('new');
+    expect(await getClipsForUrl('https://changed.com')).toEqual([]);
+    expect(full).not.toHaveBeenCalled();
+  });
+
+  it('falls back for legacy IDs so normalization deduplicates across pages', async () => {
+    await saveClips(Array.from({ length: 100 }, (_, i) => ({ ...clip(String(i)), sourceUrl: `https://other.com/${i}` })));
+    await indexedDBManager.put('clips', { ...clip('legacy'), id: 123 as unknown as string, highlightId: 'global-id' });
+    await indexedDBManager.put('clips', { ...clip('global-id'), sourceUrl: 'https://other.com', createdAt: '2026-01-01' });
+    const full = vi.spyOn(IndexedDBQuery, 'getAll');
+    expect(await getClipsForUrl(clip('').sourceUrl)).toEqual([]);
+    expect(full).toHaveBeenCalledTimes(1);
+  });
+
   it('uses only primary keys and the highlight index for writes', async () => {
     const fullRead = vi.spyOn(IDBObjectStore.prototype, 'getAll');
     const count = vi.spyOn(IDBObjectStore.prototype, 'count');
@@ -135,6 +213,7 @@ describe('clip storage transactions', () => {
     await indexedDBManager.put('clips', clip('old'));
     await expect(IndexedDBQuery.bulkAdd('clips', [clip('new'), clip('old')])).rejects.toThrow();
     expect((await indexedDBManager.getAllData('clips')).map(item => item.id)).toEqual(['old']);
+    expect(await indexedDBManager.getAllData('clipUrls')).toEqual([{ id: 'old', key: ['https://example.com/article', clip('old').createdAt, 'old'] }]);
     await expect(IndexedDBQuery.bulkPut('clips', [{ ...clip('bad'), id: undefined } as unknown as Clip])).rejects.toThrow();
     await expect(IndexedDBQuery.bulkDelete('clips', [undefined as unknown as string])).rejects.toThrow();
   });
@@ -169,7 +248,7 @@ describe('clip storage transactions', () => {
     expect(matches.map(item => item.id)).toEqual(['matching']);
     matches[0].textContent = 'changed';
     expect((await getClipsForUrl('https://example.com/article'))[0].textContent).toBe('Text matching');
-    expect(databaseRead).toHaveBeenCalledTimes(1);
+    expect(databaseRead).not.toHaveBeenCalled();
     expect(fullCacheRead).not.toHaveBeenCalled();
   });
 

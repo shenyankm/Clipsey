@@ -1,4 +1,4 @@
-import { indexedDBManager } from './indexeddb';
+import { IndexedDB, indexedDBManager } from './indexeddb';
 import {
   IndexedDBError,
   type DBSchema,
@@ -246,7 +246,7 @@ export class IndexedDBQuery {
       const keys = await indexedDBManager.executeTransaction(storeName, 'readwrite', transaction => {
         const store = transaction.objectStore(storeName);
         return Promise.all(batch.map(record => new Promise<DBSchema[K]['key']>((resolve, reject) => {
-          const request = store[operation](record);
+          const request = IndexedDB.writeRecord(store, operation, record);
           request.onsuccess = () => resolve(request.result as DBSchema[K]['key']);
           request.onerror = () => reject(request.error ?? new Error(`Failed to ${operation} record`));
         })));
@@ -269,7 +269,7 @@ export class IndexedDBQuery {
       await indexedDBManager.executeTransaction(storeName, 'readwrite', async transaction => {
         const store = transaction.objectStore(storeName);
         await Promise.all(batch.map(key => new Promise<void>((resolve, reject) => {
-          const request = store.delete(key);
+          const request = IndexedDB.deleteRecord(store, key);
           request.onsuccess = () => resolve();
           request.onerror = () => reject(request.error ?? new Error('Failed to delete record'));
         })));

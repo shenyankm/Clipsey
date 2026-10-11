@@ -1,10 +1,11 @@
 import type { Clip } from '@/types/clip';
-import { indexedDBManager } from './indexeddb';
+import { IndexedDB, indexedDBManager } from './indexeddb';
 import { IndexedDBQuery } from './indexeddb-query';
 import { IndexedDBError } from '@/types/indexeddb';
 import { cacheManager } from './storage/cache-manager';
 import { syncManager } from './storage/sync-manager';
 import { normalizeClips } from './storage/utils/clip-normalizer';
+import { createIndexKeys } from './storage/utils/url-normalizer';
 
 async function ensureInitialized(): Promise<void> {
   if (indexedDBManager.isInitialized()) {
@@ -23,7 +24,7 @@ export async function getClips(): Promise<Clip[]> {
 // 按 URL 获取剪辑（使用缓存）
 export async function getClipsForUrl(url: string): Promise<Clip[]> {
   await ensureInitialized();
-  return cacheManager.getByUrl(url, () => loadClipsFromStorage());
+  return cacheManager.getByUrl(url, () => loadClipsFromStorage(), loadClipsForBase);
 }
 
 // 替换全部剪辑：删除和写入必须一起提交或回滚。
@@ -36,8 +37,8 @@ export async function saveClips(clips: Clip[]): Promise<void> {
   await ensureInitialized();
   await indexedDBManager.executeTransaction('clips', 'readwrite', async transaction => {
     const store = transaction.objectStore('clips');
-    store.clear();
-    for (const clip of normalizedClips) store.put(clip);
+    IndexedDB.clearRecords(store);
+    for (const clip of normalizedClips) IndexedDB.writeRecord(store, 'put', clip);
   });
 
   cacheManager.clear();
@@ -64,8 +65,8 @@ export async function addClip(clip: Clip): Promise<void> {
       existing.sourceUrl === normalizedClip.sourceUrl &&
       existing.id !== normalizedClip.id
     );
-    for (const existing of duplicates) store.delete(existing.id);
-    store.put(normalizedClip);
+    for (const existing of duplicates) IndexedDB.deleteRecord(store, existing.id);
+    IndexedDB.writeRecord(store, 'put', normalizedClip);
     return (previous ? 0 : 1) - duplicates.length;
   });
 
@@ -79,7 +80,7 @@ export async function deleteClip(id: string): Promise<Clip | undefined> {
   const deleted = await indexedDBManager.executeTransaction('clips', 'readwrite', async transaction => {
     const store = transaction.objectStore('clips');
     const deleted = await requestResult<Clip | undefined>(store.get(id));
-    store.delete(id);
+    IndexedDB.deleteRecord(store, id);
     return deleted;
   });
 
@@ -100,6 +101,30 @@ function requestResult<T>(request: IDBRequest<T>): Promise<T> {
 }
 
 // 读取失败必须向上抛出，不能把失败缓存成“没有摘录”。
+async function loadClipsForBase(base: string): Promise<Clip[] | null> {
+  return indexedDBManager.executeTransaction(['clips', 'clipUrls'], 'readonly', async transaction => {
+    const store = transaction.objectStore('clips');
+    if (store.keyPath !== 'id') return null;
+    const urls = transaction.objectStore('clipUrls');
+    const index = urls.index('urlKey');
+    const range = IDBKeyRange.bound([base], [base, []]);
+    const [legacy, ids] = await Promise.all([
+      requestResult(index.count([''])),
+      requestResult(index.getAllKeys(range, 2501))
+    ]);
+    // shortcut: 页缓存最多 2500 条，更大子集沿用全库读取；更换硬件或正文规模时重新测量边界。
+    if (legacy || ids.length > 2500) return null;
+    if (ids.length >= 64) {
+      // 小库的大比例命中用批量读取更快；只探测一批键，避免全库计数。
+      const keys = await requestResult(urls.getAllKeys(undefined, 257));
+      if (keys.length <= 256 && ids.length * 2 >= keys.length) return null;
+    }
+    const clips = await Promise.all(ids.reverse().map(id => requestResult<Clip | undefined>(store.get(id))));
+    if (clips.some(clip => !clip || createIndexKeys(clip.sourceUrl).at(-1) !== base)) return null;
+    return clips as Clip[];
+  });
+}
+
 async function loadClipsFromStorage(): Promise<Clip[]> {
   return IndexedDBQuery.getAll('clips', {
     indexName: 'createdAt_id',

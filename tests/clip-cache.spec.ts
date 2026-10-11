@@ -7,6 +7,67 @@ const clip = (id: string): Clip => ({
 });
 
 describe('clip cache invalidation', () => {
+  it('shares same-base page loads, isolates results, and never exposes the page as all clips', async () => {
+    const cache = new CacheManager();
+    const input = [{ ...clip('page'), sourceUrl: 'https://example.com/?q=a' }];
+    const page = vi.fn().mockResolvedValue(input);
+    const all = vi.fn().mockResolvedValue([...input, { ...clip('other'), sourceUrl: 'https://other.com' }]);
+    const [a, b] = await Promise.all(['a', 'b'].map(q => cache.getByUrl(`https://example.com/?q=${q}`, all, page)));
+    expect(page).toHaveBeenCalledTimes(1);
+    expect(all).not.toHaveBeenCalled();
+    expect(cache.has()).toBe(false);
+    a[0].textContent = 'caller';
+    input[0].textContent = 'input';
+    expect(b[0].textContent).toBe('page');
+    expect((await cache.getByUrl('https://example.com', all, page))[0].textContent).toBe('page');
+    expect(await cache.get(all)).toHaveLength(2);
+    expect(all).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not let an older base replace the latest page and keeps only one base cached', async () => {
+    const cache = new CacheManager();
+    let finish!: (clips: Clip[]) => void;
+    const all = vi.fn();
+    const page = vi.fn().mockImplementationOnce(() => new Promise<Clip[]>(resolve => { finish = resolve; }))
+      .mockResolvedValue([{ ...clip('other'), sourceUrl: 'https://other.com' }]);
+    const pending = cache.getByUrl('https://example.com', all, page);
+    expect(await cache.getByUrl('https://other.com', all, page)).toHaveLength(1);
+    finish([clip('old')]);
+    expect((await pending)[0].id).toBe('old');
+    await cache.getByUrl('https://other.com', all, page);
+    expect(page).toHaveBeenCalledTimes(2);
+    page.mockResolvedValue([clip('new')]);
+    expect((await cache.getByUrl('https://example.com', all, page))[0].id).toBe('new');
+    await cache.getByUrl('https://other.com', all, page);
+    expect(page).toHaveBeenCalledTimes(4);
+  });
+
+  it('retries invalidated page loads and leaves failed loads retryable', async () => {
+    const cache = new CacheManager();
+    let finish!: (clips: Clip[]) => void;
+    const page = vi.fn().mockImplementationOnce(() => new Promise<Clip[]>(resolve => { finish = resolve; }))
+      .mockRejectedValueOnce(new Error('Read failed')).mockResolvedValue([clip('new')]);
+    const all = vi.fn();
+    const pending = cache.getByUrl('https://example.com', all, page);
+    cache.clear();
+    finish([clip('old')]);
+    await expect(pending).rejects.toThrow('Read failed');
+    expect((await cache.getByUrl('https://example.com', all, page))[0].id).toBe('new');
+    expect(all).not.toHaveBeenCalled();
+  });
+
+  it('uses a concurrent full snapshot instead of restoring an obsolete page', async () => {
+    const cache = new CacheManager();
+    let finish!: (clips: Clip[]) => void;
+    const page = vi.fn(() => new Promise<Clip[]>(resolve => { finish = resolve; }));
+    const all = vi.fn().mockResolvedValue([clip('new')]);
+    const pending = cache.getByUrl('https://example.com', all, page);
+    await cache.get(all);
+    finish([clip('old')]);
+    expect((await pending)[0].id).toBe('new');
+    expect(page).toHaveBeenCalledTimes(1);
+  });
+
   it('does not restore an invalidated snapshot when an old load completes', async () => {
     const cache = new CacheManager();
     let finish!: (clips: Clip[]) => void;
