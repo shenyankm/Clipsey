@@ -6,21 +6,12 @@ import { cacheManager } from './storage/cache-manager';
 import { syncManager, storage } from './storage/sync-manager';
 import { normalizeClips } from './storage/utils/clip-normalizer';
 
-let initAttempt: Promise<void> | null = null;
-
 async function ensureInitialized(): Promise<void> {
   if (indexedDBManager.isInitialized()) {
     return;
   }
 
-  if (!initAttempt) {
-    initAttempt = indexedDBManager.init().catch(error => {
-      initAttempt = null;
-      throw error;
-    });
-  }
-
-  await initAttempt;
+  await indexedDBManager.init();
 }
 
 // 获取所有剪辑（缓存优先）

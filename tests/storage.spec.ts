@@ -122,6 +122,38 @@ describe('clip storage transactions', () => {
     expect((await getClips()).map(item => item.id)).toEqual(['old']);
   });
 
+  it.each([
+    { id: undefined }, { id: ' ' }, { sourceUrl: undefined }, { sourceUrl: 'javascript:alert(1)' },
+    { createdAt: 'invalid' }, { textContent: ' ' }, { textOffset: -1 }, { textOffset: 1.5 },
+    { title: 42 }, { updatedAt: 'invalid' }, { highlightStyle: 'unknown' }
+  ])('rejects incomplete or invalid backup records: %j', async fields => {
+    await saveClips([clip('old')]);
+    await expect(exportService.importAll({ clips: [{ ...clip('new'), ...fields } as unknown as Clip] })).rejects.toThrow('invalid');
+    expect((await getClips()).map(item => item.id)).toEqual(['old']);
+  });
+
+  it('rejects duplicate backup IDs before replacing data', async () => {
+    await saveClips([clip('old')]);
+    await expect(exportService.importAll({ clips: [clip('new'), clip('new')] })).rejects.toThrow('duplicate');
+    expect((await getClips()).map(item => item.id)).toEqual(['old']);
+  });
+
+  it('rejects invalid error logs before replacing clips', async () => {
+    await saveClips([clip('old')]);
+    await expect(exportService.importAll({ clips: [clip('new')], errorLogs: {} as never })).rejects.toThrow('invalid error logs');
+    expect((await getClips()).map(item => item.id)).toEqual(['old']);
+  });
+
+  it('exports a backup that round-trips rich content and highlight metadata', async () => {
+    const saved = { ...clip('rich'), title: 'Title', htmlContent: '<b>Text rich</b>', highlightId: 'highlight',
+      contextBefore: 'before', contextAfter: 'after', textOffset: 7, highlightStyle: 'inline' as const };
+    await saveClips([saved]);
+    const backup = await exportService.exportAll();
+    await clearClips();
+    await exportService.importAll(backup);
+    expect(await getClips()).toEqual([saved]);
+  });
+
   it('lists clips after native text-fragment navigation and saves a canonical source URL', async () => {
     await handleSaveClip({ textContent: 'quoted text', sourceUrl: 'https://example.com/article#:~:text=quoted%20text' });
     const result = await getClipsByUrlPaged({
@@ -129,6 +161,20 @@ describe('clip storage transactions', () => {
     });
     expect(result.total).toBe(1);
     expect(result.items[0].sourceUrl).toBe('https://example.com/article');
+  });
+
+  it.each(['asc', 'desc'] as const)('paginates a URL by time in %s order, not by random IDs', async sortOrder => {
+    await saveClips([
+      { ...clip('z-old'), createdAt: '2026-10-10T00:00:00Z' },
+      { ...clip('a-new'), createdAt: '2026-10-11T00:00:00Z' },
+      { ...clip('other'), sourceUrl: 'https://example.com/article/other' }
+    ]);
+    const url = 'https://example.com/article#:~:text=quoted';
+    const first = await getClipsByUrlPaged({ url, page: 1, pageSize: 1, sortOrder });
+    const second = await getClipsByUrlPaged({ url, page: 2, pageSize: 1, sortOrder });
+    expect([first.items[0].id, second.items[0].id]).toEqual(sortOrder === 'desc' ? ['a-new', 'z-old'] : ['z-old', 'a-new']);
+    expect(first.total).toBe(2);
+    expect((await getClipsByUrlPaged({ url, page: 3, pageSize: 1, sortOrder })).items).toEqual([]);
   });
 
   it('restores an empty backup by clearing existing clips', async () => {

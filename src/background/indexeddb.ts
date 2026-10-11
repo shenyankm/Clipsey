@@ -27,16 +27,7 @@ export class IndexedDB {
   }
 
   async init(): Promise<void> {
-    await this.initializeDB();
-  }
-
-  private async initializeDB(): Promise<void> {
-    if (this.dbPromise) {
-      return this.dbPromise.then(() => {});
-    }
-
-    this.dbPromise = this.openDatabase();
-    await this.dbPromise;
+    await this.getDB();
   }
 
   // 打开数据库并处理版本升级
@@ -128,7 +119,10 @@ export class IndexedDB {
     }
 
     if (!this.dbPromise) {
-      this.dbPromise = this.openDatabase();
+      this.dbPromise = this.openDatabase().catch(error => {
+        this.dbPromise = null;
+        throw error;
+      });
     }
 
     return this.dbPromise;
@@ -407,6 +401,9 @@ async function getInstance(): Promise<IndexedDB> {
     instancePromise = IndexedDB.create(DB_CONFIG.name, DB_CONFIG.version).then((inst) => {
       instance = inst;
       return inst;
+    }).catch(error => {
+      instancePromise = null;
+      throw error;
     });
   }
   return instancePromise;
@@ -418,7 +415,8 @@ export const indexedDBManager = {
   },
 
   async init(): Promise<void> {
-    await getInstance();
+    const inst = await getInstance();
+    await inst.init();
   },
 
   async executeTransaction<T>(

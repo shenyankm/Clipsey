@@ -44,9 +44,10 @@ export async function getClipsByUrlPaged(params: {
   sortOrder?: 'asc' | 'desc';
 }): Promise<{ items: Clip[]; total: number; page: number; pageSize: number }> {
   const { url, page, pageSize, sortOrder = 'desc' } = params;
+  const sourceUrl = stripTextFragment(url);
   const { data, total } = await IndexedDBQuery.paginate('clips', page, pageSize, {
-    indexName: 'sourceUrl',
-    query: IDBKeyRange.only(stripTextFragment(url)),
+    indexName: 'sourceUrl_createdAt',
+    query: IDBKeyRange.bound([sourceUrl, ''], [sourceUrl, []]),
     direction: sortOrder === 'asc' ? 'next' : 'prev'
   });
   return { items: data as Clip[], total, page, pageSize };

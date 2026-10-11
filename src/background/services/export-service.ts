@@ -2,6 +2,7 @@ import type { Clip } from '@/types/clip';
 import type { ErrorLogRecord } from '@/types/indexeddb';
 import { indexedDBManager } from '@/background/indexeddb';
 import { IndexedDBQuery } from '@/background/indexeddb-query';
+import { validateClipBackup } from '@/utils/clip/backup';
 
 /** 导入导出服务：负责数据备份与恢复。 */
 export class ExportService {
@@ -34,6 +35,10 @@ export class ExportService {
     clipsImported: number;
     errorLogsImported: number;
   }> {
+    if (data.clips !== undefined) validateClipBackup(data.clips);
+    if (data.errorLogs !== undefined && !Array.isArray(data.errorLogs)) {
+      throw new Error('Backup contains invalid error logs');
+    }
     await indexedDBManager.init();
     
     let clipsImported = 0;
