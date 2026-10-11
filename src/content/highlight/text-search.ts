@@ -33,8 +33,9 @@ function isRangeHighlighted(nodes: Text[], start: number, end: number): boolean 
   let offset = 0;
   for (const node of nodes) {
     const next = offset + node.length;
-    if (next > start && offset < end && node.parentElement?.closest('[data-clipsey-id]')) {
-      return true;
+    if (next > start && offset < end) {
+      if (node.parentElement?.closest('[data-clipsey-id]')) return true;
+      if (next >= end) return false;
     }
     offset = next;
   }

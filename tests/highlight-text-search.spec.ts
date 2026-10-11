@@ -92,6 +92,18 @@ describe('text range search', () => {
     expect(findTextRangeInNode(document.body, 'axb', false)?.toString()).toBe('axb');
   });
 
+  it('does not inspect trailing node lengths when checking a completed match for highlights', () => {
+    const target = document.createElement('b'); target.textContent = 'target';
+    const tail = document.createTextNode(' trailing text '.repeat(10000));
+    document.body.replaceChildren(target, tail);
+    const tailLength = vi.spyOn(tail, 'length', 'get');
+    const range = findTextRangeInNode(document.body, 'target');
+    expect(range?.toString()).toBe('target');
+    expect(range?.startContainer).toBe(target.firstChild);
+    expect(range?.endContainer).toBe(target.firstChild);
+    expect(tailLength).not.toHaveBeenCalled();
+  });
+
   it('ignores scripts and rejects empty or missing text', () => {
     document.body.innerHTML = '<script>target</script><p>visible</p>';
     expect(findTextRangeInNode(document.body, 'target')).toBeNull();
