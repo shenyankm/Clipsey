@@ -1,0 +1,3971 @@
+{
+  "date": "2026-10-12",
+  "baseline": "275fc2f241d9807c607220acc85845c4614fea16",
+  "decision": "Rejected: eliminating one cache read did not establish stable overall latency improvement; several reverse-order layouts were slower. Retained production exactly matches baseline.",
+  "candidateSource": "// DOM 工具模块：安全选择器、文本节点遍历等\n\n// 创建文本遍历器（默认 document.body，可传入自定义根节点）\nexport function createTextNodeWalker(root: Node = document.body, includeWhitespace = false): Pick<TreeWalker, 'nextNode' | 'filter'> | null {\n  if (!root) return null;\n  try {\n    const visibleParents = new WeakMap<Element, boolean>();\n    const barriers = new WeakMap<Element, Element | null>();\n    let lastBarrier: Element | null = null;\n    function hiddenAncestor(element: Element | null): Element | null {\n      if (!element) return null;\n      const cached = barriers.get(element);\n      if (cached !== undefined) return cached;\n      const pending: Element[] = [];\n      let barrier: Element | null = null;\n      while (element) {\n        const cached = barriers.get(element);\n        if (cached !== undefined) { barrier = cached; break; }\n        pending.push(element);\n        if (getComputedStyle(element)?.display === 'none') { barrier = element; break; }\n        element = element.parentElement;\n      }\n      for (const ancestor of pending) barriers.set(ancestor, barrier);\n      return barrier;\n    }\n    const filter = {\n      acceptNode(node: Node) {\n        lastBarrier = null;\n        const parent = node.parentElement;\n        if (!parent) return NodeFilter.FILTER_REJECT;\n        if (!includeWhitespace && !(node.textContent ?? '').trim()) return NodeFilter.FILTER_SKIP;\n        let visible = visibleParents.get(parent);\n        if (visible === undefined) {\n          const ancestor = parent.parentElement;\n          const excludedSelector = 'script, style, noscript, svg, canvas';\n          const excluded = ancestor && visibleParents.get(ancestor) === true\n            ? (parent.matches(excludedSelector) ? parent : null)\n            : parent.closest(excludedSelector);\n          if (excluded) {\n            visible = false;\n            barriers.set(parent, excluded);\n          } else {\n            try {\n              let barrier = hiddenAncestor(ancestor);\n              if (!barrier) {\n                const style = getComputedStyle(parent);\n                if (style?.display === 'none') barrier = parent;\n                visible = !barrier && style?.visibility !== 'hidden';\n              } else visible = false;\n              barriers.set(parent, barrier);\n            } catch {\n              // 读取失败不缓存，下一节点仍可重试。\n              return NodeFilter.FILTER_ACCEPT;\n            }\n          }\n          visibleParents.set(parent, visible);\n        }\n        if (visible) return NodeFilter.FILTER_ACCEPT;\n        lastBarrier = barriers.get(parent) ?? null;\n        return NodeFilter.FILTER_REJECT;\n      }\n    };\n    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);\n    let finished = false;\n    return { filter,\n      nextNode() {\n        if (finished) return null;\n        let node: Node | null;\n        while ((node = walker.nextNode())) {\n          if (filter.acceptNode(node) === NodeFilter.FILTER_ACCEPT) return node;\n          if (lastBarrier) {\n            if (lastBarrier === root || !root.contains(lastBarrier)) { finished = true; return null; }\n            // currentNode 可指向非文本节点；从最后一个后代继续可跳过整个隐藏子树。\n            let last: Node = lastBarrier;\n            while (last.lastChild) last = last.lastChild;\n            walker.currentNode = last;\n          }\n        }\n        return null;\n      }\n    };\n  } catch {\n    return null;\n  }\n}\n\n// CSS 选择器安全转义\nexport function safeCssEscape(value: string): string {\n  try {\n    if (typeof CSS !== 'undefined' && typeof (CSS as any).escape === 'function') {\n      return (CSS as any).escape(value);\n    }\n  } catch {}\n  return String(value).replace(/[\"\\\\]/g, '\\\\$&');\n}\n\n// 为兼容旧调用，提供同名导出\nexport function cssEscape(value: string): string {\n  return safeCssEscape(value);\n}\n\n// 带错误保护的 querySelector（避免选择器异常导致崩溃）\nexport function safeQuerySelector(selector: string): Element | null {\n  try {\n    return document.querySelector(selector);\n  } catch {\n    return null;\n  }\n}\n",
+  "candidateTestSource": "import { beforeEach, expect, it, vi } from 'vitest';\nimport { captureHighlightMetadata } from '@/content/highlight/metadata';\nimport { createTextNodeWalker } from '@/content/highlight/dom-utils';\nimport { locateByOffset } from '@/content/highlight/locators/offset-locator';\nimport { LocationStrategy } from '@/content/highlight/locators';\n\nbeforeEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ''; });\n\nfunction fullDocumentContext(range: Range) {\n  const walker = createTextNodeWalker()!;\n  let text = '', offset: number | undefined;\n  let node = walker.nextNode();\n  while (node) {\n    if (node === range.startContainer) offset = text.length + range.startOffset;\n    text += node.textContent;\n    node = walker.nextNode();\n  }\n  if (offset === undefined) return { textOffset: undefined, contextBefore: undefined, contextAfter: undefined };\n  const selected = range.toString();\n  offset += selected.length - selected.trimStart().length;\n  return {\n    textOffset: offset,\n    contextBefore: text.slice(Math.max(0, offset - 64), offset),\n    contextAfter: text.slice(offset + selected.trim().length, offset + selected.trim().length + 64)\n  };\n}\n\nit.each([\n  '<p id=\"start\">prefix  target  suffix</p>',\n  `<p>${'α😀'.repeat(40)}</p><p><b id=\"start\">  tar</b><i id=\"end\">get  </i> suffix</p><p>${'x'.repeat(200)}</p>`,\n  '<p id=\"start\">prefix  </p><p>   </p><b id=\"end\">target</b>',\n  '<p id=\"start\">prefix </p><div style=\"display:none\">hidden</div><b id=\"end\">target</b><script>ignored</script>',\n  `<p id=\"start\">prefix </p><p>${' '.repeat(100)}</p>`,\n  `<p>${'before '.repeat(50)}</p><p id=\"start\">near the end</p>`\n])('preserves the full-document context formula without assembling all text: %s', html => {\n  document.body.innerHTML = html;\n  const start = document.querySelector('#start')!.firstChild as Text;\n  const end = (document.querySelector('#end')?.firstChild as Text) ?? start;\n  for (const startOffset of [0, Math.min(7, start.length), start.length]) {\n    const range = document.createRange();\n    range.setStart(start, startOffset);\n    range.setEnd(end, end.length);\n    expect(captureHighlightMetadata(range, null, 'fixture')).toMatchObject(fullDocumentContext(range));\n  }\n});\n\nit('stops visiting the tail once the following 64 characters have been captured', () => {\n  document.body.innerHTML = '<p id=\"start\">target</p>' + '<p>following text with enough characters</p>'.repeat(100);\n  const range = document.createRange();\n  range.selectNodeContents(document.querySelector('#start')!.firstChild!);\n  const expected = fullDocumentContext(range);\n  const styles = vi.spyOn(window, 'getComputedStyle');\n  expect(captureHighlightMetadata(range, null, 'fixture')).toMatchObject(expected);\n  expect(styles).toHaveBeenCalledTimes(5);\n});\n\nit('avoids scanning for element boundaries or detached text that cannot provide an offset', () => {\n  document.body.innerHTML = '<p>visible</p>';\n  const styles = vi.spyOn(window, 'getComputedStyle');\n  for (const start of [document.querySelector('p')!, document.createTextNode('detached')]) {\n    const range = document.createRange();\n    range.selectNodeContents(start);\n    expect(captureHighlightMetadata(range, null, 'fixture')).toMatchObject({ textOffset: undefined, contextBefore: undefined, contextAfter: undefined });\n  }\n  expect(styles).not.toHaveBeenCalled();\n  expect(captureHighlightMetadata(null, null, 'fixture')).toBeNull();\n});\n\nit('checks a fragmented parent once per walker and sees changed styles on the next walk', () => {\n  const p = document.createElement('p');\n  p.append('one', 'two', 'three');\n  document.body.append(p);\n  const styles = vi.spyOn(window, 'getComputedStyle');\n  let walker = createTextNodeWalker()!;\n  expect([walker.nextNode()?.textContent, walker.nextNode()?.textContent, walker.nextNode()?.textContent]).toEqual(['one', 'two', 'three']);\n  expect(styles).toHaveBeenCalledTimes(3);\n  p.style.display = 'none';\n  walker = createTextNodeWalker()!;\n  expect(walker.nextNode()).toBeNull();\n  expect(styles).toHaveBeenCalledTimes(6);\n});\n\nit('only reads the visibility cache when filtering another accepted node under the same parent', () => {\n  const p = document.createElement('p');\n  p.append('first', 'second'); document.body.append(p);\n  const walker = createTextNodeWalker()!;\n  expect(walker.nextNode()?.textContent).toBe('first');\n  const get = vi.spyOn(WeakMap.prototype, 'get');\n  const result = (walker.filter as { acceptNode(node: Node): number }).acceptNode(p.lastChild!);\n  const reads = get.mock.calls.length;\n  get.mockRestore();\n  expect(result).toBe(NodeFilter.FILTER_ACCEPT);\n  expect(reads).toBe(1);\n});\n\nit('avoids another ancestor query below a visible parent while excluding special elements themselves', () => {\n  const p = document.createElement('p');\n  const target = document.createElement('b'); target.textContent = 'target';\n  p.append('prefix', target);\n  for (const tag of ['script', 'style', 'noscript', 'svg', 'canvas']) {\n    const excluded = document.createElement(tag);\n    if (tag === 'script') excluded.setAttribute('type', 'application/json');\n    excluded.textContent = 'excluded'; p.append(excluded);\n  }\n  document.body.append(p);\n  const closest = vi.spyOn(target, 'closest');\n  const walker = createTextNodeWalker()!;\n  expect(walker.nextNode()?.textContent).toBe('prefix');\n  expect(walker.nextNode()?.textContent).toBe('target');\n  expect(walker.nextNode()).toBeNull();\n  expect(closest).not.toHaveBeenCalled();\n});\n\nit('retries a style read after a transient failure and keeps excluded elements filtered', () => {\n  const p = document.createElement('p');\n  p.append('first', 'second', 'third');\n  const hidden = document.createElement('div');\n  hidden.style.display = 'none';\n  hidden.append(p);\n  document.body.append(hidden);\n  const read = window.getComputedStyle;\n  const styles = vi.spyOn(window, 'getComputedStyle').mockImplementationOnce(() => { throw new Error('Transient'); }).mockImplementation(read);\n  const walker = createTextNodeWalker(hidden)!;\n  expect(walker.nextNode()?.textContent).toBe('first');\n  expect(walker.nextNode()).toBeNull();\n  expect(styles.mock.calls.filter(([element]) => element === hidden)).toHaveLength(2);\n  document.body.innerHTML = '<script>secret</script><style>body{}</style><svg><text>svg</text></svg><canvas>canvas</canvas><p>visible</p>';\n  expect(createTextNodeWalker()!.nextNode()?.textContent).toBe('visible');\n});\n\nit('keeps yielding text when styles cannot be read, without yielding elements', () => {\n  document.body.innerHTML = '<p>first<b>second</b></p><script>excluded</script>';\n  vi.spyOn(window, 'getComputedStyle').mockImplementation(() => { throw new Error('Unavailable'); });\n  const walker = createTextNodeWalker()!;\n  const nodes: Node[] = [];\n  let node;\n  while ((node = walker.nextNode())) nodes.push(node);\n  expect(nodes.map(node => [node.nodeType, node.textContent])).toEqual([[Node.TEXT_NODE, 'first'], [Node.TEXT_NODE, 'second']]);\n});\n\nit('retries an unread ancestor on the next node and stops visiting the hidden tail', () => {\n  document.body.innerHTML = '<div id=\"hidden\" style=\"display:none\"><p>first<b>second</b>third</p></div><p>visible</p>';\n  const read = window.getComputedStyle;\n  let failed = false;\n  vi.spyOn(window, 'getComputedStyle').mockImplementation(element => {\n    if (element.id === 'hidden' && !failed) { failed = true; throw new Error('Transient'); }\n    return read(element);\n  });\n  const walker = createTextNodeWalker()!;\n  expect(walker.nextNode()?.textContent).toBe('first');\n  expect(walker.nextNode()?.textContent).toBe('visible');\n  expect(walker.nextNode()).toBeNull();\n});\n\nit('excludes nested hidden text from offsets and restores records with older offsets', () => {\n  document.body.innerHTML = '<div style=\"display:none\"><b>hidden prefix </b></div><p>before <span id=\"target\">target</span> after</p>';\n  const text = document.querySelector('#target')!.firstChild!;\n  const range = document.createRange();\n  range.selectNodeContents(text);\n  expect(captureHighlightMetadata(range, null, 'visible')).toMatchObject({ textOffset: 7, contextBefore: 'before ', contextAfter: ' after' });\n  expect(locateByOffset(7, 6)?.startContainer).toBe(text);\n  expect(LocationStrategy.locate({ text: 'target', textOffset: 21 })?.startContainer).toBe(text);\n});\n\nit('does not read the style of every descendant of a hidden ancestor', () => {\n  document.body.innerHTML = '<div style=\"display:none\">' + '<p>prefix <b>quote</b> tail</p>'.repeat(100) + '</div><p>visible</p>';\n  const styles = vi.spyOn(window, 'getComputedStyle');\n  const walker = createTextNodeWalker()!;\n  const filter = vi.spyOn(walker.filter as { acceptNode(node: Node): number }, 'acceptNode');\n  const hidden = document.querySelector('div')!;\n  expect(walker.nextNode()?.textContent).toBe('visible');\n  expect(walker.nextNode()).toBeNull();\n  expect(styles).toHaveBeenCalledTimes(4);\n  expect(filter.mock.calls.filter(([node]) => hidden.contains(node))).toHaveLength(1);\n});\n\nit.each(['<span><!-- trailing comment --></span>', '<img>'])('continues after hidden content ending with a non-text node: %s', ending => {\n  document.body.innerHTML = `<div style=\"display:none\"><p>hidden</p>${ending}</div><p>visible</p>`;\n  const walker = createTextNodeWalker()!;\n  expect(walker.nextNode()?.textContent).toBe('visible');\n  expect(walker.nextNode()).toBeNull();\n});\n",
+  "scope": {
+    "primaryLibraryRecords": 10000,
+    "paragraphScales": [
+      100,
+      10000
+    ],
+    "fallbackHighlights": 20,
+    "costProof": "Filtering another accepted text under the same parent performs one WeakMap.get instead of two.",
+    "timingIsolation": "All four browser runs sequential without CPU/heap profiling, tests, builds or native acceptance overlap.",
+    "candidateChange": "Return FILTER_ACCEPT before reading barriers; nextNode only consumes lastBarrier for rejected nodes. Rejection and style-failure paths unchanged."
+  },
+  "sourceHashes": {
+    "src/content/highlight/dom-utils.ts": "923a7b3b99d14d10e19fb9315a23b7da6588b4edd5c034be64acc53027370953",
+    "src/content/highlight/text-search.ts": "930e8e453389331cd337cc0139063cb4ecc058213b89572f83707986b5c72a07",
+    "src/content/highlight-engine.ts": "dec8314882bd476dcabbd9117232190bb32f117068e7e853342932c0c0f0e21b",
+    "src/content/highlight/metadata.ts": "6de45e4fd02efdecdd95f5f3a4b19ef8933bf42a7094e9b940cb29709c5ccd94",
+    "src/content/highlight/locators/offset-locator.ts": "86b873fc28548524a4c3ad9f49bbfe53a7ece004cbe407bb4fbde0f1092dd89e",
+    "tests/highlight-metadata.spec.ts": "63d474f9ce6eaaafb9298313304788bd601982af47d340ce7399c67c5b9c2bd9",
+    "tests/performance/text-mapping.ts": "60fd9e61c3506e572302d3afd0385473405c78fd819bb5cfae58577098784830",
+    "scripts/performance.mjs": "400bc72e1473709fb60c933c33c1fee96ea228a65af0ce88673c1e24b9c4dc5a",
+    "scripts/highlight-acceptance.mjs": "d499184867234441b34cb270659678cbb9f6a39aa70f02fbbd1e36e8392d6d7d",
+    "scripts/firefox-highlight-acceptance.mjs": "7ea629e7911f95427cfedc7f145c22e9624b09ff85d972220fd62fec372a6a1c"
+  },
+  "baselineProductionHashes": {
+    "src/content/highlight/dom-utils.ts": "1f4a6bde4867f1efce67ff531d9a00fcce56cae0875f067c38a894fd495d1141",
+    "src/content/highlight/text-search.ts": "930e8e453389331cd337cc0139063cb4ecc058213b89572f83707986b5c72a07",
+    "src/content/highlight-engine.ts": "dec8314882bd476dcabbd9117232190bb32f117068e7e853342932c0c0f0e21b",
+    "src/content/highlight/metadata.ts": "6de45e4fd02efdecdd95f5f3a4b19ef8933bf42a7094e9b940cb29709c5ccd94",
+    "src/content/highlight/locators/offset-locator.ts": "86b873fc28548524a4c3ad9f49bbfe53a7ece004cbe407bb4fbde0f1092dd89e"
+  },
+  "retainedSourceHashes": {
+    "src/content/highlight/dom-utils.ts": "1f4a6bde4867f1efce67ff531d9a00fcce56cae0875f067c38a894fd495d1141",
+    "src/content/highlight/text-search.ts": "930e8e453389331cd337cc0139063cb4ecc058213b89572f83707986b5c72a07",
+    "src/content/highlight-engine.ts": "dec8314882bd476dcabbd9117232190bb32f117068e7e853342932c0c0f0e21b",
+    "src/content/highlight/metadata.ts": "6de45e4fd02efdecdd95f5f3a4b19ef8933bf42a7094e9b940cb29709c5ccd94",
+    "src/content/highlight/locators/offset-locator.ts": "86b873fc28548524a4c3ad9f49bbfe53a7ece004cbe407bb4fbde0f1092dd89e",
+    "tests/highlight-metadata.spec.ts": "43f8d4f00a41d923377dad1be65824b8f924b847b370a535e245e413f7557957",
+    "tests/performance/text-mapping.ts": "60fd9e61c3506e572302d3afd0385473405c78fd819bb5cfae58577098784830",
+    "scripts/performance.mjs": "400bc72e1473709fb60c933c33c1fee96ea228a65af0ce88673c1e24b9c4dc5a",
+    "scripts/highlight-acceptance.mjs": "d499184867234441b34cb270659678cbb9f6a39aa70f02fbbd1e36e8392d6d7d",
+    "scripts/firefox-highlight-acceptance.mjs": "7ea629e7911f95427cfedc7f145c22e9624b09ff85d972220fd62fec372a6a1c"
+  },
+  "executionOrder": [
+    "baseline-normal",
+    "current-normal",
+    "current-reverse",
+    "baseline-reverse"
+  ],
+  "timing": {
+    "normal": {
+      "baseline": {
+        "mode": "baseline",
+        "baselineRef": "275fc2f241d9807c607220acc85845c4614fea16",
+        "cpuProfiled": false,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+        "scenario": "text-mapping",
+        "reverse": false,
+        "fixtureSettledFrames": 2,
+        "firstActivationBeforeSearches": true,
+        "latin1CodeUnitsVerified": 256,
+        "results": [
+          {
+            "paragraphs": 100,
+            "layout": "latin1",
+            "firstActivation": {
+              "wallMs": 7.9000000059604645,
+              "durationMs": 5.9000000059604645
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.19999998807907104,
+                "samplesMs": [
+                  0.19999998807907104,
+                  0.20000000298023224,
+                  0.10000000894069672,
+                  0.19999998807907104,
+                  0.20000000298023224,
+                  0.10000000894069672,
+                  0.3999999910593033
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.19999998807907104,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.09999999403953552,
+                  0.20000000298023224,
+                  0.09999999403953552,
+                  0.10000000894069672,
+                  0.19999998807907104
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.09999999403953552,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.09999999403953552,
+                  0.29999999701976776
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.10000000894069672,
+                "samplesMs": [
+                  0.10000000894069672,
+                  0.09999999403953552,
+                  0.09999999403953552,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.09999999403953552,
+                  0.20000000298023224
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 6.5999999940395355,
+              "durationMedianMs": 5.299999997019768,
+              "samples": [
+                {
+                  "wallMs": 4.700000002980232,
+                  "durationMs": 4.600000008940697
+                },
+                {
+                  "wallMs": 4.5999999940395355,
+                  "durationMs": 4.399999991059303
+                },
+                {
+                  "wallMs": 6.5999999940395355,
+                  "durationMs": 5.299999997019768
+                },
+                {
+                  "wallMs": 7.200000002980232,
+                  "durationMs": 5.799999997019768
+                },
+                {
+                  "wallMs": 7.4000000059604645,
+                  "durationMs": 5.9000000059604645
+                },
+                {
+                  "wallMs": 7.700000002980232,
+                  "durationMs": 6.299999997019768
+                },
+                {
+                  "wallMs": 6.5999999940395355,
+                  "durationMs": 5.200000002980232
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "chinese",
+            "firstActivation": {
+              "wallMs": 7.799999997019768,
+              "durationMs": 7.5999999940395355
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.19999998807907104,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.20000000298023224
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.20000000298023224
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.3999999910593033,
+                  0.30000001192092896,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.10000000894069672,
+                  0.19999998807907104,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.09999999403953552,
+                  0.20000000298023224,
+                  0.29999999701976776
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 7.9000000059604645,
+              "durationMedianMs": 7.0999999940395355,
+              "samples": [
+                {
+                  "wallMs": 6.4000000059604645,
+                  "durationMs": 6.299999997019768
+                },
+                {
+                  "wallMs": 7.9000000059604645,
+                  "durationMs": 6.600000008940697
+                },
+                {
+                  "wallMs": 6.600000008940697,
+                  "durationMs": 6.600000008940697
+                },
+                {
+                  "wallMs": 7.199999988079071,
+                  "durationMs": 7.0999999940395355
+                },
+                {
+                  "wallMs": 9,
+                  "durationMs": 7.5999999940395355
+                },
+                {
+                  "wallMs": 9.099999994039536,
+                  "durationMs": 7.799999997019768
+                },
+                {
+                  "wallMs": 9.200000002980232,
+                  "durationMs": 7.799999997019768
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "unicode",
+            "firstActivation": {
+              "wallMs": 7.4000000059604645,
+              "durationMs": 7.100000008940697
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.4000000059604645
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.30000001192092896,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.19999998807907104,
+                  0.4000000059604645,
+                  0.29999999701976776
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.30000001192092896,
+                "samplesMs": [
+                  0.30000001192092896,
+                  0.3999999910593033,
+                  0.29999999701976776,
+                  0.30000001192092896,
+                  0.3999999910593033,
+                  0.20000000298023224,
+                  0.4000000059604645
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.09999999403953552,
+                  0.30000001192092896,
+                  0.09999999403953552
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 8,
+              "durationMedianMs": 7.700000002980232,
+              "samples": [
+                {
+                  "wallMs": 7.300000011920929,
+                  "durationMs": 7.200000002980232
+                },
+                {
+                  "wallMs": 7.299999997019768,
+                  "durationMs": 7.299999997019768
+                },
+                {
+                  "wallMs": 9,
+                  "durationMs": 7.5
+                },
+                {
+                  "wallMs": 7.700000002980232,
+                  "durationMs": 7.700000002980232
+                },
+                {
+                  "wallMs": 8.199999988079071,
+                  "durationMs": 8.099999994039536
+                },
+                {
+                  "wallMs": 8,
+                  "durationMs": 7.9000000059604645
+                },
+                {
+                  "wallMs": 8.699999988079071,
+                  "durationMs": 8.599999994039536
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "sparse-whitespace",
+            "firstActivation": {
+              "wallMs": 7.299999997019768,
+              "durationMs": 7.200000002980232
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.20000000298023224
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.30000001192092896,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.29999999701976776
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.30000001192092896,
+                  0.3999999910593033,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.4000000059604645
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.19999998807907104,
+                  0.30000001192092896,
+                  0.5,
+                  0.19999998807907104,
+                  0.30000001192092896,
+                  0.19999998807907104,
+                  0.20000000298023224
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 7.100000008940697,
+              "durationMedianMs": 7,
+              "samples": [
+                {
+                  "wallMs": 7,
+                  "durationMs": 6.800000011920929
+                },
+                {
+                  "wallMs": 7.100000008940697,
+                  "durationMs": 7
+                },
+                {
+                  "wallMs": 6.9000000059604645,
+                  "durationMs": 6.799999997019768
+                },
+                {
+                  "wallMs": 7.4000000059604645,
+                  "durationMs": 7.300000011920929
+                },
+                {
+                  "wallMs": 7.200000002980232,
+                  "durationMs": 7.0999999940395355
+                },
+                {
+                  "wallMs": 6.5999999940395355,
+                  "durationMs": 6.399999991059303
+                },
+                {
+                  "wallMs": 8.299999997019768,
+                  "durationMs": 7
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "diverse-cjk",
+            "firstActivation": {
+              "wallMs": 8.299999997019768,
+              "durationMs": 8.299999997019768
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.30000001192092896,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.29999999701976776
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.3999999910593033,
+                  0.29999999701976776,
+                  0.30000001192092896,
+                  0.19999998807907104,
+                  0.29999999701976776,
+                  0.4000000059604645
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.4000000059604645,
+                "samplesMs": [
+                  0.4000000059604645,
+                  0.29999999701976776,
+                  0.4000000059604645,
+                  0.29999999701976776,
+                  0.4000000059604645,
+                  0.29999999701976776,
+                  0.5
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.29999999701976776
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 7.399999991059303,
+              "durationMedianMs": 6.4000000059604645,
+              "samples": [
+                {
+                  "wallMs": 7.399999991059303,
+                  "durationMs": 7.199999988079071
+                },
+                {
+                  "wallMs": 7.200000002980232,
+                  "durationMs": 5.700000002980232
+                },
+                {
+                  "wallMs": 6.4000000059604645,
+                  "durationMs": 6.4000000059604645
+                },
+                {
+                  "wallMs": 8.099999994039536,
+                  "durationMs": 6.5999999940395355
+                },
+                {
+                  "wallMs": 7.399999991059303,
+                  "durationMs": 5.899999991059303
+                },
+                {
+                  "wallMs": 6.4000000059604645,
+                  "durationMs": 6.4000000059604645
+                },
+                {
+                  "wallMs": 8,
+                  "durationMs": 6.5999999940395355
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "latin1",
+            "firstActivation": {
+              "wallMs": 468.70000000298023,
+              "durationMs": 466.70000000298023
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 15.5,
+                "samplesMs": [
+                  15.5,
+                  17.400000005960464,
+                  15,
+                  15.400000005960464,
+                  15.5,
+                  16.299999997019768,
+                  15.299999997019768
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 16.700000002980232,
+                "samplesMs": [
+                  16.700000002980232,
+                  16.799999997019768,
+                  17.600000008940697,
+                  16.19999998807907,
+                  16.100000008940697,
+                  15.899999991059303,
+                  17.400000005960464
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 17.5,
+                "samplesMs": [
+                  17.399999991059303,
+                  18.600000008940697,
+                  20.099999994039536,
+                  17.299999997019768,
+                  17.5,
+                  27.299999997019768,
+                  16.700000002980232
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 15,
+                "samplesMs": [
+                  13.900000005960464,
+                  15.799999997019768,
+                  15,
+                  15.400000005960464,
+                  14.699999988079071,
+                  15.300000011920929,
+                  14
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 408.79999999701977,
+              "durationMedianMs": 397.69999998807907,
+              "samples": [
+                {
+                  "wallMs": 408.79999999701977,
+                  "durationMs": 407.29999999701977
+                },
+                {
+                  "wallMs": 402.5,
+                  "durationMs": 402.40000000596046
+                },
+                {
+                  "wallMs": 399.70000000298023,
+                  "durationMs": 395.70000000298023
+                },
+                {
+                  "wallMs": 424,
+                  "durationMs": 397.69999998807907
+                },
+                {
+                  "wallMs": 421.3999999910593,
+                  "durationMs": 421.19999998807907
+                },
+                {
+                  "wallMs": 396,
+                  "durationMs": 395.8999999910593
+                },
+                {
+                  "wallMs": 415.79999999701977,
+                  "durationMs": 395.59999999403954
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "chinese",
+            "firstActivation": {
+              "wallMs": 489.09999999403954,
+              "durationMs": 489
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 15.800000011920929,
+                "samplesMs": [
+                  17.100000008940697,
+                  15.099999994039536,
+                  15.299999997019768,
+                  15.800000011920929,
+                  16.099999994039536,
+                  20.5,
+                  15.599999994039536
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 20.5,
+                "samplesMs": [
+                  20.400000005960464,
+                  20.599999994039536,
+                  20.600000008940697,
+                  22.899999991059303,
+                  20.30000001192093,
+                  20.399999991059303,
+                  20.5
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 26.700000002980232,
+                "samplesMs": [
+                  26.299999997019768,
+                  25.400000005960464,
+                  25.799999997019768,
+                  26.799999997019768,
+                  28.80000001192093,
+                  26.799999997019768,
+                  26.700000002980232
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 16.5,
+                "samplesMs": [
+                  16.099999994039536,
+                  16.5,
+                  16.799999997019768,
+                  18.700000002980232,
+                  16.600000008940697,
+                  16,
+                  15.299999997019768
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 494.5,
+              "durationMedianMs": 487.79999999701977,
+              "samples": [
+                {
+                  "wallMs": 486,
+                  "durationMs": 485.8999999910593
+                },
+                {
+                  "wallMs": 523.9000000059605,
+                  "durationMs": 523.7999999970198
+                },
+                {
+                  "wallMs": 494.5,
+                  "durationMs": 480
+                },
+                {
+                  "wallMs": 510.29999999701977,
+                  "durationMs": 490.59999999403954
+                },
+                {
+                  "wallMs": 487.8999999910593,
+                  "durationMs": 487.79999999701977
+                },
+                {
+                  "wallMs": 483.3999999910593,
+                  "durationMs": 483.20000000298023
+                },
+                {
+                  "wallMs": 531.7999999970198,
+                  "durationMs": 493.5
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "unicode",
+            "firstActivation": {
+              "wallMs": 587.4000000059605,
+              "durationMs": 585.9000000059605
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 17,
+                "samplesMs": [
+                  16.80000001192093,
+                  17.19999998807907,
+                  16.900000005960464,
+                  19,
+                  17.099999994039536,
+                  16.900000005960464,
+                  17
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 21.5,
+                "samplesMs": [
+                  21.400000005960464,
+                  21.5,
+                  21.599999994039536,
+                  22.099999994039536,
+                  21.30000001192093,
+                  21.799999997019768,
+                  21.399999991059303
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 26.099999994039536,
+                "samplesMs": [
+                  25.900000005960464,
+                  26,
+                  26.599999994039536,
+                  26,
+                  26.099999994039536,
+                  26.900000005960464,
+                  26.299999997019768
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 17.399999991059303,
+                "samplesMs": [
+                  17.899999991059303,
+                  17.799999997019768,
+                  18.100000008940697,
+                  17.099999994039536,
+                  16.900000005960464,
+                  17,
+                  17.399999991059303
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 539.7000000029802,
+              "durationMedianMs": 521.7999999970198,
+              "samples": [
+                {
+                  "wallMs": 536.9000000059605,
+                  "durationMs": 513.2000000029802
+                },
+                {
+                  "wallMs": 519.6000000089407,
+                  "durationMs": 519.4000000059605
+                },
+                {
+                  "wallMs": 569.4000000059605,
+                  "durationMs": 569.4000000059605
+                },
+                {
+                  "wallMs": 514.5999999940395,
+                  "durationMs": 514.5999999940395
+                },
+                {
+                  "wallMs": 546.4000000059605,
+                  "durationMs": 521.7999999970198
+                },
+                {
+                  "wallMs": 539.7000000029802,
+                  "durationMs": 539.7000000029802
+                },
+                {
+                  "wallMs": 579.7000000029802,
+                  "durationMs": 579.5999999940395
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "sparse-whitespace",
+            "firstActivation": {
+              "wallMs": 442.1000000089407,
+              "durationMs": 440.79999999701977
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 14.5,
+                "samplesMs": [
+                  14.299999997019768,
+                  14.200000002980232,
+                  14.200000002980232,
+                  17.299999997019768,
+                  14.599999994039536,
+                  14.5,
+                  14.5
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 16,
+                "samplesMs": [
+                  16,
+                  16.299999997019768,
+                  16.200000002980232,
+                  18.400000005960464,
+                  15.200000002980232,
+                  15.399999991059303,
+                  15.600000008940697
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 17.5,
+                "samplesMs": [
+                  18.299999997019768,
+                  18.200000002980232,
+                  17.5,
+                  17.099999994039536,
+                  19.299999997019768,
+                  17,
+                  16.700000002980232
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 15.200000002980232,
+                "samplesMs": [
+                  14.599999994039536,
+                  15.200000002980232,
+                  15.200000002980232,
+                  15.099999994039536,
+                  17,
+                  15,
+                  15.5
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 427.6000000089407,
+              "durationMedianMs": 415.59999999403954,
+              "samples": [
+                {
+                  "wallMs": 436.5,
+                  "durationMs": 415.59999999403954
+                },
+                {
+                  "wallMs": 397.5,
+                  "durationMs": 397.40000000596046
+                },
+                {
+                  "wallMs": 427.6000000089407,
+                  "durationMs": 427.5
+                },
+                {
+                  "wallMs": 443.20000000298023,
+                  "durationMs": 443.1000000089407
+                },
+                {
+                  "wallMs": 401.8999999910593,
+                  "durationMs": 401.70000000298023
+                },
+                {
+                  "wallMs": 423.5,
+                  "durationMs": 397.3999999910593
+                },
+                {
+                  "wallMs": 443.29999999701977,
+                  "durationMs": 443.20000000298023
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "diverse-cjk",
+            "firstActivation": {
+              "wallMs": 452,
+              "durationMs": 450.5
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 15.299999997019768,
+                "samplesMs": [
+                  15.299999997019768,
+                  15.099999994039536,
+                  15.400000005960464,
+                  15.299999997019768,
+                  17.700000002980232,
+                  15.200000002980232,
+                  14.899999991059303
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 17.200000002980232,
+                "samplesMs": [
+                  16.799999997019768,
+                  17.299999997019768,
+                  17.299999997019768,
+                  18.700000002980232,
+                  17.200000002980232,
+                  17,
+                  17
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 18.299999997019768,
+                "samplesMs": [
+                  18.5,
+                  18.700000002980232,
+                  19.599999994039536,
+                  17.599999994039536,
+                  18.200000002980232,
+                  18.299999997019768,
+                  18.100000008940697
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 15,
+                "samplesMs": [
+                  15.099999994039536,
+                  16.600000008940697,
+                  14.899999991059303,
+                  14.900000005960464,
+                  14.799999997019768,
+                  15,
+                  15
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 448.5,
+              "durationMedianMs": 445,
+              "samples": [
+                {
+                  "wallMs": 488.20000000298023,
+                  "durationMs": 463.70000000298023
+                },
+                {
+                  "wallMs": 445,
+                  "durationMs": 445
+                },
+                {
+                  "wallMs": 459.40000000596046,
+                  "durationMs": 459.30000001192093
+                },
+                {
+                  "wallMs": 445,
+                  "durationMs": 444.8999999910593
+                },
+                {
+                  "wallMs": 435.19999998807907,
+                  "durationMs": 430.59999999403954
+                },
+                {
+                  "wallMs": 452.79999999701977,
+                  "durationMs": 425.5
+                },
+                {
+                  "wallMs": 448.5,
+                  "durationMs": 448.29999999701977
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "current": {
+        "mode": "working-tree",
+        "cpuProfiled": false,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+        "scenario": "text-mapping",
+        "reverse": false,
+        "fixtureSettledFrames": 2,
+        "firstActivationBeforeSearches": true,
+        "latin1CodeUnitsVerified": 256,
+        "results": [
+          {
+            "paragraphs": 100,
+            "layout": "latin1",
+            "firstActivation": {
+              "wallMs": 6.5,
+              "durationMs": 5.799999997019768
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.10000000894069672,
+                "samplesMs": [
+                  0.09999999403953552,
+                  0.09999999403953552,
+                  0.20000000298023224,
+                  0.10000000894069672,
+                  0.09999999403953552,
+                  0.20000000298023224,
+                  0.3999999910593033
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0,
+                  0.20000000298023224,
+                  0.19999998807907104,
+                  0.10000000894069672,
+                  0.20000000298023224
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.10000000894069672,
+                  0.20000000298023224,
+                  0.19999998807907104,
+                  0.20000000298023224,
+                  0,
+                  0.20000000298023224,
+                  0.5
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.10000000894069672,
+                "samplesMs": [
+                  0.10000000894069672,
+                  0.20000000298023224,
+                  0.09999999403953552,
+                  0.09999999403953552,
+                  0.20000000298023224,
+                  0.10000000894069672,
+                  0.09999999403953552
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 5.9000000059604645,
+              "durationMedianMs": 4.799999997019768,
+              "samples": [
+                {
+                  "wallMs": 4.200000002980232,
+                  "durationMs": 4.100000008940697
+                },
+                {
+                  "wallMs": 5.5999999940395355,
+                  "durationMs": 4.199999988079071
+                },
+                {
+                  "wallMs": 5.9000000059604645,
+                  "durationMs": 4.4000000059604645
+                },
+                {
+                  "wallMs": 6.299999997019768,
+                  "durationMs": 4.799999997019768
+                },
+                {
+                  "wallMs": 6.700000002980232,
+                  "durationMs": 5.200000002980232
+                },
+                {
+                  "wallMs": 7.200000002980232,
+                  "durationMs": 5.9000000059604645
+                },
+                {
+                  "wallMs": 5.9000000059604645,
+                  "durationMs": 5.799999997019768
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "chinese",
+            "firstActivation": {
+              "wallMs": 7.899999991059303,
+              "durationMs": 7.799999997019768
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.10000000894069672,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.20000000298023224
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.4000000059604645,
+                  0.4000000059604645,
+                  0.19999998807907104,
+                  0.30000001192092896,
+                  0.29999999701976776,
+                  0.29999999701976776
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.3999999910593033,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.5,
+                  0.4000000059604645,
+                  0.29999999701976776,
+                  0.4000000059604645,
+                  0.20000000298023224,
+                  0.3999999910593033
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.19999998807907104,
+                "samplesMs": [
+                  0.10000000894069672,
+                  0.20000000298023224,
+                  0.19999998807907104,
+                  0.30000001192092896,
+                  0.19999998807907104,
+                  0.30000001192092896,
+                  0.09999999403953552
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 8,
+              "durationMedianMs": 7.799999997019768,
+              "samples": [
+                {
+                  "wallMs": 7.600000008940697,
+                  "durationMs": 7.600000008940697
+                },
+                {
+                  "wallMs": 7.799999997019768,
+                  "durationMs": 7.799999997019768
+                },
+                {
+                  "wallMs": 8,
+                  "durationMs": 7.799999997019768
+                },
+                {
+                  "wallMs": 8,
+                  "durationMs": 7.799999997019768
+                },
+                {
+                  "wallMs": 9,
+                  "durationMs": 7.5999999940395355
+                },
+                {
+                  "wallMs": 8.200000002980232,
+                  "durationMs": 8.099999994039536
+                },
+                {
+                  "wallMs": 7.700000002980232,
+                  "durationMs": 7.700000002980232
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "unicode",
+            "firstActivation": {
+              "wallMs": 8.5,
+              "durationMs": 8.400000005960464
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.30000001192092896,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.29999999701976776
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.4000000059604645,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.4000000059604645,
+                  0.4000000059604645
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.4000000059604645,
+                "samplesMs": [
+                  0.4000000059604645,
+                  0.3999999910593033,
+                  0.4000000059604645,
+                  0.4000000059604645,
+                  0.3999999910593033,
+                  0.4000000059604645,
+                  0.29999999701976776
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.29999999701976776
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 8.199999988079071,
+              "durationMedianMs": 8.099999994039536,
+              "samples": [
+                {
+                  "wallMs": 8.099999994039536,
+                  "durationMs": 8
+                },
+                {
+                  "wallMs": 7.800000011920929,
+                  "durationMs": 7.800000011920929
+                },
+                {
+                  "wallMs": 8.099999994039536,
+                  "durationMs": 8.099999994039536
+                },
+                {
+                  "wallMs": 8.299999997019768,
+                  "durationMs": 8.200000002980232
+                },
+                {
+                  "wallMs": 8.199999988079071,
+                  "durationMs": 8.099999994039536
+                },
+                {
+                  "wallMs": 10.300000011920929,
+                  "durationMs": 8.5
+                },
+                {
+                  "wallMs": 9,
+                  "durationMs": 8.900000005960464
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "sparse-whitespace",
+            "firstActivation": {
+              "wallMs": 7.5,
+              "durationMs": 7.4000000059604645
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.19999998807907104,
+                  0.30000001192092896,
+                  0.19999998807907104,
+                  0.30000001192092896,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.19999998807907104
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.30000001192092896,
+                  0.19999998807907104,
+                  0.20000000298023224,
+                  0.5,
+                  0.20000000298023224,
+                  0.29999999701976776
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.30000001192092896
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.10000000894069672,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.19999998807907104
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 6.9000000059604645,
+              "durationMedianMs": 6.600000008940697,
+              "samples": [
+                {
+                  "wallMs": 6.9000000059604645,
+                  "durationMs": 6.700000002980232
+                },
+                {
+                  "wallMs": 9,
+                  "durationMs": 7.5
+                },
+                {
+                  "wallMs": 6.799999997019768,
+                  "durationMs": 6.699999988079071
+                },
+                {
+                  "wallMs": 7.5,
+                  "durationMs": 6.0999999940395355
+                },
+                {
+                  "wallMs": 6.600000008940697,
+                  "durationMs": 6.600000008940697
+                },
+                {
+                  "wallMs": 7.5,
+                  "durationMs": 6
+                },
+                {
+                  "wallMs": 6,
+                  "durationMs": 5.899999991059303
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "diverse-cjk",
+            "firstActivation": {
+              "wallMs": 8.200000002980232,
+              "durationMs": 8.099999994039536
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.30000001192092896,
+                  0.19999998807907104,
+                  0.30000001192092896,
+                  0.19999998807907104,
+                  0.4000000059604645,
+                  0.20000000298023224
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.30000001192092896,
+                  0.3999999910593033,
+                  0.20000000298023224,
+                  0.7000000029802322,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.20000000298023224
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.3999999910593033,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.30000001192092896,
+                  0.19999998807907104,
+                  0.30000001192092896
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.09999999403953552,
+                  0.29999999701976776,
+                  0.20000000298023224
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 5.5999999940395355,
+              "durationMedianMs": 5.100000008940697,
+              "samples": [
+                {
+                  "wallMs": 7.299999997019768,
+                  "durationMs": 7.299999997019768
+                },
+                {
+                  "wallMs": 6.4000000059604645,
+                  "durationMs": 5.100000008940697
+                },
+                {
+                  "wallMs": 4.799999997019768,
+                  "durationMs": 4.700000002980232
+                },
+                {
+                  "wallMs": 5.899999991059303,
+                  "durationMs": 4.5
+                },
+                {
+                  "wallMs": 4.9000000059604645,
+                  "durationMs": 4.799999997019768
+                },
+                {
+                  "wallMs": 5.199999988079071,
+                  "durationMs": 5.199999988079071
+                },
+                {
+                  "wallMs": 5.5999999940395355,
+                  "durationMs": 5.5
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "latin1",
+            "firstActivation": {
+              "wallMs": 452.5,
+              "durationMs": 451
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 14.900000005960464,
+                "samplesMs": [
+                  16,
+                  17.200000002980232,
+                  14.699999988079071,
+                  14.900000005960464,
+                  14.5,
+                  15.099999994039536,
+                  14.200000002980232
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 15.800000011920929,
+                "samplesMs": [
+                  16,
+                  15.800000011920929,
+                  16.399999991059303,
+                  15.600000008940697,
+                  15.399999991059303,
+                  15.299999997019768,
+                  17
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 17.299999997019768,
+                "samplesMs": [
+                  16.599999994039536,
+                  17.299999997019768,
+                  17.700000002980232,
+                  16.5,
+                  27.799999997019768,
+                  17.5,
+                  16.80000001192093
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 14.200000002980232,
+                "samplesMs": [
+                  15.200000002980232,
+                  14.099999994039536,
+                  14,
+                  14,
+                  15,
+                  14.200000002980232,
+                  14.200000002980232
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 421.90000000596046,
+              "durationMedianMs": 411.79999999701977,
+              "samples": [
+                {
+                  "wallMs": 426.6000000089407,
+                  "durationMs": 425.1000000089407
+                },
+                {
+                  "wallMs": 411.8999999910593,
+                  "durationMs": 411.79999999701977
+                },
+                {
+                  "wallMs": 397.29999999701977,
+                  "durationMs": 393.5
+                },
+                {
+                  "wallMs": 440.09999999403954,
+                  "durationMs": 412.09999999403954
+                },
+                {
+                  "wallMs": 421.90000000596046,
+                  "durationMs": 421.80000001192093
+                },
+                {
+                  "wallMs": 394.3999999910593,
+                  "durationMs": 394.3999999910593
+                },
+                {
+                  "wallMs": 423.70000000298023,
+                  "durationMs": 397.29999999701977
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "chinese",
+            "firstActivation": {
+              "wallMs": 498.1000000089407,
+              "durationMs": 498
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 15.400000005960464,
+                "samplesMs": [
+                  17.100000008940697,
+                  15.299999997019768,
+                  14.799999997019768,
+                  15.299999997019768,
+                  15.400000005960464,
+                  20.700000002980232,
+                  15.700000002980232
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 20.400000005960464,
+                "samplesMs": [
+                  20.099999994039536,
+                  20.5,
+                  20.400000005960464,
+                  23.299999997019768,
+                  20.400000005960464,
+                  20.099999994039536,
+                  20.200000002980232
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 25.600000008940697,
+                "samplesMs": [
+                  27.200000002980232,
+                  25.799999997019768,
+                  25.5,
+                  25.099999994039536,
+                  26.400000005960464,
+                  25.599999994039536,
+                  25.600000008940697
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 15.400000005960464,
+                "samplesMs": [
+                  15.5,
+                  15.599999994039536,
+                  15.400000005960464,
+                  17.899999991059303,
+                  15.299999997019768,
+                  15.300000011920929,
+                  15.299999997019768
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 504.19999998807907,
+              "durationMedianMs": 492.59999999403954,
+              "samples": [
+                {
+                  "wallMs": 495.09999999403954,
+                  "durationMs": 492.59999999403954
+                },
+                {
+                  "wallMs": 510.20000000298023,
+                  "durationMs": 510.20000000298023
+                },
+                {
+                  "wallMs": 495.69999998807907,
+                  "durationMs": 478.09999999403954
+                },
+                {
+                  "wallMs": 515.5999999940395,
+                  "durationMs": 496.09999999403954
+                },
+                {
+                  "wallMs": 504.19999998807907,
+                  "durationMs": 504.09999999403954
+                },
+                {
+                  "wallMs": 491.79999999701977,
+                  "durationMs": 491.5
+                },
+                {
+                  "wallMs": 517,
+                  "durationMs": 476.90000000596046
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "unicode",
+            "firstActivation": {
+              "wallMs": 574.3999999910593,
+              "durationMs": 573
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 17.200000002980232,
+                "samplesMs": [
+                  17.80000001192093,
+                  16.899999991059303,
+                  17.200000002980232,
+                  18.799999997019768,
+                  17.200000002980232,
+                  16.599999994039536,
+                  17
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 21.799999997019768,
+                "samplesMs": [
+                  21.5,
+                  21.799999997019768,
+                  21.400000005960464,
+                  22.299999997019768,
+                  21.5,
+                  21.799999997019768,
+                  21.80000001192093
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 26.400000005960464,
+                "samplesMs": [
+                  26.400000005960464,
+                  26.299999997019768,
+                  27.200000002980232,
+                  26.599999994039536,
+                  26.400000005960464,
+                  26.899999991059303,
+                  26
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 17.700000002980232,
+                "samplesMs": [
+                  18.099999994039536,
+                  17.700000002980232,
+                  18.400000005960464,
+                  16.799999997019768,
+                  17,
+                  16.900000005960464,
+                  18
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 536.7000000029802,
+              "durationMedianMs": 530.7000000029802,
+              "samples": [
+                {
+                  "wallMs": 536.2999999970198,
+                  "durationMs": 517.3999999910593
+                },
+                {
+                  "wallMs": 530.8000000119209,
+                  "durationMs": 530.7000000029802
+                },
+                {
+                  "wallMs": 558.2999999970198,
+                  "durationMs": 558.2000000029802
+                },
+                {
+                  "wallMs": 536.7000000029802,
+                  "durationMs": 536.7000000029802
+                },
+                {
+                  "wallMs": 518.4000000059605,
+                  "durationMs": 513
+                },
+                {
+                  "wallMs": 548.2000000029802,
+                  "durationMs": 526.7000000029802
+                },
+                {
+                  "wallMs": 544.1000000089407,
+                  "durationMs": 543.9000000059605
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "sparse-whitespace",
+            "firstActivation": {
+              "wallMs": 449.59999999403954,
+              "durationMs": 448.20000000298023
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 14.200000002980232,
+                "samplesMs": [
+                  14.200000002980232,
+                  14.099999994039536,
+                  14.200000002980232,
+                  17.099999994039536,
+                  14.5,
+                  14.400000005960464,
+                  14.099999994039536
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 15.800000011920929,
+                "samplesMs": [
+                  15.700000002980232,
+                  16.299999997019768,
+                  15.799999997019768,
+                  16,
+                  17.799999997019768,
+                  15.800000011920929,
+                  15.399999991059303
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 17.100000008940697,
+                "samplesMs": [
+                  16.799999997019768,
+                  17.299999997019768,
+                  17.099999994039536,
+                  17.100000008940697,
+                  17,
+                  19.399999991059303,
+                  17.200000002980232
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 14.600000008940697,
+                "samplesMs": [
+                  14.5,
+                  14.600000008940697,
+                  14.599999994039536,
+                  14.799999997019768,
+                  14.600000008940697,
+                  16,
+                  17.399999991059303
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 423.19999998807907,
+              "durationMedianMs": 421.29999999701977,
+              "samples": [
+                {
+                  "wallMs": 433.90000000596046,
+                  "durationMs": 421.59999999403954
+                },
+                {
+                  "wallMs": 418.90000000596046,
+                  "durationMs": 418.79999999701977
+                },
+                {
+                  "wallMs": 425.29999999701977,
+                  "durationMs": 425.20000000298023
+                },
+                {
+                  "wallMs": 423.19999998807907,
+                  "durationMs": 399.19999998807907
+                },
+                {
+                  "wallMs": 421.3999999910593,
+                  "durationMs": 421.29999999701977
+                },
+                {
+                  "wallMs": 445.5,
+                  "durationMs": 445.29999999701977
+                },
+                {
+                  "wallMs": 403.59999999403954,
+                  "durationMs": 403.40000000596046
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "diverse-cjk",
+            "firstActivation": {
+              "wallMs": 425.29999999701977,
+              "durationMs": 422.69999998807907
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 14.900000005960464,
+                "samplesMs": [
+                  14.700000002980232,
+                  14.900000005960464,
+                  14.599999994039536,
+                  14.900000005960464,
+                  14.699999988079071,
+                  18,
+                  15.200000002980232
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 16.400000005960464,
+                "samplesMs": [
+                  16.299999997019768,
+                  16.400000005960464,
+                  16.5,
+                  16.299999997019768,
+                  16.400000005960464,
+                  16.5,
+                  19.299999997019768
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 18,
+                "samplesMs": [
+                  17.900000005960464,
+                  18,
+                  18,
+                  18.299999997019768,
+                  17.799999997019768,
+                  17.900000005960464,
+                  18.099999994039536
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 14.799999997019768,
+                "samplesMs": [
+                  14.900000005960464,
+                  14.799999997019768,
+                  14.700000002980232,
+                  14.700000002980232,
+                  14.700000002980232,
+                  15,
+                  14.799999997019768
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 446.79999999701977,
+              "durationMedianMs": 440.70000000298023,
+              "samples": [
+                {
+                  "wallMs": 447,
+                  "durationMs": 417
+                },
+                {
+                  "wallMs": 441.1000000089407,
+                  "durationMs": 440.70000000298023
+                },
+                {
+                  "wallMs": 451.8999999910593,
+                  "durationMs": 451.79999999701977
+                },
+                {
+                  "wallMs": 458.40000000596046,
+                  "durationMs": 458.1000000089407
+                },
+                {
+                  "wallMs": 419.5,
+                  "durationMs": 419.29999999701977
+                },
+                {
+                  "wallMs": 438.79999999701977,
+                  "durationMs": 411
+                },
+                {
+                  "wallMs": 446.79999999701977,
+                  "durationMs": 446.70000000298023
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "reverse": {
+      "baseline": {
+        "mode": "baseline",
+        "baselineRef": "275fc2f241d9807c607220acc85845c4614fea16",
+        "cpuProfiled": false,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+        "scenario": "text-mapping",
+        "reverse": true,
+        "fixtureSettledFrames": 2,
+        "firstActivationBeforeSearches": true,
+        "latin1CodeUnitsVerified": 256,
+        "results": [
+          {
+            "paragraphs": 10000,
+            "layout": "diverse-cjk",
+            "firstActivation": {
+              "wallMs": 483,
+              "durationMs": 481.20000000298023
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 15.5,
+                "samplesMs": [
+                  15.399999991059303,
+                  18.200000002980232,
+                  15.200000002980232,
+                  15.5,
+                  18,
+                  15.799999997019768,
+                  15.5
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 17.099999994039536,
+                "samplesMs": [
+                  17.099999994039536,
+                  17.299999997019768,
+                  17.80000001192093,
+                  16.69999998807907,
+                  16.900000005960464,
+                  17.599999994039536,
+                  16.700000002980232
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 18.400000005960464,
+                "samplesMs": [
+                  19.399999991059303,
+                  18.400000005960464,
+                  18.400000005960464,
+                  19.19999998807907,
+                  18.400000005960464,
+                  18.200000002980232,
+                  19.399999991059303
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 15.5,
+                "samplesMs": [
+                  15.5,
+                  16.100000008940697,
+                  15.5,
+                  15.599999994039536,
+                  16.200000002980232,
+                  15.200000002980232,
+                  15.5
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 466.59999999403954,
+              "durationMedianMs": 459,
+              "samples": [
+                {
+                  "wallMs": 511.90000000596046,
+                  "durationMs": 510.3999999910593
+                },
+                {
+                  "wallMs": 478.40000000596046,
+                  "durationMs": 459
+                },
+                {
+                  "wallMs": 455.1000000089407,
+                  "durationMs": 454.70000000298023
+                },
+                {
+                  "wallMs": 473.29999999701977,
+                  "durationMs": 445.09999999403954
+                },
+                {
+                  "wallMs": 454.80000001192093,
+                  "durationMs": 454.6000000089407
+                },
+                {
+                  "wallMs": 459.40000000596046,
+                  "durationMs": 459.29999999701977
+                },
+                {
+                  "wallMs": 466.59999999403954,
+                  "durationMs": 466.5
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "sparse-whitespace",
+            "firstActivation": {
+              "wallMs": 481.6000000089407,
+              "durationMs": 431.29999999701977
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 14.5,
+                "samplesMs": [
+                  18.200000002980232,
+                  14.400000005960464,
+                  14.5,
+                  14.299999997019768,
+                  14.5,
+                  14.399999991059303,
+                  14.5
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 16.099999994039536,
+                "samplesMs": [
+                  16.30000001192093,
+                  15.899999991059303,
+                  16,
+                  16.100000008940697,
+                  16.099999994039536,
+                  16.099999994039536,
+                  18.5
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 17.200000002980232,
+                "samplesMs": [
+                  17.100000008940697,
+                  17,
+                  17.19999998807907,
+                  17.5,
+                  17.200000002980232,
+                  19.700000002980232,
+                  17.400000005960464
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 15,
+                "samplesMs": [
+                  15,
+                  14.800000011920929,
+                  15,
+                  15.099999994039536,
+                  17,
+                  15,
+                  14.900000005960464
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 460.29999999701977,
+              "durationMedianMs": 440.29999999701977,
+              "samples": [
+                {
+                  "wallMs": 466.20000000298023,
+                  "durationMs": 466.1000000089407
+                },
+                {
+                  "wallMs": 447.8999999910593,
+                  "durationMs": 447.79999999701977
+                },
+                {
+                  "wallMs": 460.29999999701977,
+                  "durationMs": 440.29999999701977
+                },
+                {
+                  "wallMs": 435.90000000596046,
+                  "durationMs": 435.6000000089407
+                },
+                {
+                  "wallMs": 460.79999999701977,
+                  "durationMs": 460.5
+                },
+                {
+                  "wallMs": 437.79999999701977,
+                  "durationMs": 437
+                },
+                {
+                  "wallMs": 460.29999999701977,
+                  "durationMs": 437.40000000596046
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "unicode",
+            "firstActivation": {
+              "wallMs": 560.5,
+              "durationMs": 559.1000000089407
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 17.30000001192093,
+                "samplesMs": [
+                  18.799999997019768,
+                  17.599999994039536,
+                  17.30000001192093,
+                  19.099999994039536,
+                  17.200000002980232,
+                  17.299999997019768,
+                  17.200000002980232
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 22.19999998807907,
+                "samplesMs": [
+                  22.19999998807907,
+                  22.100000008940697,
+                  22.200000002980232,
+                  23.299999997019768,
+                  22.200000002980232,
+                  22.099999994039536,
+                  22.099999994039536
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 26.799999997019768,
+                "samplesMs": [
+                  26.700000002980232,
+                  26.799999997019768,
+                  27.299999997019768,
+                  26.799999997019768,
+                  26.900000005960464,
+                  27.599999994039536,
+                  26.5
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 17.30000001192093,
+                "samplesMs": [
+                  17.299999997019768,
+                  17.700000002980232,
+                  18.400000005960464,
+                  16.899999991059303,
+                  17.30000001192093,
+                  17.19999998807907,
+                  18.5
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 569.7999999970198,
+              "durationMedianMs": 551.5999999940395,
+              "samples": [
+                {
+                  "wallMs": 602.1000000089407,
+                  "durationMs": 568.7000000029802
+                },
+                {
+                  "wallMs": 580.8000000119209,
+                  "durationMs": 580.7000000029802
+                },
+                {
+                  "wallMs": 551.7000000029802,
+                  "durationMs": 551.5999999940395
+                },
+                {
+                  "wallMs": 569.7999999970198,
+                  "durationMs": 548
+                },
+                {
+                  "wallMs": 554.3999999910593,
+                  "durationMs": 554.0999999940395
+                },
+                {
+                  "wallMs": 549.7999999970198,
+                  "durationMs": 549.6999999880791
+                },
+                {
+                  "wallMs": 584.6000000089407,
+                  "durationMs": 542.7000000029802
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "chinese",
+            "firstActivation": {
+              "wallMs": 551,
+              "durationMs": 549.5999999940395
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 16.100000008940697,
+                "samplesMs": [
+                  16,
+                  16.599999994039536,
+                  18.799999997019768,
+                  16.100000008940697,
+                  15.799999997019768,
+                  16.799999997019768,
+                  15.799999997019768
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 21.600000008940697,
+                "samplesMs": [
+                  23.799999997019768,
+                  21.5,
+                  21.600000008940697,
+                  35.29999999701977,
+                  23.399999991059303,
+                  21.600000008940697,
+                  21.200000002980232
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 26.899999991059303,
+                "samplesMs": [
+                  27.30000001192093,
+                  26.19999998807907,
+                  26.100000008940697,
+                  26.5,
+                  26.899999991059303,
+                  27.5,
+                  27.200000002980232
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 17.299999997019768,
+                "samplesMs": [
+                  16.799999997019768,
+                  17.200000002980232,
+                  17.400000005960464,
+                  18.399999991059303,
+                  17.299999997019768,
+                  17.5,
+                  17.200000002980232
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 531.2000000029802,
+              "durationMedianMs": 514,
+              "samples": [
+                {
+                  "wallMs": 553,
+                  "durationMs": 541.5
+                },
+                {
+                  "wallMs": 508.40000000596046,
+                  "durationMs": 508.40000000596046
+                },
+                {
+                  "wallMs": 533.5999999940395,
+                  "durationMs": 511.59999999403954
+                },
+                {
+                  "wallMs": 491.29999999701977,
+                  "durationMs": 491.20000000298023
+                },
+                {
+                  "wallMs": 531.2000000029802,
+                  "durationMs": 531.0999999940395
+                },
+                {
+                  "wallMs": 528.8000000119209,
+                  "durationMs": 514
+                },
+                {
+                  "wallMs": 548,
+                  "durationMs": 527.2000000029802
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "latin1",
+            "firstActivation": {
+              "wallMs": 435.3999999910593,
+              "durationMs": 435.3999999910593
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 14.800000011920929,
+                "samplesMs": [
+                  15.400000005960464,
+                  14.700000002980232,
+                  14.799999997019768,
+                  14.799999997019768,
+                  15.299999997019768,
+                  14.800000011920929,
+                  19.099999994039536
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 16.100000008940697,
+                "samplesMs": [
+                  16.30000001192093,
+                  16.599999994039536,
+                  16.299999997019768,
+                  15.900000005960464,
+                  16.099999994039536,
+                  16.100000008940697,
+                  15.699999988079071
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 17.299999997019768,
+                "samplesMs": [
+                  17.299999997019768,
+                  17.100000008940697,
+                  31.399999991059303,
+                  18.80000001192093,
+                  17.69999998807907,
+                  16.900000005960464,
+                  16.900000005960464
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 14.899999991059303,
+                "samplesMs": [
+                  14.600000008940697,
+                  14.599999994039536,
+                  15,
+                  16.700000002980232,
+                  14.899999991059303,
+                  14.700000002980232,
+                  15.100000008940697
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 429.20000000298023,
+              "durationMedianMs": 419.20000000298023,
+              "samples": [
+                {
+                  "wallMs": 434.5,
+                  "durationMs": 430.70000000298023
+                },
+                {
+                  "wallMs": 422.70000000298023,
+                  "durationMs": 422.29999999701977
+                },
+                {
+                  "wallMs": 434.79999999701977,
+                  "durationMs": 415.59999999403954
+                },
+                {
+                  "wallMs": 419.29999999701977,
+                  "durationMs": 419.20000000298023
+                },
+                {
+                  "wallMs": 412.5,
+                  "durationMs": 412.3999999910593
+                },
+                {
+                  "wallMs": 448.29999999701977,
+                  "durationMs": 411.90000000596046
+                },
+                {
+                  "wallMs": 429.20000000298023,
+                  "durationMs": 429
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "diverse-cjk",
+            "firstActivation": {
+              "wallMs": 4.399999991059303,
+              "durationMs": 4.299999997019768
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.19999998807907104,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.09999999403953552,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.20000000298023224
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.19999998807907104,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.09999999403953552,
+                  0.20000000298023224
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.19999998807907104
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.09999999403953552,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.09999999403953552,
+                  0.20000000298023224
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 5.5,
+              "durationMedianMs": 4.9000000059604645,
+              "samples": [
+                {
+                  "wallMs": 5.4000000059604645,
+                  "durationMs": 5.299999997019768
+                },
+                {
+                  "wallMs": 6.4000000059604645,
+                  "durationMs": 4.9000000059604645
+                },
+                {
+                  "wallMs": 5.4000000059604645,
+                  "durationMs": 4
+                },
+                {
+                  "wallMs": 5.5,
+                  "durationMs": 4.0999999940395355
+                },
+                {
+                  "wallMs": 5.399999991059303,
+                  "durationMs": 4
+                },
+                {
+                  "wallMs": 6.799999997019768,
+                  "durationMs": 5.4000000059604645
+                },
+                {
+                  "wallMs": 7.0999999940395355,
+                  "durationMs": 5.5999999940395355
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "sparse-whitespace",
+            "firstActivation": {
+              "wallMs": 9.799999997019768,
+              "durationMs": 9.5
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.3999999910593033,
+                  0.30000001192092896,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.4000000059604645,
+                  0.29999999701976776,
+                  0.29999999701976776
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.19999998807907104
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.19999998807907104,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.5,
+                  0.4000000059604645
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.4000000059604645,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.20000000298023224
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 8.100000008940697,
+              "durationMedianMs": 7.200000002980232,
+              "samples": [
+                {
+                  "wallMs": 7.5,
+                  "durationMs": 7.5
+                },
+                {
+                  "wallMs": 8.100000008940697,
+                  "durationMs": 7.9000000059604645
+                },
+                {
+                  "wallMs": 16.299999997019768,
+                  "durationMs": 16.299999997019768
+                },
+                {
+                  "wallMs": 6.700000002980232,
+                  "durationMs": 6.5
+                },
+                {
+                  "wallMs": 8.300000011920929,
+                  "durationMs": 6.9000000059604645
+                },
+                {
+                  "wallMs": 7.0999999940395355,
+                  "durationMs": 7
+                },
+                {
+                  "wallMs": 8.599999994039536,
+                  "durationMs": 7.200000002980232
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "unicode",
+            "firstActivation": {
+              "wallMs": 9.299999997019768,
+              "durationMs": 9.299999997019768
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.30000001192092896,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.4000000059604645,
+                  0.29999999701976776,
+                  0.3999999910593033,
+                  0.30000001192092896,
+                  0.3999999910593033,
+                  0.29999999701976776
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.3999999910593033,
+                "samplesMs": [
+                  0.4000000059604645,
+                  0.3999999910593033,
+                  0.29999999701976776,
+                  0.30000001192092896,
+                  0.3999999910593033,
+                  0.4000000059604645,
+                  0.3999999910593033
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.4000000059604645,
+                "samplesMs": [
+                  0.4000000059604645,
+                  0.3999999910593033,
+                  0.4000000059604645,
+                  0.5,
+                  0.3999999910593033,
+                  0.4000000059604645,
+                  0.5
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.3999999910593033,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.20000000298023224
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 7.700000002980232,
+              "durationMedianMs": 7.600000008940697,
+              "samples": [
+                {
+                  "wallMs": 7.899999991059303,
+                  "durationMs": 7.899999991059303
+                },
+                {
+                  "wallMs": 7.5,
+                  "durationMs": 7.5
+                },
+                {
+                  "wallMs": 7.5,
+                  "durationMs": 7.399999991059303
+                },
+                {
+                  "wallMs": 8,
+                  "durationMs": 7.9000000059604645
+                },
+                {
+                  "wallMs": 10.299999997019768,
+                  "durationMs": 10.200000002980232
+                },
+                {
+                  "wallMs": 7.700000002980232,
+                  "durationMs": 7.600000008940697
+                },
+                {
+                  "wallMs": 7.600000008940697,
+                  "durationMs": 7.600000008940697
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "chinese",
+            "firstActivation": {
+              "wallMs": 9.099999994039536,
+              "durationMs": 8.899999991059303
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.30000001192092896,
+                  0.3999999910593033,
+                  0.29999999701976776,
+                  0.30000001192092896
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.4000000059604645,
+                "samplesMs": [
+                  0.5,
+                  0.29999999701976776,
+                  0.4000000059604645,
+                  0.5,
+                  0.29999999701976776,
+                  0.4000000059604645,
+                  0.3999999910593033
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.4000000059604645,
+                "samplesMs": [
+                  0.4000000059604645,
+                  0.5,
+                  0.4000000059604645,
+                  0.5,
+                  0.3999999910593033,
+                  0.4000000059604645,
+                  0.3999999910593033
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.30000001192092896,
+                  0.19999998807907104,
+                  0.30000001192092896,
+                  0.29999999701976776,
+                  0.09999999403953552,
+                  0.29999999701976776
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 8.100000008940697,
+              "durationMedianMs": 8.100000008940697,
+              "samples": [
+                {
+                  "wallMs": 7.899999991059303,
+                  "durationMs": 7.899999991059303
+                },
+                {
+                  "wallMs": 7.899999991059303,
+                  "durationMs": 7.799999997019768
+                },
+                {
+                  "wallMs": 8.400000005960464,
+                  "durationMs": 8.200000002980232
+                },
+                {
+                  "wallMs": 7.5999999940395355,
+                  "durationMs": 7.5999999940395355
+                },
+                {
+                  "wallMs": 8.100000008940697,
+                  "durationMs": 8.100000008940697
+                },
+                {
+                  "wallMs": 8.5,
+                  "durationMs": 8.399999991059303
+                },
+                {
+                  "wallMs": 8.400000005960464,
+                  "durationMs": 8.200000002980232
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "latin1",
+            "firstActivation": {
+              "wallMs": 8,
+              "durationMs": 7.9000000059604645
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.4000000059604645,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.30000001192092896,
+                  0.29999999701976776,
+                  0.20000000298023224
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.4000000059604645,
+                  0.19999998807907104,
+                  0.30000001192092896,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.20000000298023224
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.4000000059604645,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.4000000059604645,
+                  0.29999999701976776
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 7.0999999940395355,
+              "durationMedianMs": 7.0999999940395355,
+              "samples": [
+                {
+                  "wallMs": 6.5,
+                  "durationMs": 6.5
+                },
+                {
+                  "wallMs": 6.9000000059604645,
+                  "durationMs": 6.799999997019768
+                },
+                {
+                  "wallMs": 7,
+                  "durationMs": 7
+                },
+                {
+                  "wallMs": 7.0999999940395355,
+                  "durationMs": 7.0999999940395355
+                },
+                {
+                  "wallMs": 7.200000002980232,
+                  "durationMs": 7.0999999940395355
+                },
+                {
+                  "wallMs": 7.5999999940395355,
+                  "durationMs": 7.5999999940395355
+                },
+                {
+                  "wallMs": 7.299999997019768,
+                  "durationMs": 7.200000002980232
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "current": {
+        "mode": "working-tree",
+        "cpuProfiled": false,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+        "scenario": "text-mapping",
+        "reverse": true,
+        "fixtureSettledFrames": 2,
+        "firstActivationBeforeSearches": true,
+        "latin1CodeUnitsVerified": 256,
+        "results": [
+          {
+            "paragraphs": 10000,
+            "layout": "diverse-cjk",
+            "firstActivation": {
+              "wallMs": 534.2000000029802,
+              "durationMs": 532.2000000029802
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 17.299999997019768,
+                "samplesMs": [
+                  16.299999997019768,
+                  20,
+                  17.299999997019768,
+                  17.400000005960464,
+                  20.399999991059303,
+                  16.900000005960464,
+                  16.200000002980232
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 18,
+                "samplesMs": [
+                  17.799999997019768,
+                  17.099999994039536,
+                  19.200000002980232,
+                  18.100000008940697,
+                  18,
+                  18.599999994039536,
+                  17.299999997019768
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 20,
+                "samplesMs": [
+                  20.5,
+                  20,
+                  19.799999997019768,
+                  20.400000005960464,
+                  19,
+                  18.700000002980232,
+                  31.099999994039536
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 17.099999994039536,
+                "samplesMs": [
+                  16,
+                  17.299999997019768,
+                  17.099999994039536,
+                  17.200000002980232,
+                  17.799999997019768,
+                  16.900000005960464,
+                  16.299999997019768
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 498,
+              "durationMedianMs": 498,
+              "samples": [
+                {
+                  "wallMs": 512.4000000059605,
+                  "durationMs": 507.70000000298023
+                },
+                {
+                  "wallMs": 516.9000000059605,
+                  "durationMs": 516.8000000119209
+                },
+                {
+                  "wallMs": 498,
+                  "durationMs": 498
+                },
+                {
+                  "wallMs": 506,
+                  "durationMs": 506
+                },
+                {
+                  "wallMs": 496.09999999403954,
+                  "durationMs": 483.29999999701977
+                },
+                {
+                  "wallMs": 484,
+                  "durationMs": 483.90000000596046
+                },
+                {
+                  "wallMs": 491.80000001192093,
+                  "durationMs": 458.40000000596046
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "sparse-whitespace",
+            "firstActivation": {
+              "wallMs": 459.29999999701977,
+              "durationMs": 457.8999999910593
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 16.299999997019768,
+                "samplesMs": [
+                  15.900000005960464,
+                  16.299999997019768,
+                  16.700000002980232,
+                  19.900000005960464,
+                  16.69999998807907,
+                  16.100000008940697,
+                  15.5
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 17.900000005960464,
+                "samplesMs": [
+                  16.599999994039536,
+                  17.100000008940697,
+                  20.099999994039536,
+                  18.599999994039536,
+                  17.700000002980232,
+                  17.900000005960464,
+                  18
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 19.100000008940697,
+                "samplesMs": [
+                  18.400000005960464,
+                  20.599999994039536,
+                  18.299999997019768,
+                  19.200000002980232,
+                  19.100000008940697,
+                  19.5,
+                  19
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 16.900000005960464,
+                "samplesMs": [
+                  18.799999997019768,
+                  16.700000002980232,
+                  16.200000002980232,
+                  16.900000005960464,
+                  16.899999991059303,
+                  34.20000000298023,
+                  17.400000005960464
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 475,
+              "durationMedianMs": 469.5,
+              "samples": [
+                {
+                  "wallMs": 450.5,
+                  "durationMs": 448.79999999701977
+                },
+                {
+                  "wallMs": 490.09999999403954,
+                  "durationMs": 472.29999999701977
+                },
+                {
+                  "wallMs": 467.09999999403954,
+                  "durationMs": 466.90000000596046
+                },
+                {
+                  "wallMs": 486.79999999701977,
+                  "durationMs": 486.3999999910593
+                },
+                {
+                  "wallMs": 475,
+                  "durationMs": 474.8999999910593
+                },
+                {
+                  "wallMs": 467.20000000298023,
+                  "durationMs": 467
+                },
+                {
+                  "wallMs": 495.5,
+                  "durationMs": 469.5
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "unicode",
+            "firstActivation": {
+              "wallMs": 579.7000000029802,
+              "durationMs": 578.4000000059605
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 18.400000005960464,
+                "samplesMs": [
+                  18.799999997019768,
+                  18,
+                  18,
+                  21.899999991059303,
+                  18.200000002980232,
+                  18.400000005960464,
+                  18.5
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 23,
+                "samplesMs": [
+                  25.799999997019768,
+                  23.400000005960464,
+                  23,
+                  22.799999997019768,
+                  23.899999991059303,
+                  22.200000002980232,
+                  22.200000002980232
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 27.400000005960464,
+                "samplesMs": [
+                  28,
+                  27.400000005960464,
+                  27.299999997019768,
+                  28.099999994039536,
+                  26.900000005960464,
+                  27.400000005960464,
+                  28
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 18.19999998807907,
+                "samplesMs": [
+                  17.899999991059303,
+                  19,
+                  21,
+                  18.600000008940697,
+                  18.19999998807907,
+                  17.30000001192093,
+                  17.099999994039536
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 585.2999999970198,
+              "durationMedianMs": 561.5,
+              "samples": [
+                {
+                  "wallMs": 591.7000000029802,
+                  "durationMs": 560.4000000059605
+                },
+                {
+                  "wallMs": 590.9000000059605,
+                  "durationMs": 590.9000000059605
+                },
+                {
+                  "wallMs": 568,
+                  "durationMs": 568
+                },
+                {
+                  "wallMs": 584.5,
+                  "durationMs": 551.2999999970198
+                },
+                {
+                  "wallMs": 591.2000000029802,
+                  "durationMs": 591
+                },
+                {
+                  "wallMs": 549.2000000029802,
+                  "durationMs": 549.1000000089407
+                },
+                {
+                  "wallMs": 585.2999999970198,
+                  "durationMs": 561.5
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "chinese",
+            "firstActivation": {
+              "wallMs": 531.7999999970198,
+              "durationMs": 530.2999999970198
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 17.5,
+                "samplesMs": [
+                  17,
+                  17.599999994039536,
+                  20.599999994039536,
+                  17.80000001192093,
+                  17.5,
+                  17.5,
+                  17.399999991059303
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 21.5,
+                "samplesMs": [
+                  22.600000008940697,
+                  27.5,
+                  22.099999994039536,
+                  21.200000002980232,
+                  21.5,
+                  21.099999994039536,
+                  21.5
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 26.400000005960464,
+                "samplesMs": [
+                  26.19999998807907,
+                  26.200000002980232,
+                  41.1000000089407,
+                  27.899999991059303,
+                  26.400000005960464,
+                  26.700000002980232,
+                  26.099999994039536
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 16.299999997019768,
+                "samplesMs": [
+                  16.200000002980232,
+                  16.19999998807907,
+                  16.30000001192093,
+                  16.299999997019768,
+                  17.5,
+                  15.899999991059303,
+                  16.400000005960464
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 529.6999999880791,
+              "durationMedianMs": 509.5,
+              "samples": [
+                {
+                  "wallMs": 552.6000000089407,
+                  "durationMs": 544.7999999970198
+                },
+                {
+                  "wallMs": 535.2000000029802,
+                  "durationMs": 513.1000000089407
+                },
+                {
+                  "wallMs": 503.90000000596046,
+                  "durationMs": 503.70000000298023
+                },
+                {
+                  "wallMs": 542.7999999970198,
+                  "durationMs": 542.5
+                },
+                {
+                  "wallMs": 505.90000000596046,
+                  "durationMs": 505.79999999701977
+                },
+                {
+                  "wallMs": 529.6999999880791,
+                  "durationMs": 509.5
+                },
+                {
+                  "wallMs": 503.5,
+                  "durationMs": 503.5
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 10000,
+            "layout": "latin1",
+            "firstActivation": {
+              "wallMs": 450.90000000596046,
+              "durationMs": 449.40000000596046
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 14.400000005960464,
+                "samplesMs": [
+                  14.299999997019768,
+                  14.299999997019768,
+                  14.400000005960464,
+                  14.299999997019768,
+                  14.700000002980232,
+                  14.400000005960464,
+                  14.599999994039536
+                ]
+              },
+              {
+                "index": 5000,
+                "medianMs": 15.699999988079071,
+                "samplesMs": [
+                  15.699999988079071,
+                  15.600000008940697,
+                  15.700000002980232,
+                  15.299999997019768,
+                  15.599999994039536,
+                  15.700000002980232,
+                  15.700000002980232
+                ]
+              },
+              {
+                "index": 9990,
+                "medianMs": 16.700000002980232,
+                "samplesMs": [
+                  19.700000002980232,
+                  17,
+                  17,
+                  16.599999994039536,
+                  16.700000002980232,
+                  16.599999994039536,
+                  16.600000008940697
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 14.400000005960464,
+                "samplesMs": [
+                  15.200000002980232,
+                  16.900000005960464,
+                  14.200000002980232,
+                  14.099999994039536,
+                  14.099999994039536,
+                  14.400000005960464,
+                  14.400000005960464
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 425.20000000298023,
+              "durationMedianMs": 415.59999999403954,
+              "samples": [
+                {
+                  "wallMs": 414.59999999403954,
+                  "durationMs": 414.40000000596046
+                },
+                {
+                  "wallMs": 420.29999999701977,
+                  "durationMs": 402.70000000298023
+                },
+                {
+                  "wallMs": 415.70000000298023,
+                  "durationMs": 415.59999999403954
+                },
+                {
+                  "wallMs": 433.70000000298023,
+                  "durationMs": 433.70000000298023
+                },
+                {
+                  "wallMs": 441.59999999403954,
+                  "durationMs": 441.5
+                },
+                {
+                  "wallMs": 425.20000000298023,
+                  "durationMs": 425.1000000089407
+                },
+                {
+                  "wallMs": 427.69999998807907,
+                  "durationMs": 404.5
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "diverse-cjk",
+            "firstActivation": {
+              "wallMs": 4.0999999940395355,
+              "durationMs": 4
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.19999998807907104,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.10000000894069672,
+                  0.29999999701976776,
+                  0.09999999403953552,
+                  0.10000000894069672,
+                  0.19999998807907104
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.09999999403953552,
+                  0.20000000298023224,
+                  0.20000000298023224
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.19999998807907104,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.19999998807907104,
+                  0.20000000298023224
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.19999998807907104,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.09999999403953552,
+                  0.20000000298023224,
+                  0.09999999403953552
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 6.5999999940395355,
+              "durationMedianMs": 6.200000002980232,
+              "samples": [
+                {
+                  "wallMs": 5,
+                  "durationMs": 4.800000011920929
+                },
+                {
+                  "wallMs": 5.4000000059604645,
+                  "durationMs": 5.200000002980232
+                },
+                {
+                  "wallMs": 7.299999997019768,
+                  "durationMs": 5.799999997019768
+                },
+                {
+                  "wallMs": 6.299999997019768,
+                  "durationMs": 6.200000002980232
+                },
+                {
+                  "wallMs": 6.5999999940395355,
+                  "durationMs": 6.5999999940395355
+                },
+                {
+                  "wallMs": 7,
+                  "durationMs": 6.899999991059303
+                },
+                {
+                  "wallMs": 8.700000002980232,
+                  "durationMs": 7.4000000059604645
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "sparse-whitespace",
+            "firstActivation": {
+              "wallMs": 15.199999988079071,
+              "durationMs": 15.099999994039536
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.19999998807907104,
+                  0.30000001192092896,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.3999999910593033,
+                  0.20000000298023224,
+                  0.29999999701976776
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.30000001192092896,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.20000000298023224
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.3999999910593033
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.19999998807907104,
+                  0.20000000298023224
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 7,
+              "durationMedianMs": 6.9000000059604645,
+              "samples": [
+                {
+                  "wallMs": 6.200000002980232,
+                  "durationMs": 6.0999999940395355
+                },
+                {
+                  "wallMs": 7,
+                  "durationMs": 6.9000000059604645
+                },
+                {
+                  "wallMs": 6.899999991059303,
+                  "durationMs": 6.699999988079071
+                },
+                {
+                  "wallMs": 6.799999997019768,
+                  "durationMs": 6.600000008940697
+                },
+                {
+                  "wallMs": 7.200000002980232,
+                  "durationMs": 7.100000008940697
+                },
+                {
+                  "wallMs": 7.299999997019768,
+                  "durationMs": 7.200000002980232
+                },
+                {
+                  "wallMs": 8.5,
+                  "durationMs": 7.0999999940395355
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "unicode",
+            "firstActivation": {
+              "wallMs": 9.799999997019768,
+              "durationMs": 9.799999997019768
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.3999999910593033,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.4000000059604645,
+                  0.29999999701976776,
+                  0.3999999910593033,
+                  0.30000001192092896,
+                  0.3999999910593033,
+                  0.4000000059604645
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.4000000059604645,
+                "samplesMs": [
+                  0.5,
+                  0.4000000059604645,
+                  0.3999999910593033,
+                  0.4000000059604645,
+                  0.3999999910593033,
+                  0.4000000059604645,
+                  0.5
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.5,
+                "samplesMs": [
+                  0.5,
+                  0.5,
+                  0.29999999701976776,
+                  0.5,
+                  0.3999999910593033,
+                  0.5,
+                  0.5
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.19999998807907104,
+                  0.30000001192092896,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.3999999910593033,
+                  0.29999999701976776,
+                  0.20000000298023224
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 7.9000000059604645,
+              "durationMedianMs": 7.799999997019768,
+              "samples": [
+                {
+                  "wallMs": 8.200000002980232,
+                  "durationMs": 8.099999994039536
+                },
+                {
+                  "wallMs": 9.200000002980232,
+                  "durationMs": 7.9000000059604645
+                },
+                {
+                  "wallMs": 7.9000000059604645,
+                  "durationMs": 7.799999997019768
+                },
+                {
+                  "wallMs": 10.400000005960464,
+                  "durationMs": 10.299999997019768
+                },
+                {
+                  "wallMs": 7.700000002980232,
+                  "durationMs": 7.600000008940697
+                },
+                {
+                  "wallMs": 7.9000000059604645,
+                  "durationMs": 7.799999997019768
+                },
+                {
+                  "wallMs": 7.700000002980232,
+                  "durationMs": 7.700000002980232
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "chinese",
+            "firstActivation": {
+              "wallMs": 8.799999997019768,
+              "durationMs": 8.700000002980232
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.3999999910593033,
+                  0.20000000298023224,
+                  0.4000000059604645,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.29999999701976776
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.4000000059604645,
+                "samplesMs": [
+                  0.4000000059604645,
+                  0.5,
+                  0.29999999701976776,
+                  0.3999999910593033,
+                  0.5,
+                  0.4000000059604645,
+                  0.4000000059604645
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.4000000059604645,
+                "samplesMs": [
+                  0.5,
+                  0.4000000059604645,
+                  0.3999999910593033,
+                  0.5,
+                  0.4000000059604645,
+                  0.4000000059604645,
+                  0.3999999910593033
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.30000001192092896,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.19999998807907104,
+                  0.30000001192092896,
+                  0.19999998807907104,
+                  0.30000001192092896
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 7.799999997019768,
+              "durationMedianMs": 7.5999999940395355,
+              "samples": [
+                {
+                  "wallMs": 7.799999997019768,
+                  "durationMs": 7.799999997019768
+                },
+                {
+                  "wallMs": 7.700000002980232,
+                  "durationMs": 7.5999999940395355
+                },
+                {
+                  "wallMs": 9,
+                  "durationMs": 7.5
+                },
+                {
+                  "wallMs": 7.799999997019768,
+                  "durationMs": 7.700000002980232
+                },
+                {
+                  "wallMs": 8.5,
+                  "durationMs": 7.100000008940697
+                },
+                {
+                  "wallMs": 9.700000002980232,
+                  "durationMs": 9.700000002980232
+                },
+                {
+                  "wallMs": 7.0999999940395355,
+                  "durationMs": 7
+                }
+              ]
+            }
+          },
+          {
+            "paragraphs": 100,
+            "layout": "latin1",
+            "firstActivation": {
+              "wallMs": 6.5999999940395355,
+              "durationMs": 6.5
+            },
+            "searches": [
+              {
+                "index": 10,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.19999998807907104,
+                  0.20000000298023224,
+                  0.4000000059604645,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.19999998807907104
+                ]
+              },
+              {
+                "index": 50,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.3999999910593033,
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776
+                ]
+              },
+              {
+                "index": 90,
+                "medianMs": 0.29999999701976776,
+                "samplesMs": [
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.20000000298023224
+                ]
+              },
+              {
+                "index": -1,
+                "medianMs": 0.20000000298023224,
+                "samplesMs": [
+                  0.20000000298023224,
+                  0.20000000298023224,
+                  0.29999999701976776,
+                  0.29999999701976776,
+                  0.10000000894069672,
+                  0.29999999701976776,
+                  0.20000000298023224
+                ]
+              }
+            ],
+            "fallbackActivation": {
+              "wallMedianMs": 6.9000000059604645,
+              "durationMedianMs": 6.799999997019768,
+              "samples": [
+                {
+                  "wallMs": 6.9000000059604645,
+                  "durationMs": 6.799999997019768
+                },
+                {
+                  "wallMs": 7.199999988079071,
+                  "durationMs": 7.0999999940395355
+                },
+                {
+                  "wallMs": 7.100000008940697,
+                  "durationMs": 7
+                },
+                {
+                  "wallMs": 6.200000002980232,
+                  "durationMs": 6.100000008940697
+                },
+                {
+                  "wallMs": 6.700000002980232,
+                  "durationMs": 6.5
+                },
+                {
+                  "wallMs": 6.5999999940395355,
+                  "durationMs": 6.5999999940395355
+                },
+                {
+                  "wallMs": 7,
+                  "durationMs": 7
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "validation": {
+    "tests": 260,
+    "testFiles": 28,
+    "coverage": {
+      "statements": 59.52,
+      "branches": 55.5,
+      "functions": 61.35,
+      "lines": 59.97
+    },
+    "typecheckPassed": true,
+    "diffCheckPassed": true,
+    "candidateTests": 261,
+    "candidateCoverageLog": "\n RUN  v5.0.3 /Users/sheny/Developer/code/Clipsey\n      Coverage enabled with v8\n\nCould not parse CSS stylesheet\n\n Test Files  28 passed (28)\n      Tests  261 passed (261)\n   Start at  06:09:42\n   Duration  4.61s (environment 53%, tests 36%, transform 5%, worker 3%, import 2%, setup 1%)\n\nEnvironment  jsdom was created 28 times · 16.53s total, 53% of tracked time\n             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)\n             learn more: https://vitest.dev/guide/improving-performance#test-environments\n\n % Coverage report from v8\n-------------------|---------|----------|---------|---------|-------------------\nFile               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s \n-------------------|---------|----------|---------|---------|-------------------\nAll files          |   59.55 |    55.44 |   61.35 |   59.99 |                   \n background        |   76.41 |    68.04 |   79.39 |   77.96 |                   \n  api.ts           |   23.52 |     37.5 |   11.11 |   23.52 | 14-37,61-87       \n  ...eddb-query.ts |    87.8 |    76.63 |   88.33 |   88.34 | ...26-346,472,483 \n  indexeddb.ts     |   85.59 |    80.55 |   79.59 |   86.97 | ...14,439,542-543 \n  ...n-settings.ts |       0 |        0 |       0 |       0 | 8-35              \n  migration.ts     |   38.46 |    38.88 |   33.33 |   38.46 | 19,27-28,61-110   \n  storage.ts       |   64.65 |    43.33 |   89.28 |   71.91 | 34,52,155-187     \n ...round/handlers |   37.38 |    34.84 |   28.57 |   39.17 |                   \n  clear-clips.ts   |       0 |      100 |       0 |       0 | 4                 \n  log-error.ts     |    2.56 |        0 |       0 |    3.03 | 15-79             \n  ...age-router.ts |       0 |        0 |       0 |       0 | 10-38             \n  open-clip.ts     |   59.45 |    51.16 |      75 |   58.33 | ...17,127,139-157 \n  registry.ts      |   37.28 |    14.28 |      25 |   42.55 | ...13,117,121-126 \n  request-clips.ts |       0 |      100 |       0 |       0 | 5                 \n  ...t-settings.ts |       0 |      100 |       0 |       0 | 5-6               \n  save-clip.ts     |   59.09 |    53.65 |      50 |   59.09 | ...28,38,43-44,50 \n ...ers/middleware |   23.07 |     5.12 |   54.54 |      30 |                   \n  response.ts      |   85.71 |      100 |     100 |   85.71 | 25                \n  validator.ts     |       0 |        0 |       0 |       0 | 5-54              \n ...ound/lifecycle |   14.37 |    10.95 |    9.09 |   13.83 |                   \n  ...nu-manager.ts |       0 |        0 |       0 |       0 | 4-64              \n  ...-lifecycle.ts |       0 |        0 |       0 |       0 | 10-60             \n  ...er-cleanup.ts |      20 |      100 |       0 |      20 | 7-29              \n  ...st-manager.ts |       0 |        0 |       0 |       0 | 8-157             \n  ...ht-manager.ts |   56.75 |    57.14 |      40 |   55.55 | ...53,61,66,78-83 \n ...round/services |   39.23 |    41.05 |      24 |    39.2 |                   \n  clip-service.ts  |   33.33 |      100 |      20 |   33.33 | 7-11,19-23        \n  ...pt-service.ts |    2.63 |        0 |       0 |     2.7 | 10-90             \n  ...rt-service.ts |      75 |    76.92 |      75 |   74.07 | 56-61,86-87       \n  ...nc-service.ts |   81.25 |       80 |     100 |    92.3 | 26                \n  ...ns-service.ts |    9.52 |        0 |       0 |    9.52 | 5-9,18-47         \n  ...ch-service.ts |     100 |    95.45 |     100 |     100 | 42                \n  ...gs-service.ts |       0 |        0 |       0 |       0 | 4-25              \n ...ground/storage |   95.38 |    86.36 |   95.65 |      95 |                   \n  clip-index.ts    |   97.22 |       95 |     100 |   97.22 | 47                \n  sync-manager.ts  |   83.87 |    42.85 |    87.5 |   82.75 | 31,51,61,65-66    \n .../storage/utils |    84.5 |    88.76 |    90.9 |    85.5 |                   \n  ...normalizer.ts |   88.46 |     87.5 |     100 |   88.46 | 70-73             \n  hash.ts          |       0 |      100 |       0 |       0 | 3-8               \n  ...normalizer.ts |   93.54 |    81.81 |     100 |   93.54 | 22,27             \n background/utils  |       0 |        0 |       0 |       0 |                   \n  ...ht-helpers.ts |       0 |        0 |       0 |       0 | 8-115             \n composables       |       0 |        0 |       0 |       0 |                   \n  ...adcastSync.ts |       0 |        0 |       0 |       0 | 16-75             \n  useClipFilter.ts |       0 |        0 |       0 |       0 | 6-26              \n  useClipSort.ts   |       0 |        0 |       0 |       0 | 11-21             \n content           |   68.53 |     64.5 |      65 |   69.43 |                   \n  color-manager.ts |   70.76 |    55.88 |   53.33 |   71.87 | ...40-159,165-169 \n  ...ght-engine.ts |   76.69 |    68.68 |   72.41 |   79.66 | ...12-214,238,246 \n  selection.ts     |   60.75 |    63.26 |    62.5 |   60.64 | ...08-312,316,322 \n content/highlight |   71.71 |    69.34 |   60.97 |   73.26 |                   \n  cache-manager.ts |    97.5 |    88.88 |     100 |     100 | 7,70              \n  dom-utils.ts     |   84.14 |    81.48 |   57.14 |   86.15 | 83-107            \n  metadata.ts      |   92.53 |    87.75 |     100 |   93.54 | 47,87-88,104      \n  painters.ts      |   78.57 |    55.55 |     100 |   80.64 | ...,73-80,108-110 \n  ...ll-manager.ts |    87.5 |       75 |     100 |     100 | 9                 \n  text-search.ts   |   93.75 |     90.9 |     100 |   96.22 | 29,42             \n  viewport.ts      |    3.61 |        0 |       0 |    4.05 | 9-115,123-124     \n ...light/locators |   45.37 |    47.61 |   77.77 |   47.05 |                   \n  ...xt-locator.ts |       0 |        0 |       0 |       0 | 9-83              \n  index.ts         |   71.42 |    73.68 |     100 |   81.81 | 35-36             \n  ...et-locator.ts |   93.02 |    92.59 |   83.33 |   97.22 | 48                \n  ...or-locator.ts |   66.66 |       50 |     100 |      80 | 10                \n utils             |      50 |     35.4 |   60.78 |   49.32 |                   \n  chrome.ts        |       0 |        0 |       0 |       0 | 5-29              \n  clip-format.ts   |   66.66 |    44.44 |      80 |   68.96 | 28-40,48          \n  ...ension-app.ts |       0 |        0 |       0 |       0 | 10-41             \n  error-handler.ts |   63.23 |    38.29 |   88.23 |   61.53 | ...60,164,171-210 \n  helpers.ts       |   53.33 |       80 |   66.66 |   53.33 | 2-10,25,36,42     \n  i18n.ts          |       0 |        0 |       0 |       0 | 9-45              \n  rich-text.ts     |    6.25 |        0 |       0 |    6.25 | 26-55,62-94       \n  ...ings-local.ts |    87.5 |    63.33 |     100 |    90.9 | 67-69,82,103      \n utils/clip        |   63.63 |       75 |      75 |   58.97 |                   \n  opener.ts        |       0 |        0 |       0 |       0 | 9-39              \n  text-fragment.ts |     100 |    93.75 |     100 |     100 | 7                 \n utils/search      |   33.33 |       30 |      50 |   33.33 |                   \n  query-parser.ts  |   33.33 |       30 |      50 |   33.33 | 20-35,52-58       \n-------------------|---------|----------|---------|---------|-------------------\n\n=============================== Coverage summary ===============================\nStatements   : 59.55% ( 1621/2722 )\nBranches     : 55.44% ( 967/1744 )\nFunctions    : 61.35% ( 327/533 )\nLines        : 59.99% ( 1498/2497 )\n================================================================================\n",
+    "candidateTypecheckPassed": true,
+    "beforeCostTestLog": "\n RUN  v5.0.3 /Users/sheny/Developer/code/Clipsey\n\nCould not parse CSS stylesheet\n ❯ tests/highlight-metadata.spec.ts (18 tests | 1 failed) 105ms\n   × only reads the visibility cache when filtering another accepted node under the same parent 4ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/highlight-metadata.spec.ts > only reads the visibility cache when filtering another accepted node under the same parent\nAssertionError: expected 2 to be 1 // Object.is equality\n\n- Expected\n+ Received\n\n- 1\n+ 2\n\n ❯ tests/highlight-metadata.spec.ts:93:17\n     91|   get.mockRestore();\n     92|   expect(result).toBe(NodeFilter.FILTER_ACCEPT);\n     93|   expect(reads).toBe(1);\n       |                 ^\n     94| });\n     95|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed (1)\n      Tests  1 failed | 17 passed (18)\n   Start at  06:09:36\n   Duration  634ms (environment 74%, tests 18%, transform 6%, import 1%, setup 1%)\n\n",
+    "retainedCoverageLog": "\n RUN  v5.0.3 /Users/sheny/Developer/code/Clipsey\n      Coverage enabled with v8\n\nCould not parse CSS stylesheet\n\n Test Files  28 passed (28)\n      Tests  260 passed (260)\n   Start at  06:13:56\n   Duration  4.56s (environment 53%, tests 36%, transform 5%, worker 3%, import 2%, setup 1%)\n\nEnvironment  jsdom was created 28 times · 16.32s total, 53% of tracked time\n             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)\n             learn more: https://vitest.dev/guide/improving-performance#test-environments\n\n % Coverage report from v8\n-------------------|---------|----------|---------|---------|-------------------\nFile               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s \n-------------------|---------|----------|---------|---------|-------------------\nAll files          |   59.52 |     55.5 |   61.35 |   59.97 |                   \n background        |   76.41 |    68.04 |   79.39 |   77.96 |                   \n  api.ts           |   23.52 |     37.5 |   11.11 |   23.52 | 14-37,61-87       \n  ...eddb-query.ts |    87.8 |    76.63 |   88.33 |   88.34 | ...26-346,472,483 \n  indexeddb.ts     |   85.59 |    80.55 |   79.59 |   86.97 | ...14,439,542-543 \n  ...n-settings.ts |       0 |        0 |       0 |       0 | 8-35              \n  migration.ts     |   38.46 |    38.88 |   33.33 |   38.46 | 19,27-28,61-110   \n  storage.ts       |   64.65 |    43.33 |   89.28 |   71.91 | 34,52,155-187     \n ...round/handlers |   37.38 |    34.84 |   28.57 |   39.17 |                   \n  clear-clips.ts   |       0 |      100 |       0 |       0 | 4                 \n  log-error.ts     |    2.56 |        0 |       0 |    3.03 | 15-79             \n  ...age-router.ts |       0 |        0 |       0 |       0 | 10-38             \n  open-clip.ts     |   59.45 |    51.16 |      75 |   58.33 | ...17,127,139-157 \n  registry.ts      |   37.28 |    14.28 |      25 |   42.55 | ...13,117,121-126 \n  request-clips.ts |       0 |      100 |       0 |       0 | 5                 \n  ...t-settings.ts |       0 |      100 |       0 |       0 | 5-6               \n  save-clip.ts     |   59.09 |    53.65 |      50 |   59.09 | ...28,38,43-44,50 \n ...ers/middleware |   23.07 |     5.12 |   54.54 |      30 |                   \n  response.ts      |   85.71 |      100 |     100 |   85.71 | 25                \n  validator.ts     |       0 |        0 |       0 |       0 | 5-54              \n ...ound/lifecycle |   14.37 |    10.95 |    9.09 |   13.83 |                   \n  ...nu-manager.ts |       0 |        0 |       0 |       0 | 4-64              \n  ...-lifecycle.ts |       0 |        0 |       0 |       0 | 10-60             \n  ...er-cleanup.ts |      20 |      100 |       0 |      20 | 7-29              \n  ...st-manager.ts |       0 |        0 |       0 |       0 | 8-157             \n  ...ht-manager.ts |   56.75 |    57.14 |      40 |   55.55 | ...53,61,66,78-83 \n ...round/services |   39.23 |    41.05 |      24 |    39.2 |                   \n  clip-service.ts  |   33.33 |      100 |      20 |   33.33 | 7-11,19-23        \n  ...pt-service.ts |    2.63 |        0 |       0 |     2.7 | 10-90             \n  ...rt-service.ts |      75 |    76.92 |      75 |   74.07 | 56-61,86-87       \n  ...nc-service.ts |   81.25 |       80 |     100 |    92.3 | 26                \n  ...ns-service.ts |    9.52 |        0 |       0 |    9.52 | 5-9,18-47         \n  ...ch-service.ts |     100 |    95.45 |     100 |     100 | 42                \n  ...gs-service.ts |       0 |        0 |       0 |       0 | 4-25              \n ...ground/storage |   95.38 |    86.36 |   95.65 |      95 |                   \n  clip-index.ts    |   97.22 |       95 |     100 |   97.22 | 47                \n  sync-manager.ts  |   83.87 |    42.85 |    87.5 |   82.75 | 31,51,61,65-66    \n .../storage/utils |    84.5 |    88.76 |    90.9 |    85.5 |                   \n  ...normalizer.ts |   88.46 |     87.5 |     100 |   88.46 | 70-73             \n  hash.ts          |       0 |      100 |       0 |       0 | 3-8               \n  ...normalizer.ts |   93.54 |    81.81 |     100 |   93.54 | 22,27             \n background/utils  |       0 |        0 |       0 |       0 |                   \n  ...ht-helpers.ts |       0 |        0 |       0 |       0 | 8-115             \n composables       |       0 |        0 |       0 |       0 |                   \n  ...adcastSync.ts |       0 |        0 |       0 |       0 | 16-75             \n  useClipFilter.ts |       0 |        0 |       0 |       0 | 6-26              \n  useClipSort.ts   |       0 |        0 |       0 |       0 | 11-21             \n content           |   68.53 |     64.5 |      65 |   69.43 |                   \n  color-manager.ts |   70.76 |    55.88 |   53.33 |   71.87 | ...40-159,165-169 \n  ...ght-engine.ts |   76.69 |    68.68 |   72.41 |   79.66 | ...12-214,238,246 \n  selection.ts     |   60.75 |    63.26 |    62.5 |   60.64 | ...08-312,316,322 \n content/highlight |   71.59 |    69.73 |   60.97 |   73.19 |                   \n  cache-manager.ts |    97.5 |    88.88 |     100 |     100 | 7,70              \n  dom-utils.ts     |   83.75 |    83.33 |   57.14 |   85.93 | 82-106            \n  metadata.ts      |   92.53 |    87.75 |     100 |   93.54 | 47,87-88,104      \n  painters.ts      |   78.57 |    55.55 |     100 |   80.64 | ...,73-80,108-110 \n  ...ll-manager.ts |    87.5 |       75 |     100 |     100 | 9                 \n  text-search.ts   |   93.75 |     90.9 |     100 |   96.22 | 29,42             \n  viewport.ts      |    3.61 |        0 |       0 |    4.05 | 9-115,123-124     \n ...light/locators |   45.37 |    47.61 |   77.77 |   47.05 |                   \n  ...xt-locator.ts |       0 |        0 |       0 |       0 | 9-83              \n  index.ts         |   71.42 |    73.68 |     100 |   81.81 | 35-36             \n  ...et-locator.ts |   93.02 |    92.59 |   83.33 |   97.22 | 48                \n  ...or-locator.ts |   66.66 |       50 |     100 |      80 | 10                \n utils             |      50 |     35.4 |   60.78 |   49.32 |                   \n  chrome.ts        |       0 |        0 |       0 |       0 | 5-29              \n  clip-format.ts   |   66.66 |    44.44 |      80 |   68.96 | 28-40,48          \n  ...ension-app.ts |       0 |        0 |       0 |       0 | 10-41             \n  error-handler.ts |   63.23 |    38.29 |   88.23 |   61.53 | ...60,164,171-210 \n  helpers.ts       |   53.33 |       80 |   66.66 |   53.33 | 2-10,25,36,42     \n  i18n.ts          |       0 |        0 |       0 |       0 | 9-45              \n  rich-text.ts     |    6.25 |        0 |       0 |    6.25 | 26-55,62-94       \n  ...ings-local.ts |    87.5 |    63.33 |     100 |    90.9 | 67-69,82,103      \n utils/clip        |   63.63 |       75 |      75 |   58.97 |                   \n  opener.ts        |       0 |        0 |       0 |       0 | 9-39              \n  text-fragment.ts |     100 |    93.75 |     100 |     100 | 7                 \n utils/search      |   33.33 |       30 |      50 |   33.33 |                   \n  query-parser.ts  |   33.33 |       30 |      50 |   33.33 | 20-35,52-58       \n-------------------|---------|----------|---------|---------|-------------------\n\n=============================== Coverage summary ===============================\nStatements   : 59.52% ( 1619/2720 )\nBranches     : 55.5% ( 968/1744 )\nFunctions    : 61.35% ( 327/533 )\nLines        : 59.97% ( 1497/2496 )\n================================================================================\n",
+    "nativeAcceptance": "Not rerun: candidate rejected, retained production identical to 275fc2f",
+    "builds": "Not rerun: no retained source change",
+    "remoteCI": "Not run"
+  }
+}
