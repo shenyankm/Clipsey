@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { findTextRangeInNode, normalizeWhitespace } from '@/content/highlight/text-search';
 
-beforeEach(() => { document.body.innerHTML = ''; });
+beforeEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ''; });
 
 describe('text range search', () => {
   it.each([
@@ -52,6 +52,14 @@ describe('text range search', () => {
   it('keeps visible overrides and text under display:contents', () => {
     document.body.innerHTML = '<div style="visibility:hidden"><span style="visibility:visible;display:contents">target</span></div>';
     expect(findTextRangeInNode(document.body, 'target')?.toString()).toBe('target');
+  });
+
+  it('rejects excluded ancestors outside the root even when styles cannot be read', () => {
+    document.body.innerHTML = '<svg><text id="excluded">target</text></svg><p>visible</p>';
+    vi.spyOn(window, 'getComputedStyle').mockImplementation(() => { throw new Error('Unavailable'); });
+    const excluded = document.querySelector('#excluded')!;
+    expect(findTextRangeInNode(excluded, 'target')).toBeNull();
+    expect(findTextRangeInNode(excluded.firstChild!, 'target')).toBeNull();
   });
 
   it('maps late matches across whitespace and case-expansion boundaries', () => {

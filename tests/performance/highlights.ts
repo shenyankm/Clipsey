@@ -2,6 +2,7 @@ import { captureHighlightMetadata } from '../../src/content/highlight/metadata';
 import { LocationStrategy } from '../../src/content/highlight/locators';
 import * as offsetLocator from '../../src/content/highlight/locators/offset-locator';
 import { findTextRangeInNode } from '../../src/content/highlight/text-search';
+import { createTextNodeWalker } from '../../src/content/highlight/dom-utils';
 
 function assert(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -35,6 +36,14 @@ try {
   };
   const { HighlightEngine } = await import('../../src/content/highlight-engine');
   const results = [];
+  const allocationCases: unknown[] = [];
+  function addAllocationCase(scale: { paragraphs?: number; hiddenParagraphs?: number; emptyContainers?: number }, name: string, html: string, query: string) {
+    allocationCases.push({ ...scale, name,
+      prepare() { document.body.innerHTML = html; },
+      operation() { assert(findTextRangeInNode(document.body, query)?.toString() === query, 'Wrong allocation-case match'); }
+    });
+  }
+  const allocations = new URLSearchParams(location.search).has('allocations');
   const reverse = new URLSearchParams(location.search).has('reverse');
   for (const paragraphs of reverse ? [10000, 100] : [100, 10000]) for (const fragmented of reverse ? [true, false] : [false, true]) {
     const fixture = document.createElement('article');
@@ -61,6 +70,7 @@ try {
     }
     document.body.replaceChildren(fixture);
     const fullText = fixture.textContent!;
+    if (allocations) addAllocationCase({ paragraphs }, fragmented ? 'fragmented-tail-search' : 'simple-tail-search', fixture.outerHTML, `quote-${paragraphs - 10}`);
     const captures = [];
     for (const index of [10, Math.floor(paragraphs / 2), paragraphs - 10]) {
       const range = document.createRange();
@@ -130,6 +140,16 @@ try {
     const hidden = '<div id="hidden" style="display:none">' + Array.from({ length: hiddenParagraphs }, (_, i) => `<p>hidden prefix ${i} <b>hidden-quote-${i}</b> tail</p>`).join('') + '</div>';
     document.body.innerHTML = hidden + '<p>before <b id="visible">visible-target</b> after</p>';
     const target = document.querySelector('#visible')!.firstChild!;
+    if (allocations) addAllocationCase({ hiddenParagraphs }, 'hidden-subtree-search', document.body.innerHTML, 'visible-target');
+    const probe = createTextNodeWalker(document.body, true)!;
+    const filter = probe.filter as { acceptNode(node: Node): number };
+    const accept = filter.acceptNode;
+    let filterCalls = 0, textFilterCalls = 0;
+    filter.acceptNode = node => { filterCalls++; if (node.nodeType === Node.TEXT_NODE) textFilterCalls++; return accept(node); };
+    const visible = [];
+    let current;
+    while ((current = probe.nextNode())) visible.push(current.textContent);
+    assert(visible.join('') === 'before visible-target after', 'Wrong visible traversal');
     const search = measure(() => {
       const range = findTextRangeInNode(document.body, 'visible-target');
       assert(range?.startContainer === target && range.toString() === 'visible-target', 'Wrong visible target after hidden content');
@@ -138,10 +158,22 @@ try {
     const range = document.createRange();
     range.selectNodeContents(target);
     const metadata = captureHighlightMetadata(range, null, 'visible');
-    hiddenResults.push({ hiddenParagraphs, search, missing, textOffset: metadata?.textOffset, expectedVisibleOffset: 7 });
+    hiddenResults.push({ hiddenParagraphs, search, missing, textOffset: metadata?.textOffset, expectedVisibleOffset: 7, filterCalls, textFilterCalls });
+  }
+  const emptyResults = [];
+  for (const emptyContainers of reverse ? [10000, 100] : [100, 10000]) {
+    document.body.innerHTML = '<nav>' + '<a><img></a>'.repeat(emptyContainers) + '</nav><p>before <b id="visible">visible-target</b> after</p>';
+    const target = document.querySelector('#visible')!.firstChild!;
+    if (allocations) addAllocationCase({ emptyContainers }, 'empty-container-search', document.body.innerHTML, 'visible-target');
+    const search = measure(() => {
+      const range = findTextRangeInNode(document.body, 'visible-target');
+      assert(range?.startContainer === target && range.toString() === 'visible-target', 'Wrong match after empty containers');
+    });
+    emptyResults.push({ emptyContainers, search });
   }
   window.getComputedStyle = readStyle;
-  (window as any).__performanceResult = { userAgent: navigator.userAgent, scenario: 'highlights', reverse, results, hiddenResults };
+  (window as any).__highlightAllocationCases = allocationCases;
+  (window as any).__performanceResult = { userAgent: navigator.userAgent, scenario: 'highlights', reverse, results, hiddenResults, emptyResults };
 } catch (error) {
   (window as any).__performanceResult = { error: String(error) };
 }

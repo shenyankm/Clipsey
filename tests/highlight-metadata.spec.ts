@@ -82,17 +82,43 @@ it('checks a fragmented parent once per walker and sees changed styles on the ne
 
 it('retries a style read after a transient failure and keeps excluded elements filtered', () => {
   const p = document.createElement('p');
-  p.style.display = 'none';
   p.append('first', 'second', 'third');
-  document.body.append(p);
+  const hidden = document.createElement('div');
+  hidden.style.display = 'none';
+  hidden.append(p);
+  document.body.append(hidden);
   const read = window.getComputedStyle;
   const styles = vi.spyOn(window, 'getComputedStyle').mockImplementationOnce(() => { throw new Error('Transient'); }).mockImplementation(read);
-  const walker = createTextNodeWalker()!;
+  const walker = createTextNodeWalker(hidden)!;
   expect(walker.nextNode()?.textContent).toBe('first');
   expect(walker.nextNode()).toBeNull();
-  expect(styles).toHaveBeenCalledTimes(4);
+  expect(styles.mock.calls.filter(([element]) => element === hidden)).toHaveLength(2);
   document.body.innerHTML = '<script>secret</script><style>body{}</style><svg><text>svg</text></svg><canvas>canvas</canvas><p>visible</p>';
   expect(createTextNodeWalker()!.nextNode()?.textContent).toBe('visible');
+});
+
+it('keeps yielding text when styles cannot be read, without yielding elements', () => {
+  document.body.innerHTML = '<p>first<b>second</b></p><script>excluded</script>';
+  vi.spyOn(window, 'getComputedStyle').mockImplementation(() => { throw new Error('Unavailable'); });
+  const walker = createTextNodeWalker()!;
+  const nodes: Node[] = [];
+  let node;
+  while ((node = walker.nextNode())) nodes.push(node);
+  expect(nodes.map(node => [node.nodeType, node.textContent])).toEqual([[Node.TEXT_NODE, 'first'], [Node.TEXT_NODE, 'second']]);
+});
+
+it('retries an unread ancestor on the next node and stops visiting the hidden tail', () => {
+  document.body.innerHTML = '<div id="hidden" style="display:none"><p>first<b>second</b>third</p></div><p>visible</p>';
+  const read = window.getComputedStyle;
+  let failed = false;
+  vi.spyOn(window, 'getComputedStyle').mockImplementation(element => {
+    if (element.id === 'hidden' && !failed) { failed = true; throw new Error('Transient'); }
+    return read(element);
+  });
+  const walker = createTextNodeWalker()!;
+  expect(walker.nextNode()?.textContent).toBe('first');
+  expect(walker.nextNode()?.textContent).toBe('visible');
+  expect(walker.nextNode()).toBeNull();
 });
 
 it('excludes nested hidden text from offsets and restores records with older offsets', () => {
@@ -109,7 +135,17 @@ it('does not read the style of every descendant of a hidden ancestor', () => {
   document.body.innerHTML = '<div style="display:none">' + '<p>prefix <b>quote</b> tail</p>'.repeat(100) + '</div><p>visible</p>';
   const styles = vi.spyOn(window, 'getComputedStyle');
   const walker = createTextNodeWalker()!;
+  const filter = vi.spyOn(walker.filter as { acceptNode(node: Node): number }, 'acceptNode');
+  const hidden = document.querySelector('div')!;
   expect(walker.nextNode()?.textContent).toBe('visible');
   expect(walker.nextNode()).toBeNull();
   expect(styles).toHaveBeenCalledTimes(4);
+  expect(filter.mock.calls.filter(([node]) => hidden.contains(node))).toHaveLength(1);
+});
+
+it.each(['<span><!-- trailing comment --></span>', '<img>'])('continues after hidden content ending with a non-text node: %s', ending => {
+  document.body.innerHTML = `<div style="display:none"><p>hidden</p>${ending}</div><p>visible</p>`;
+  const walker = createTextNodeWalker()!;
+  expect(walker.nextNode()?.textContent).toBe('visible');
+  expect(walker.nextNode()).toBeNull();
 });

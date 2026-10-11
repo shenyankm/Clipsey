@@ -17,7 +17,7 @@ const pageCache = process.argv.includes('--page-cache');
 const writeLayout = process.argv.includes('--write-layout');
 const keyLayout = process.argv.includes('--key-layout');
 const allocations = process.argv.includes('--allocations');
-if (allocations && !cache && !index && !normalize && !urlRead && !pageCache && !keyLayout) throw new Error('--allocations requires a cache benchmark');
+if (allocations && !cache && !index && !normalize && !urlRead && !pageCache && !keyLayout && !highlights) throw new Error('--allocations requires a cache or highlight benchmark');
 if (urlRead && baseline) throw new Error('--url-read compares the current cache path and experimental strategies in one run');
 const baselineRef = baseline
   ? execFileSync('git', ['rev-parse', process.env.BASELINE_REF ?? 'HEAD'], { encoding: 'utf8' }).trim()
@@ -114,6 +114,7 @@ try {
   });
   await send('Runtime.enable');
   const query = new URLSearchParams();
+  if (allocations && highlights) query.set('allocations', '1');
   if ((urlRead || pageCache || writeLayout || keyLayout || highlights) && process.argv.includes('--reverse')) query.set('reverse', '1');
   if (pageCache && process.argv.includes('--legacy-v4')) query.set('legacy-v4', '1');
   await send('Page.navigate', { url: server.resolvedUrls.local[0] + (query.size ? `?${query}` : '') });
@@ -126,11 +127,12 @@ try {
   }
   if (result.error) throw new Error(result.error);
   if (allocations) {
+    const caseList = highlights ? '__highlightAllocationCases' : '__cacheAllocationCases';
     const describe = await send('Runtime.evaluate', {
-      expression: 'window.__cacheAllocationCases.map(({ records, name }) => ({ records, name }))', returnByValue: true
+      expression: `window.${caseList}.map(({ records, paragraphs, hiddenParagraphs, emptyContainers, name }) => ({ records, paragraphs, hiddenParagraphs, emptyContainers, name }))`, returnByValue: true
     });
     const cases = describe.result.value;
-    if (!Array.isArray(cases)) throw new Error('Missing cache allocation cases');
+    if (!Array.isArray(cases)) throw new Error('Missing allocation cases');
     const evaluate = async expression => {
       const reply = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
       if (reply.exceptionDetails) throw new Error(JSON.stringify(reply.exceptionDetails));
@@ -139,18 +141,33 @@ try {
     result.allocationSamples = [];
     for (const [index, scenario] of cases.entries()) {
       const samplesBytes = [];
+      const allocationSites = new Map();
       for (let i = 0; i < 7; i++) {
-        await evaluate(`window.__cacheAllocationCases[${index}].prepare()`);
+        await evaluate(`window.${caseList}[${index}].prepare()`);
         await send('HeapProfiler.collectGarbage');
         await send('HeapProfiler.startSampling', {
           samplingInterval: 16384, includeObjectsCollectedByMajorGC: true, includeObjectsCollectedByMinorGC: true
         });
-        await evaluate(`window.__cacheAllocationCases[${index}].operation()`);
+        await evaluate(`window.${caseList}[${index}].operation()`);
         const { profile } = await send('HeapProfiler.stopSampling');
-        await evaluate(`window.__cacheAllocationCases[${index}].verify?.()`);
+        function collectSites(node) {
+          const frame = node.callFrame;
+          const key = JSON.stringify([frame.functionName, frame.url, frame.lineNumber, frame.columnNumber]);
+          if (node.selfSize) {
+            const site = allocationSites.get(key) ?? { ...frame, samplesBytes: Array(7).fill(0) };
+            site.samplesBytes[i] += node.selfSize;
+            allocationSites.set(key, site);
+          }
+          node.children.forEach(collectSites);
+        }
+        collectSites(profile.head);
+        await evaluate(`window.${caseList}[${index}].verify?.()`);
         samplesBytes.push(size(profile.head));
       }
-      result.allocationSamples.push({ ...scenario, medianBytes: samplesBytes.toSorted((a, b) => a - b)[3], samplesBytes });
+      const sites = [...allocationSites.values()].map(site => ({ ...site, medianBytes: site.samplesBytes.toSorted((a, b) => a - b)[3] }))
+        .sort((a, b) => b.medianBytes - a.medianBytes);
+      if (samplesBytes.some((bytes, index) => sites.reduce((sum, site) => sum + site.samplesBytes[index], 0) !== bytes)) throw new Error('Allocation site totals do not match sampled bytes');
+      result.allocationSamples.push({ ...scenario, medianBytes: samplesBytes.toSorted((a, b) => a - b)[3], samplesBytes, sites });
     }
   }
   await send('Runtime.evaluate', { expression: 'window.__performanceCleanup?.()' });

@@ -10,9 +10,10 @@ function mapNormalizedRangeToOriginal(original: string, normalizedStart: number,
   let count = 0;
   let inWhitespace = false;
   let start: number | undefined;
+  const whitespacePattern = /\s/;
   for (let i = 0; i < original.length; i += 1) {
     const char = original.charAt(i);
-    const whitespace = /\s/.test(char);
+    const whitespace = whitespacePattern.test(char);
     const length = whitespace ? (inWhitespace ? 0 : 1) : char.toLowerCase().length;
     if (start === undefined && count + length > normalizedStart) start = i;
     if (count + length > normalizedEnd) return [start ?? i, i + 1];

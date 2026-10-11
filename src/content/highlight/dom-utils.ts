@@ -1,61 +1,79 @@
 // DOM 工具模块：安全选择器、文本节点遍历等
 
-// 创建文本节点 TreeWalker（默认 document.body，可传入自定义根节点）
-export function createTextNodeWalker(root: Node = document.body, includeWhitespace = false): TreeWalker | null {
+// 创建文本遍历器（默认 document.body，可传入自定义根节点）
+export function createTextNodeWalker(root: Node = document.body, includeWhitespace = false): Pick<TreeWalker, 'nextNode' | 'filter'> | null {
   if (!root) return null;
   try {
-    // 调用方同步遍历；下一次定位使用新 walker，重新检查页面样式。
     const visibleParents = new WeakMap<Element, boolean>();
-    const displayedAncestors = new WeakMap<Element, boolean>();
-    function ancestorsDisplayed(element: Element | null): boolean {
-      if (!element) return true;
-      const cached = displayedAncestors.get(element);
+    const barriers = new WeakMap<Element, Element | null>();
+    let lastBarrier: Element | null = null;
+    function hiddenAncestor(element: Element | null): Element | null {
+      if (!element) return null;
+      const cached = barriers.get(element);
       if (cached !== undefined) return cached;
       const pending: Element[] = [];
-      let displayed = true;
+      let barrier: Element | null = null;
       while (element) {
-        const cached = displayedAncestors.get(element);
-        if (cached !== undefined) { displayed = cached; break; }
+        const cached = barriers.get(element);
+        if (cached !== undefined) { barrier = cached; break; }
         pending.push(element);
-        if (getComputedStyle(element)?.display === 'none') { displayed = false; break; }
+        if (getComputedStyle(element)?.display === 'none') { barrier = element; break; }
         element = element.parentElement;
       }
-      for (const ancestor of pending) displayedAncestors.set(ancestor, displayed);
-      return displayed;
+      for (const ancestor of pending) barriers.set(ancestor, barrier);
+      return barrier;
     }
-    return document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-      acceptNode(node) {
-        const parent = (node as Text).parentElement;
+    const filter = {
+      acceptNode(node: Node) {
+        lastBarrier = null;
+        const parent = node.parentElement;
         if (!parent) return NodeFilter.FILTER_REJECT;
-        const content = (node as Text).textContent ?? '';
-        if (!includeWhitespace && !content.trim()) {
-          return NodeFilter.FILTER_SKIP;
-        }
+        if (!includeWhitespace && !(node.textContent ?? '').trim()) return NodeFilter.FILTER_SKIP;
         let visible = visibleParents.get(parent);
         if (visible === undefined) {
-          if (parent.closest('script, style, noscript, svg, canvas')) {
+          const excluded = parent.closest('script, style, noscript, svg, canvas');
+          if (excluded) {
             visible = false;
+            barriers.set(parent, excluded);
           } else {
             try {
-              visible = ancestorsDisplayed(parent.parentElement);
-              if (!visible) displayedAncestors.set(parent, false);
-              if (visible) {
+              let barrier = hiddenAncestor(parent.parentElement);
+              if (!barrier) {
                 const style = getComputedStyle(parent);
-                const displayed = style?.display !== 'none';
-                displayedAncestors.set(parent, displayed);
-                // visibility 可由子元素覆盖，display:none 祖先则隐藏整个子树。
-                visible = displayed && style?.visibility !== 'hidden';
-              }
+                if (style?.display === 'none') barrier = parent;
+                visible = !barrier && style?.visibility !== 'hidden';
+              } else visible = false;
+              barriers.set(parent, barrier);
             } catch {
-              // 样式读取失败不缓存，后续节点仍可重试。
+              // 读取失败不缓存，下一节点仍可重试。
               return NodeFilter.FILTER_ACCEPT;
             }
           }
           visibleParents.set(parent, visible);
         }
+        lastBarrier = barriers.get(parent) ?? null;
         return visible ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
       }
-    });
+    };
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let finished = false;
+    return { filter,
+      nextNode() {
+        if (finished) return null;
+        let node: Node | null;
+        while ((node = walker.nextNode())) {
+          if (filter.acceptNode(node) === NodeFilter.FILTER_ACCEPT) return node;
+          if (lastBarrier) {
+            if (lastBarrier === root || !root.contains(lastBarrier)) { finished = true; return null; }
+            // currentNode 可指向非文本节点；从最后一个后代继续可跳过整个隐藏子树。
+            let last: Node = lastBarrier;
+            while (last.lastChild) last = last.lastChild;
+            walker.currentNode = last;
+          }
+        }
+        return null;
+      }
+    };
   } catch {
     return null;
   }
