@@ -2,6 +2,8 @@
 
 日期：2026-10-11；基线：`38702cddd97d3b2e15baaf65f881af04d0258e22`。按用户确认，以 10,000 条为主要规模，兼顾 100 条。本地分支 `sheny/performance-indexed-url-cache`；尚未推送或合并，整个性能优化目标仍在进行。
 
+后续已将双库写入改为单库索引；新一轮收益、内存和升级代价见[批量写入与单库 URL 索引验收](./performance-write-index.md)。本文件保留 v4 阶段的历史测量。
+
 候选把稀疏网址读取接入生产路径。读取收益已复现，但批量写入明显变慢，不能作为全面性能优化已经完成的结论。延续[原型实验](./performance-url-read.md)；逐次样本和验收结果见[原始数据](./performance-indexed-url-cache-results.json)。
 
 ## 数据和缓存边界

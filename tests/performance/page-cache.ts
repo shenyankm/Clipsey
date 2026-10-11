@@ -34,18 +34,24 @@ function fixture(records: number, hits: number): Clip[] {
 
 try {
   const legacy = fixture(10000, 10);
-  const open = indexedDB.open(DB_CONFIG.name, 3);
+  const oldVersion = new URLSearchParams(location.search).has('legacy-v4') ? 4 : 3;
+  const clipUrlRecord = oldVersion === 4 ? (await import('../../src/background/storage/utils/clip-url-record')).clipUrlRecord : undefined;
+  const open = indexedDB.open(DB_CONFIG.name, oldVersion);
   open.onupgradeneeded = () => {
     const db = open.result;
     for (const config of STORE_CONFIGS.filter(config => config.name !== 'clipUrls')) {
       const store = db.createObjectStore(config.name, { keyPath: config.keyPath });
-      for (const index of config.indexes) store.createIndex(index.name, index.keyPath, index.options);
+      for (const index of config.indexes.filter(index => index.name !== 'urlKey')) store.createIndex(index.name, index.keyPath, index.options);
     }
     db.createObjectStore('unknown');
+    if (oldVersion === 4) db.createObjectStore('clipUrls', { keyPath: 'id' }).createIndex('urlKey', 'key');
   };
   const old = await request(open);
-  const tx = old.transaction(['clips', 'unknown'], 'readwrite');
-  legacy.forEach(clip => tx.objectStore('clips').put(clip));
+  const tx = old.transaction(Array.from(old.objectStoreNames), 'readwrite');
+  legacy.forEach(clip => {
+    tx.objectStore('clips').put(clip);
+    if (clipUrlRecord) tx.objectStore('clipUrls').put(clipUrlRecord(clip));
+  });
   tx.objectStore('unknown').put('preserve', 'key');
   await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error); });
   old.close();
@@ -62,6 +68,7 @@ try {
   const upgraded = await request(indexedDB.open(DB_CONFIG.name));
   assert(upgraded.objectStoreNames.contains('unknown'), 'Migration deleted unknown store');
   assert(await request(upgraded.transaction('unknown').objectStore('unknown').get('key')) === 'preserve', 'Migration lost unknown data');
+  if (DB_CONFIG.version === 5 && oldVersion === 4) assert(!upgraded.objectStoreNames.contains('clipUrls'), 'Migration retained retired URL data');
   upgraded.close();
 
   const results = [], allocations = [];
@@ -93,7 +100,7 @@ try {
     }
   }
   (window as any).__cacheAllocationCases = allocations;
-  (window as any).__performanceResult = { userAgent: navigator.userAgent, scenario: 'page-cache', upgradeMs, migratedRecords: retained.length, results };
+  (window as any).__performanceResult = { userAgent: navigator.userAgent, scenario: 'page-cache', oldVersion, newVersion: DB_CONFIG.version, upgradeMs, migratedRecords: retained.length, results };
   (window as any).__performanceCleanup = () => { syncManager.close(); indexedDBManager.close(); };
 } catch (error) {
   (window as any).__performanceResult = { error: String(error) };

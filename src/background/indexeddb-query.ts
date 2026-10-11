@@ -36,7 +36,10 @@ export class IndexedDBQuery {
         if (!limit && !(offset > 0) && (direction === 'next' || direction === 'prev')) {
           return new Promise<DBSchema[K]['value'][]>((resolve, reject) => {
             const request = source.getAll(query);
-            request.onsuccess = () => resolve(direction === 'prev' ? request.result.reverse() : request.result);
+            request.onsuccess = () => {
+              const rows = request.result.map(value => IndexedDB.readRecord(store, value));
+              resolve(direction === 'prev' ? rows.reverse() : rows);
+            };
             request.onerror = () => reject(new IndexedDBError(
               'Failed to query records', 'QUERY_ERROR', request.error || undefined
             ));
@@ -76,7 +79,7 @@ export class IndexedDBQuery {
               return;
             }
 
-            results.push(cursor.value);
+            results.push(IndexedDB.readRecord(store, cursor.value));
             count++;
             cursor.continue();
           };
@@ -199,7 +202,7 @@ export class IndexedDBQuery {
             return;
           }
           if (collected < pageSize) {
-            items.push(cursor.value as DBSchema[K]['value']);
+            items.push(IndexedDB.readRecord(store, cursor.value) as DBSchema[K]['value']);
             lastKey = cursor.key as IDBValidKey;
             collected += 1;
             cursor.continue();
@@ -269,7 +272,7 @@ export class IndexedDBQuery {
       await indexedDBManager.executeTransaction(storeName, 'readwrite', async transaction => {
         const store = transaction.objectStore(storeName);
         await Promise.all(batch.map(key => new Promise<void>((resolve, reject) => {
-          const request = IndexedDB.deleteRecord(store, key);
+          const request = store.delete(key);
           request.onsuccess = () => resolve();
           request.onerror = () => reject(request.error ?? new Error('Failed to delete record'));
         })));
@@ -434,7 +437,8 @@ export class IndexedDBQuery {
         }
         // 保留截至本页的排序主键；单批内容及本页以外的 HTML 可回收。
         matches.sort(compare);
-        const items = await Promise.all(matches.slice(offset, offset + limit).map(({ id }) => read(store.get(id)))) as DBSchema[K]['value'][];
+        const items = (await Promise.all(matches.slice(offset, offset + limit).map(({ id }) => read(store.get(id)))))
+          .map(value => IndexedDB.readRecord(store, value)) as DBSchema[K]['value'][];
         return { items, total, page, pageSize };
       }
 
@@ -452,7 +456,7 @@ export class IndexedDBQuery {
             return;
           }
 
-          const record = cursor.value as DBSchema[K]['value'];
+          const record = IndexedDB.readRecord(store, cursor.value) as DBSchema[K]['value'];
           let matched = false;
           for (const field of fields) {
             const v = (record as any)[field];

@@ -9,6 +9,7 @@ import { migrateClipsFromChromeStorage } from '@/background/migration';
 import { exportService } from '@/background/services/export-service';
 import { getClipsByUrlPaged } from '@/background/api';
 import { handleSaveClip } from '@/background/handlers/save-clip';
+import { CLIP_URL_KEY } from '@/types/indexeddb';
 import type { Clip } from '@/types/clip';
 
 const local = vi.hoisted(() => ({ get: vi.fn(), remove: vi.fn() }));
@@ -25,6 +26,15 @@ const clip = (id: string): Clip => ({
   updatedAt: '2025-01-02T00:00:00.000Z'
 });
 
+
+async function urlRecords() {
+  return indexedDBManager.executeTransaction('clips', 'readonly', transaction => new Promise((resolve, reject) => {
+    const request = transaction.objectStore('clips').getAll();
+    request.onsuccess = () => resolve(request.result.map(row => ({ id: row.id, key: row[CLIP_URL_KEY] })));
+    request.onerror = () => reject(request.error);
+  }));
+}
+
 beforeEach(async () => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
@@ -36,6 +46,63 @@ beforeEach(async () => {
 afterAll(() => indexedDBManager.close());
 
 describe('clip storage transactions', () => {
+  it('keeps the private URL key out of every public record and backup', async () => {
+    const original = Object.freeze({ ...clip('one'), title: 'Match', extra: { keep: true } });
+    await indexedDBManager.put('clips', original);
+    expect(Object.hasOwn(original, CLIP_URL_KEY)).toBe(false);
+    const paths = [
+      [await indexedDBManager.get('clips', 'one')], await indexedDBManager.getAllData('clips'),
+      await IndexedDBQuery.getAll('clips'), await IndexedDBQuery.getAll('clips', { limit: 1 }),
+      await IndexedDBQuery.getByIndex('clips', 'sourceUrl', original.sourceUrl),
+      await IndexedDBQuery.search('clips', 'Text', ['textContent']),
+      (await IndexedDBQuery.paginate('clips', 1, 1)).data,
+      (await IndexedDBQuery.keysetPaginate('clips', 1)).items,
+      (await IndexedDBQuery.filterByKeywordPaged('clips', 'Text', ['textContent'], 1, 1, { indexName: 'createdAt' })).items,
+      (await IndexedDBQuery.filterByKeywordPaged('clips', 'Text', ['textContent'], 1, 1, { orderBy: 'title' })).items,
+      (await IndexedDBQuery.filterByKeywordPaged('clips', 'Text', ['textContent'], 1, 1)).items
+    ];
+    for (const rows of paths) expect(rows).toEqual([original]);
+    // 对外读取后再写入仍可维护索引，无需调用方处理内部字段。
+    await indexedDBManager.put('clips', paths[0][0]!);
+    for (const rows of [await getClipsForUrl(original.sourceUrl), await getClips(), (await exportService.exportAll()).clips, [await deleteClip('one')]]) {
+      expect(rows).toHaveLength(1);
+      expect(Object.hasOwn(rows[0]!, CLIP_URL_KEY)).toBe(false);
+    }
+  });
+
+  it('rejects a reserved field without changing the saved body or index', async () => {
+    await indexedDBManager.put('clips', clip('old'));
+    await expect(indexedDBManager.put('clips', { ...clip('old'), [CLIP_URL_KEY]: 'user data' })).rejects.toThrow('reserved');
+    expect(await indexedDBManager.get('clips', 'old')).toEqual(clip('old'));
+    expect(await urlRecords()).toEqual([{ id: 'old', key: ['https://example.com/article', clip('old').createdAt, 'old'] }]);
+    const setting = { key: 'test', value: 'preserve', updatedAt: '2025', [CLIP_URL_KEY]: 'unrelated' };
+    await indexedDBManager.put('settings', setting);
+    expect(await indexedDBManager.get('settings', 'test')).toEqual(setting);
+  });
+
+  it('checks every distinct source URL and falls back when a stored key is inconsistent', async () => {
+    await saveClips([clip('valid'), clip('changed')]);
+    await indexedDBManager.executeTransaction('clips', 'readwrite', transaction => new Promise<void>((resolve, reject) => {
+      const store = transaction.objectStore('clips');
+      const request = store.get('changed');
+      request.onsuccess = () => { store.put({ ...request.result, sourceUrl: 'https://different.com' }); resolve(); };
+      request.onerror = () => reject(request.error);
+    }));
+    const full = vi.spyOn(IndexedDBQuery, 'getAll');
+    expect((await getClipsForUrl(clip('').sourceUrl)).map(clip => clip.id)).toEqual(['valid']);
+    expect(full).toHaveBeenCalledOnce();
+  });
+
+  it('derives the index from the same snapshot that is written when an input has getters', async () => {
+    let reads = 0;
+    const incoming = { ...clip('getter'), get sourceUrl() { return ++reads === 1 ? 'https://first.com' : 'https://second.com'; } };
+    await indexedDBManager.add('clips', incoming);
+    expect(reads).toBe(1);
+    expect(await indexedDBManager.get('clips', 'getter')).toEqual({ ...clip('getter'), sourceUrl: 'https://first.com' });
+    expect(await urlRecords()).toEqual([{ id: 'getter', key: ['https://first.com/', clip('getter').createdAt, 'getter'] }]);
+    expect(Object.getOwnPropertyDescriptor(incoming, 'sourceUrl')?.get).toBeTypeOf('function');
+  });
+
   it('uses the bulk snapshot for dense small databases without counting all bodies', async () => {
     await saveClips(Array.from({ length: 100 }, (_, i) => clip(String(i))));
     const full = vi.spyOn(IndexedDBQuery, 'getAll');
@@ -76,19 +143,19 @@ describe('clip storage transactions', () => {
     await IndexedDBQuery.bulkPut('clips', [clip('bulk')]);
     await IndexedDBQuery.bulkDelete('clips', ['added']);
     await indexedDBManager.deleteData('clips', 'bulk');
-    expect(await indexedDBManager.getAllData('clipUrls')).toEqual([{ id: 'old', key: ['https://changed.com/', clip('old').createdAt, 'old'] }]);
-    const original = await indexedDBManager.getAllData('clipUrls');
+    expect(await urlRecords()).toEqual([{ id: 'old', key: ['https://changed.com/', clip('old').createdAt, 'old'] }]);
+    const original = await urlRecords();
     const put = IDBObjectStore.prototype.put;
     vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, value, key) {
       if (this.name === 'clips') throw new DOMException('Quota exceeded', 'QuotaExceededError');
       return put.call(this, value, key);
     });
     await expect(saveClips([clip('replacement')])).rejects.toThrow('Quota exceeded');
-    expect(await indexedDBManager.getAllData('clipUrls')).toEqual(original);
+    expect(await urlRecords()).toEqual(original);
     expect(await indexedDBManager.get('clips', 'old')).toMatchObject({ sourceUrl: 'https://changed.com' });
     vi.restoreAllMocks();
     await indexedDBManager.clear('clips');
-    expect(await indexedDBManager.count('clipUrls')).toBe(0);
+    expect(await IndexedDBQuery.count('clips', 'urlKey')).toBe(0);
   });
 
   it('invalidates sparse page reads on add, URL changes, and delete', async () => {
@@ -213,7 +280,7 @@ describe('clip storage transactions', () => {
     await indexedDBManager.put('clips', clip('old'));
     await expect(IndexedDBQuery.bulkAdd('clips', [clip('new'), clip('old')])).rejects.toThrow();
     expect((await indexedDBManager.getAllData('clips')).map(item => item.id)).toEqual(['old']);
-    expect(await indexedDBManager.getAllData('clipUrls')).toEqual([{ id: 'old', key: ['https://example.com/article', clip('old').createdAt, 'old'] }]);
+    expect(await urlRecords()).toEqual([{ id: 'old', key: ['https://example.com/article', clip('old').createdAt, 'old'] }]);
     await expect(IndexedDBQuery.bulkPut('clips', [{ ...clip('bad'), id: undefined } as unknown as Clip])).rejects.toThrow();
     await expect(IndexedDBQuery.bulkDelete('clips', [undefined as unknown as string])).rejects.toThrow();
   });

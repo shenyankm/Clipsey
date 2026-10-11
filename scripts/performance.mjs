@@ -14,6 +14,7 @@ const index = process.argv.includes('--index');
 const normalize = process.argv.includes('--normalize');
 const urlRead = process.argv.includes('--url-read');
 const pageCache = process.argv.includes('--page-cache');
+const writeLayout = process.argv.includes('--write-layout');
 const allocations = process.argv.includes('--allocations');
 if (allocations && !cache && !index && !normalize && !urlRead && !pageCache) throw new Error('--allocations requires a cache benchmark');
 if (urlRead && baseline) throw new Error('--url-read compares the current cache path and experimental strategies in one run');
@@ -34,9 +35,9 @@ const server = await createServer({
     load(id) {
       if (!baseline) return;
       const path = id.split('?')[0];
-      const databaseFiles = ['src/background/indexeddb.ts', 'src/background/indexeddb-query.ts', 'src/types/indexeddb.ts'];
+      const databaseFiles = ['src/background/indexeddb.ts', 'src/background/indexeddb-query.ts', 'src/types/indexeddb.ts', 'src/background/storage/utils/clip-url-record.ts'];
       const cacheFiles = ['src/background/storage.ts', 'src/background/storage/cache-manager.ts', 'src/background/storage/clip-index.ts', 'src/background/storage/utils/clip-normalizer.ts'];
-      const files = pageCache ? [...cacheFiles, ...databaseFiles] : writes
+      const files = pageCache || writeLayout ? [...cacheFiles, ...databaseFiles] : writes
         ? ['src/background/storage.ts', 'src/background/storage/sync-manager.ts', 'src/background/storage/utils/clip-normalizer.ts', ...databaseFiles]
         : normalize ? ['src/background/storage/utils/clip-normalizer.ts']
         : index ? ['src/background/storage/clip-index.ts']
@@ -58,7 +59,7 @@ const server = await createServer({
       server.middlewares.use((req, res, next) => {
         if (req.url?.split('?')[0] !== '/') return next();
         res.setHeader('Content-Type', 'text/html');
-        res.end(`<!doctype html><script type="module" src="/tests/performance/${pageCache ? 'page-cache' : writes ? 'writes' : urlRead ? 'url-read' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : search ? 'search' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
+        res.end(`<!doctype html><script type="module" src="/tests/performance/${writeLayout ? 'write-layout' : pageCache ? 'page-cache' : writes ? 'writes' : urlRead ? 'url-read' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : search ? 'search' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
       });
     }
   }]
@@ -111,7 +112,10 @@ try {
     socket.send(JSON.stringify({ id: requestId, method, params }));
   });
   await send('Runtime.enable');
-  await send('Page.navigate', { url: server.resolvedUrls.local[0] + ((urlRead || pageCache) && process.argv.includes('--reverse') ? '?reverse=1' : '') });
+  const query = new URLSearchParams();
+  if ((urlRead || pageCache || writeLayout) && process.argv.includes('--reverse')) query.set('reverse', '1');
+  if (pageCache && process.argv.includes('--legacy-v4')) query.set('legacy-v4', '1');
+  await send('Page.navigate', { url: server.resolvedUrls.local[0] + (query.size ? `?${query}` : '') });
   let result;
   while (!result) {
     if (Date.now() > deadline) throw new Error('Performance run timed out');

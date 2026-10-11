@@ -1,5 +1,6 @@
 import {
   DB_CONFIG,
+  CLIP_URL_KEY,
   STORE_CONFIGS,
   IndexedDBError,
   type DBSchema,
@@ -9,7 +10,8 @@ import {
   type StoreConfig
 } from '@/types/indexeddb';
 import type { Clip } from '@/types/clip';
-import { clipUrlRecord } from './storage/utils/clip-url-record';
+import { withClipUrlKey } from './storage/utils/clip-url-record';
+import { createIndexKeys } from './storage/utils/url-normalizer';
 
 // IndexedDB 操作层：连接、升级、事务与基础 CRUD 封装
 export class IndexedDB {
@@ -59,12 +61,12 @@ export class IndexedDB {
     });
   }
 
-  // 升级只增加所需结构，保留旧数据和未知 store。
+  // 升级保留公开数据和未知 store，仅退役已确认属于旧版本的派生数据。
   private upgradeDatabase(db: IDBDatabase, oldVersion: number, newVersion: number, tx: IDBTransaction): void {
     console.log(`Upgrading database from version ${oldVersion} to ${newVersion}`);
 
-    if (oldVersion > 0 && oldVersion < 4 && db.objectStoreNames.contains('clipUrls')) {
-      throw new Error('URL index store already exists');
+    if (oldVersion > 0 && oldVersion < 5 && db.objectStoreNames.contains('clips') && tx.objectStore('clips').indexNames.contains('urlKey')) {
+      throw new Error('URL index name already exists');
     }
 
     STORE_CONFIGS.forEach(storeConfig => {
@@ -87,20 +89,44 @@ export class IndexedDB {
       }
     });
 
-    if (oldVersion > 0 && oldVersion < 4) {
-      const urls = tx.objectStore('clipUrls');
-      const request = tx.objectStore('clips').openCursor();
-      request.onerror = () => tx.abort();
-      request.onsuccess = () => {
-        const cursor = request.result;
-        if (!cursor) return;
-        try {
-          urls.put(clipUrlRecord(cursor.value, cursor.primaryKey));
-          cursor.continue();
-        } catch {
-          tx.abort();
-        }
+    if (oldVersion > 0 && oldVersion < 5) {
+      const store = tx.objectStore('clips');
+      const backfill = () => {
+        if (store.keyPath !== 'id') return;
+        const request = store.openCursor();
+        request.onerror = () => tx.abort();
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) return;
+          try {
+            cursor.update(withClipUrlKey(cursor.value, cursor.primaryKey));
+            cursor.continue();
+          } catch { tx.abort(); }
+        };
       };
+      if (oldVersion === 4 && db.objectStoreNames.contains('clipUrls')) {
+        const legacy = tx.objectStore('clipUrls');
+        if (legacy.keyPath !== 'id' || legacy.autoIncrement || legacy.indexNames.length !== 1 ||
+            !legacy.indexNames.contains('urlKey') || legacy.index('urlKey').keyPath !== 'key' ||
+            legacy.index('urlKey').unique || legacy.index('urlKey').multiEntry) throw new Error('Unknown legacy URL store');
+        const request = legacy.openCursor();
+        request.onerror = () => tx.abort();
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) { db.deleteObjectStore('clipUrls'); backfill(); return; }
+          try {
+            const row = cursor.value;
+            const key = row?.key;
+            const known = row && typeof row === 'object' && !Array.isArray(row) &&
+              Object.keys(row).every(name => name === 'id' || name === 'key') && indexedDB.cmp(row.id, cursor.primaryKey) === 0 &&
+              (key === undefined || (Array.isArray(key) && Object.keys(key).length === key.length && ((key.length === 1 && key[0] === '') ||
+                (key.length === 3 && typeof key[0] === 'string' && typeof key[1] === 'string' &&
+                 typeof row.id === 'string' && key[2] === row.id && createIndexKeys(key[0]).at(-1) === key[0]))));
+            if (!known) { tx.abort(); return; }
+            cursor.continue();
+          } catch { tx.abort(); }
+        };
+      } else backfill();
     }
   }
 
@@ -161,10 +187,6 @@ export class IndexedDB {
     mode: TransactionMode,
     operation: (transaction: IDBTransaction) => Promise<T>
   ): Promise<T> {
-    const names = typeof storeNames === 'string' ? [storeNames] : storeNames;
-    if (mode === 'readwrite' && names.includes('clips') && !names.includes('clipUrls')) {
-      storeNames = [...names, 'clipUrls'];
-    }
     const transaction = await this.createTransaction(storeNames, mode);
     const completed = new Promise<void>((resolve, reject) => {
       transaction.oncomplete = () => resolve();
@@ -185,20 +207,16 @@ export class IndexedDB {
     }
   }
 
-  // clips 的所有写入共用这些入口，正文与 URL 索引在同一事务中提交。
+  // 派生键随正文写入，索引由 IndexedDB 原子维护。
   static writeRecord(store: IDBObjectStore, operation: 'add' | 'put', data: unknown): IDBRequest {
-    if (store.name === 'clips') store.transaction.objectStore('clipUrls').put(clipUrlRecord(data as Clip));
+    if (store.name === 'clips' && store.keyPath === 'id' && data && typeof data === 'object') data = withClipUrlKey(data as Clip);
     return store[operation](data);
   }
 
-  static deleteRecord(store: IDBObjectStore, key: IDBValidKey): IDBRequest {
-    if (store.name === 'clips') store.transaction.objectStore('clipUrls').delete(key);
-    return store.delete(key);
-  }
-
-  static clearRecords(store: IDBObjectStore): IDBRequest {
-    if (store.name === 'clips') store.transaction.objectStore('clipUrls').clear();
-    return store.clear();
+  static readRecord<T>(store: IDBObjectStore, value: T): T {
+    // 原生请求已创建独立对象，移除私有字段无需再次复制正文。
+    if (store.name === 'clips' && store.keyPath === 'id' && value && typeof value === 'object') Reflect.deleteProperty(value, CLIP_URL_KEY);
+    return value;
   }
 
   async add<K extends keyof DBSchema>(
@@ -262,7 +280,7 @@ export class IndexedDB {
         const request = store.get(key);
         
         request.onsuccess = () => {
-          resolve(request.result);
+          resolve(IndexedDB.readRecord(store, request.result));
         };
         
         request.onerror = () => {
@@ -284,7 +302,7 @@ export class IndexedDB {
       const store = transaction.objectStore(storeName as string);
       
       return new Promise<void>((resolve, reject) => {
-        const request = IndexedDB.deleteRecord(store, key);
+        const request = store.delete(key);
         
         request.onsuccess = () => {
           resolve();
@@ -306,7 +324,7 @@ export class IndexedDB {
       const store = transaction.objectStore(storeName as string);
       
       return new Promise<void>((resolve, reject) => {
-        const request = IndexedDB.clearRecords(store);
+        const request = store.clear();
         
         request.onsuccess = () => {
           resolve();
@@ -389,7 +407,7 @@ export class IndexedDB {
         const request = store.getAll(query);
         
         request.onsuccess = () => {
-          resolve(request.result);
+          resolve(request.result.map(value => IndexedDB.readRecord(store, value)));
         };
         
         request.onerror = () => {
@@ -411,7 +429,7 @@ export class IndexedDB {
       const store = transaction.objectStore(storeName as string);
       
       return new Promise<void>((resolve, reject) => {
-        const request = IndexedDB.deleteRecord(store, key);
+        const request = store.delete(key);
         
         request.onsuccess = () => {
           resolve();

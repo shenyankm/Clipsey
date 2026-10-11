@@ -37,7 +37,7 @@ export async function saveClips(clips: Clip[]): Promise<void> {
   await ensureInitialized();
   await indexedDBManager.executeTransaction('clips', 'readwrite', async transaction => {
     const store = transaction.objectStore('clips');
-    IndexedDB.clearRecords(store);
+    store.clear();
     for (const clip of normalizedClips) IndexedDB.writeRecord(store, 'put', clip);
   });
 
@@ -65,7 +65,7 @@ export async function addClip(clip: Clip): Promise<void> {
       existing.sourceUrl === normalizedClip.sourceUrl &&
       existing.id !== normalizedClip.id
     );
-    for (const existing of duplicates) IndexedDB.deleteRecord(store, existing.id);
+    for (const existing of duplicates) store.delete(existing.id);
     IndexedDB.writeRecord(store, 'put', normalizedClip);
     return (previous ? 0 : 1) - duplicates.length;
   });
@@ -80,8 +80,8 @@ export async function deleteClip(id: string): Promise<Clip | undefined> {
   const deleted = await indexedDBManager.executeTransaction('clips', 'readwrite', async transaction => {
     const store = transaction.objectStore('clips');
     const deleted = await requestResult<Clip | undefined>(store.get(id));
-    IndexedDB.deleteRecord(store, id);
-    return deleted;
+    store.delete(id);
+    return IndexedDB.readRecord(store, deleted);
   });
 
   cacheManager.clear();
@@ -102,11 +102,10 @@ function requestResult<T>(request: IDBRequest<T>): Promise<T> {
 
 // 读取失败必须向上抛出，不能把失败缓存成“没有摘录”。
 async function loadClipsForBase(base: string): Promise<Clip[] | null> {
-  return indexedDBManager.executeTransaction(['clips', 'clipUrls'], 'readonly', async transaction => {
+  return indexedDBManager.executeTransaction('clips', 'readonly', async transaction => {
     const store = transaction.objectStore('clips');
     if (store.keyPath !== 'id') return null;
-    const urls = transaction.objectStore('clipUrls');
-    const index = urls.index('urlKey');
+    const index = store.index('urlKey');
     const range = IDBKeyRange.bound([base], [base, []]);
     const [legacy, ids] = await Promise.all([
       requestResult(index.count([''])),
@@ -116,12 +115,15 @@ async function loadClipsForBase(base: string): Promise<Clip[] | null> {
     if (legacy || ids.length > 2500) return null;
     if (ids.length >= 64) {
       // 小库的大比例命中用批量读取更快；只探测一批键，避免全库计数。
-      const keys = await requestResult(urls.getAllKeys(undefined, 257));
+      const keys = await requestResult(store.getAllKeys(undefined, 257));
       if (keys.length <= 256 && ids.length * 2 >= keys.length) return null;
     }
-    const clips = await Promise.all(ids.reverse().map(id => requestResult<Clip | undefined>(store.get(id))));
-    if (clips.some(clip => !clip || createIndexKeys(clip.sourceUrl).at(-1) !== base)) return null;
-    return clips as Clip[];
+    const clips = await requestResult<Clip[]>(index.getAll(range));
+    if (clips.length !== ids.length) return null;
+    for (const url of new Set(clips.map(clip => clip.sourceUrl))) {
+      if (createIndexKeys(url).at(-1) !== base) return null;
+    }
+    return clips.reverse().map(clip => IndexedDB.readRecord(store, clip));
   });
 }
 
