@@ -12,8 +12,10 @@ const highlights = process.argv.includes('--highlights');
 const cache = process.argv.includes('--cache');
 const index = process.argv.includes('--index');
 const normalize = process.argv.includes('--normalize');
+const urlRead = process.argv.includes('--url-read');
 const allocations = process.argv.includes('--allocations');
-if (allocations && !cache && !index && !normalize) throw new Error('--allocations requires --cache, --index or --normalize');
+if (allocations && !cache && !index && !normalize && !urlRead) throw new Error('--allocations requires --cache, --index, --normalize or --url-read');
+if (urlRead && baseline) throw new Error('--url-read compares the current cache path and experimental strategies in one run');
 const baselineRef = baseline
   ? execFileSync('git', ['rev-parse', process.env.BASELINE_REF ?? 'HEAD'], { encoding: 'utf8' }).trim()
   : undefined;
@@ -51,9 +53,9 @@ const server = await createServer({
     },
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (req.url !== '/') return next();
+        if (req.url?.split('?')[0] !== '/') return next();
         res.setHeader('Content-Type', 'text/html');
-        res.end(`<!doctype html><script type="module" src="/tests/performance/${writes ? 'writes' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : search ? 'search' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
+        res.end(`<!doctype html><script type="module" src="/tests/performance/${writes ? 'writes' : urlRead ? 'url-read' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : search ? 'search' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
       });
     }
   }]
@@ -106,7 +108,7 @@ try {
     socket.send(JSON.stringify({ id: requestId, method, params }));
   });
   await send('Runtime.enable');
-  await send('Page.navigate', { url: server.resolvedUrls.local[0] });
+  await send('Page.navigate', { url: server.resolvedUrls.local[0] + (urlRead && process.argv.includes('--reverse') ? '?reverse=1' : '') });
   let result;
   while (!result) {
     if (Date.now() > deadline) throw new Error('Performance run timed out');
@@ -137,6 +139,7 @@ try {
         });
         await evaluate(`window.__cacheAllocationCases[${index}].operation()`);
         const { profile } = await send('HeapProfiler.stopSampling');
+        await evaluate(`window.__cacheAllocationCases[${index}].verify?.()`);
         samplesBytes.push(size(profile.head));
       }
       result.allocationSamples.push({ ...scenario, medianBytes: samplesBytes.toSorted((a, b) => a - b)[3], samplesBytes });

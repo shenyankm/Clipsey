@@ -1,0 +1,3011 @@
+{
+  "date": "2026-10-11",
+  "productionRef": "7b1d92173b594cb8864d4353aa3c6a0fa756c2bb",
+  "experimental": true,
+  "productionChanges": false,
+  "environment": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "node": "v22.23.2"
+  },
+  "fixture": {
+    "records": [
+      100,
+      10000
+    ],
+    "sparse": "Every 1000th record matches the base URL",
+    "dense": "All records match the base; highlight deduplication returns half",
+    "creationTimeTies": true,
+    "sourceVariants": [
+      "host casing",
+      "default port",
+      "trailing slashes",
+      "fragment",
+      "query order",
+      "different queries"
+    ],
+    "completeDates": true
+  },
+  "methods": [
+    "full-cache",
+    "key-scan",
+    "canonical-index",
+    "indexed-cache"
+  ],
+  "latencyRounds": [
+    {
+      "mode": "working-tree",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "scenario": "url-read",
+      "experimental": true,
+      "methods": [
+        "full-cache",
+        "key-scan",
+        "canonical-index",
+        "indexed-cache"
+      ],
+      "results": [
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "full-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.6000000014901161,
+          "samplesMs": [
+            0.7999999970197678,
+            0.7000000029802322,
+            0.6999999955296516,
+            0.6000000014901161,
+            0.5,
+            0.6000000014901161,
+            0.5
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "full-cache",
+          "state": "warm",
+          "iterations": 1000,
+          "medianMs": 0.0022999999970197676,
+          "samplesMs": [
+            0.002700000002980232,
+            0.0022999999970197676,
+            0.002200000002980232,
+            0.0022999999970197676,
+            0.002100000001490116,
+            0.0022999999970197676,
+            0.002200000002980232
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "key-scan",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.6000000014901161,
+          "samplesMs": [
+            0.6000000014901161,
+            0.6999999955296516,
+            1.1000000014901161,
+            0.7000000029802322,
+            0.3999999985098839,
+            0.5,
+            0.3999999985098839
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "key-scan",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.5,
+          "samplesMs": [
+            0.3999999985098839,
+            0.6000000014901161,
+            0.3999999985098839,
+            0.5,
+            0.5,
+            0.7000000029802322,
+            0.7999999970197678
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "canonical-index",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.10000000149011612,
+          "samplesMs": [
+            0.20000000298023224,
+            0.29999999701976776,
+            0.10000000149011612,
+            0.10000000149011612,
+            0,
+            0.10000000149011612,
+            0.09999999403953552
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "canonical-index",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.10000000149011612,
+          "samplesMs": [
+            0.10000000149011612,
+            0,
+            0.30000000447034836,
+            0,
+            0.19999999552965164,
+            0.10000000149011612,
+            0
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "indexed-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.10000000149011612,
+          "samplesMs": [
+            0.10000000149011612,
+            0.09999999403953552,
+            0,
+            0.10000000149011612,
+            0.10000000149011612,
+            0,
+            0.10000000149011612
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "indexed-cache",
+          "state": "warm",
+          "iterations": 1000,
+          "medianMs": 0.002399999998509884,
+          "samplesMs": [
+            0.002399999998509884,
+            0.002399999998509884,
+            0.002399999998509884,
+            0.0023000000044703485,
+            0.002100000001490116,
+            0.0022999999970197676,
+            0.002399999998509884
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "full-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.7000000029802322,
+          "samplesMs": [
+            0.7999999970197678,
+            1,
+            0.6000000014901161,
+            0.6999999955296516,
+            0.7000000029802322,
+            0.7999999970197678,
+            0.6000000014901161
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "full-cache",
+          "state": "warm",
+          "iterations": 400,
+          "medianMs": 0.00425000000745058,
+          "samplesMs": [
+            0.005499999988824129,
+            0.00400000000372529,
+            0.005,
+            0.00425000000745058,
+            0.003999999985098839,
+            0.00425000000745058,
+            0.00449999999254942
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "key-scan",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.6000000014901161,
+          "samplesMs": [
+            1.1999999955296516,
+            0.9000000059604645,
+            0.5999999940395355,
+            0.6000000014901161,
+            0.6000000014901161,
+            0.5999999940395355,
+            0.9000000059604645
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "key-scan",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 1,
+          "samplesMs": [
+            0.7999999970197678,
+            0.7000000029802322,
+            1.5,
+            2,
+            1.3000000044703484,
+            0.8999999985098839,
+            1
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "canonical-index",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.7999999970197678,
+          "samplesMs": [
+            6.299999997019768,
+            1.2000000029802322,
+            0.6000000014901161,
+            0.6000000014901161,
+            1,
+            0.7999999970197678,
+            0.5
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "canonical-index",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.7000000029802322,
+          "samplesMs": [
+            0.7999999970197678,
+            0.5,
+            0.7000000029802322,
+            0.8999999985098839,
+            0.7000000029802322,
+            1,
+            0.6000000014901161
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "indexed-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.5999999940395355,
+          "samplesMs": [
+            0.8000000044703484,
+            0.6000000014901161,
+            0.5,
+            0.5999999940395355,
+            0.6000000014901161,
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "indexed-cache",
+          "state": "warm",
+          "iterations": 400,
+          "medianMs": 0.00474999999627471,
+          "samplesMs": [
+            0.005,
+            0.00425000000745058,
+            0.00474999999627471,
+            0.00474999999627471,
+            0.00474999999627471,
+            0.00474999999627471,
+            0.00625
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "full-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 91.20000000298023,
+          "samplesMs": [
+            89.89999999850988,
+            89.30000000447035,
+            89.09999999403954,
+            103.60000000149012,
+            95.80000000447035,
+            99,
+            91.20000000298023
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "full-cache",
+          "state": "warm",
+          "iterations": 1000,
+          "medianMs": 0.002399999998509884,
+          "samplesMs": [
+            0.002399999998509884,
+            0.0022999999970197676,
+            0.002399999998509884,
+            0.0023000000044703485,
+            0.004699999995529652,
+            0.0025,
+            0.002399999998509884
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "key-scan",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 86.5,
+          "samplesMs": [
+            101.10000000149012,
+            88.89999999850988,
+            76.60000000149012,
+            81.5,
+            84.39999999850988,
+            96.5,
+            86.5
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "key-scan",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 80.10000000149012,
+          "samplesMs": [
+            78.39999999850988,
+            80.10000000149012,
+            79.89999999850988,
+            81.80000000447035,
+            75.29999999701977,
+            86.89999999850988,
+            90.10000000149012
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "canonical-index",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.20000000298023224,
+          "samplesMs": [
+            0.19999999552965164,
+            0.30000000447034836,
+            0.3999999985098839,
+            0.19999999552965164,
+            0.5,
+            0.20000000298023224,
+            0.10000000149011612
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "canonical-index",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.20000000298023224,
+          "samplesMs": [
+            0.30000000447034836,
+            0.29999999701976776,
+            0.20000000298023224,
+            0.19999999552965164,
+            0.20000000298023224,
+            0.09999999403953552,
+            0.30000000447034836
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "indexed-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.29999999701976776,
+          "samplesMs": [
+            0.20000000298023224,
+            0.29999999701976776,
+            0.10000000149011612,
+            0.30000000447034836,
+            0.29999999701976776,
+            0.29999999701976776,
+            0.30000000447034836
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "indexed-cache",
+          "state": "warm",
+          "iterations": 1000,
+          "medianMs": 0.002399999998509884,
+          "samplesMs": [
+            0.002399999998509884,
+            0.0022999999970197676,
+            0.0025,
+            0.0024000000059604646,
+            0.0023000000044703485,
+            0.002399999998509884,
+            0.002399999998509884
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "full-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 83.89999999850988,
+          "samplesMs": [
+            99.89999999850988,
+            87.20000000298023,
+            80.30000000447035,
+            73.59999999403954,
+            94,
+            83.89999999850988,
+            74.40000000596046
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "full-cache",
+          "state": "warm",
+          "iterations": 4,
+          "medianMs": 0.47499999962747097,
+          "samplesMs": [
+            0.599999999627471,
+            0.47499999962747097,
+            0.4249999988824129,
+            0.5750000011175871,
+            0.42500000074505806,
+            0.4249999988824129,
+            0.47499999962747097
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "key-scan",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 100,
+          "samplesMs": [
+            100,
+            107.69999999552965,
+            101.79999999701977,
+            97.10000000149012,
+            97.10000000149012,
+            100.09999999403954,
+            93.5
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "key-scan",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 96.10000000149012,
+          "samplesMs": [
+            103.89999999850988,
+            96,
+            96.10000000149012,
+            90.29999999701977,
+            97.79999999701977,
+            95.10000000149012,
+            100.89999999850988
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "canonical-index",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 79.40000000596046,
+          "samplesMs": [
+            81.5,
+            84.40000000596046,
+            75.79999999701977,
+            84.89999999850988,
+            76.80000000447035,
+            76.19999999552965,
+            79.40000000596046
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "canonical-index",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 80.60000000149012,
+          "samplesMs": [
+            87.39999999850988,
+            90.39999999850988,
+            75.5,
+            78.60000000149012,
+            80.5,
+            80.60000000149012,
+            83.30000000447035
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "indexed-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 81.60000000149012,
+          "samplesMs": [
+            87.20000000298023,
+            79.60000000149012,
+            85.39999999850988,
+            71.09999999403954,
+            86.79999999701977,
+            77.29999999701977,
+            81.60000000149012
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "indexed-cache",
+          "state": "warm",
+          "iterations": 4,
+          "medianMs": 0.40000000037252903,
+          "samplesMs": [
+            0.525000000372529,
+            0.5,
+            0.375,
+            0.375,
+            0.40000000037252903,
+            0.44999999925494194,
+            0.40000000037252903
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "working-tree",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "scenario": "url-read",
+      "experimental": true,
+      "methods": [
+        "indexed-cache",
+        "canonical-index",
+        "key-scan",
+        "full-cache"
+      ],
+      "results": [
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "indexed-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.10000000149011612,
+          "samplesMs": [
+            0,
+            0.19999999552965164,
+            0.10000000149011612,
+            0.10000000149011612,
+            0.10000000149011612,
+            0.19999999552965164,
+            0.10000000149011612
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "indexed-cache",
+          "state": "warm",
+          "iterations": 1000,
+          "medianMs": 0.0022999999970197676,
+          "samplesMs": [
+            0.003,
+            0.002100000001490116,
+            0.0022999999970197676,
+            0.002100000001490116,
+            0.0023000000044703485,
+            0.0022999999970197676,
+            0.002200000002980232
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "canonical-index",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.10000000149011612,
+          "samplesMs": [
+            0.09999999403953552,
+            0.10000000149011612,
+            0.10000000149011612,
+            0.10000000149011612,
+            0.19999999552965164,
+            0.10000000149011612,
+            0.10000000149011612
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "canonical-index",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.10000000149011612,
+          "samplesMs": [
+            0.10000000149011612,
+            0.10000000149011612,
+            0.10000000149011612,
+            0.10000000149011612,
+            0.09999999403953552,
+            0.10000000149011612,
+            0.10000000149011612
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "key-scan",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.6999999955296516,
+          "samplesMs": [
+            0.5,
+            0.7999999970197678,
+            0.8000000044703484,
+            0.6999999955296516,
+            0.6000000014901161,
+            0.7000000029802322,
+            0.6000000014901161
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "key-scan",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.5,
+          "samplesMs": [
+            0.5999999940395355,
+            0.6000000014901161,
+            0.7000000029802322,
+            0.3999999985098839,
+            0.5,
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "full-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.7000000029802322,
+          "samplesMs": [
+            0.8999999985098839,
+            0.7000000029802322,
+            0.7999999970197678,
+            0.6000000014901161,
+            0.5,
+            0.7000000029802322,
+            0.6999999955296516
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "full-cache",
+          "state": "warm",
+          "iterations": 1000,
+          "medianMs": 0.0023000000044703485,
+          "samplesMs": [
+            0.002600000001490116,
+            0.0022999999970197676,
+            0.0025,
+            0.0023000000044703485,
+            0.0020999999940395355,
+            0.0023000000044703485,
+            0.0022999999970197676
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "indexed-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.7000000029802322,
+          "samplesMs": [
+            0.6999999955296516,
+            1.1000000014901161,
+            0.7000000029802322,
+            0.7999999970197678,
+            0.7999999970197678,
+            0.7000000029802322,
+            0.6999999955296516
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "indexed-cache",
+          "state": "warm",
+          "iterations": 400,
+          "medianMs": 0.004500000011175871,
+          "samplesMs": [
+            0.005750000011175871,
+            0.00400000000372529,
+            0.004750000014901161,
+            0.005,
+            0.004249999988824129,
+            0.004500000011175871,
+            0.00425000000745058
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "canonical-index",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.5,
+          "samplesMs": [
+            0.7000000029802322,
+            0.5,
+            0.5,
+            0.6000000014901161,
+            0.5,
+            0.5,
+            0.7999999970197678
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "canonical-index",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.6000000014901161,
+          "samplesMs": [
+            0.6000000014901161,
+            0.6000000014901161,
+            1.1000000014901161,
+            1.3000000044703484,
+            1,
+            0.6000000014901161,
+            0.6000000014901161
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "key-scan",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.7999999970197678,
+          "samplesMs": [
+            0.7000000029802322,
+            0.6999999955296516,
+            0.6000000014901161,
+            1.1999999955296516,
+            1.2000000029802322,
+            0.8999999985098839,
+            0.7999999970197678
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "key-scan",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.7999999970197678,
+          "samplesMs": [
+            0.7999999970197678,
+            0.8000000044703484,
+            0.6999999955296516,
+            0.6000000014901161,
+            0.7999999970197678,
+            0.8000000044703484,
+            0.6999999955296516
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "full-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.6000000014901161,
+          "samplesMs": [
+            0.6000000014901161,
+            0.5,
+            0.6000000014901161,
+            1.0999999940395355,
+            0.7000000029802322,
+            0.7000000029802322,
+            0.5999999940395355
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "full-cache",
+          "state": "warm",
+          "iterations": 400,
+          "medianMs": 0.00474999999627471,
+          "samplesMs": [
+            0.00474999999627471,
+            0.004500000011175871,
+            0.00474999999627471,
+            0.00449999999254942,
+            0.00525000000372529,
+            0.00474999999627471,
+            0.006000000014901161
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "indexed-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.29999999701976776,
+          "samplesMs": [
+            0.29999999701976776,
+            0.5,
+            0.30000000447034836,
+            0.29999999701976776,
+            0.29999999701976776,
+            0.4000000059604645,
+            0.19999999552965164
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "indexed-cache",
+          "state": "warm",
+          "iterations": 1000,
+          "medianMs": 0.002600000001490116,
+          "samplesMs": [
+            0.002600000001490116,
+            0.002600000001490116,
+            0.0025999999940395356,
+            0.002600000001490116,
+            0.0025,
+            0.002700000002980232,
+            0.0025
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "canonical-index",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.29999999701976776,
+          "samplesMs": [
+            0.5,
+            0.3999999985098839,
+            0.29999999701976776,
+            0.20000000298023224,
+            0.20000000298023224,
+            0.19999999552965164,
+            0.30000000447034836
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "canonical-index",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.20000000298023224,
+          "samplesMs": [
+            0.20000000298023224,
+            0.19999999552965164,
+            0.20000000298023224,
+            0.10000000149011612,
+            0.5999999940395355,
+            0.20000000298023224,
+            0.3999999985098839
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "key-scan",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 88.39999999850988,
+          "samplesMs": [
+            99.5,
+            88.39999999850988,
+            102.10000000149012,
+            91.5,
+            81.79999999701977,
+            84.80000000447035,
+            80.20000000298023
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "key-scan",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 85.10000000149012,
+          "samplesMs": [
+            70.09999999403954,
+            86.90000000596046,
+            85.89999999850988,
+            85.19999999552965,
+            80.80000000447035,
+            85.10000000149012,
+            84.19999999552965
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "full-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 93.80000000447035,
+          "samplesMs": [
+            103.79999999701977,
+            93.80000000447035,
+            93.5,
+            98.19999999552965,
+            94.30000000447035,
+            93.79999999701977,
+            79.5
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "full-cache",
+          "state": "warm",
+          "iterations": 1000,
+          "medianMs": 0.002399999998509884,
+          "samplesMs": [
+            0.002399999998509884,
+            0.002399999998509884,
+            0.0023000000044703485,
+            0.002399999998509884,
+            0.0022999999970197676,
+            0.0047000000029802326,
+            0.0022999999970197676
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "indexed-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 102.60000000149012,
+          "samplesMs": [
+            124.60000000149012,
+            114.69999999552965,
+            102.60000000149012,
+            106.80000000447035,
+            98.60000000149012,
+            92,
+            92.79999999701977
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "indexed-cache",
+          "state": "warm",
+          "iterations": 4,
+          "medianMs": 0.4249999988824129,
+          "samplesMs": [
+            0.40000000037252903,
+            0.42500000074505806,
+            0.4249999988824129,
+            0.40000000037252903,
+            0.4249999988824129,
+            0.44999999925494194,
+            0.40000000037252903
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "canonical-index",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 90.20000000298023,
+          "samplesMs": [
+            97.79999999701977,
+            91.89999999850988,
+            88,
+            89.70000000298023,
+            78,
+            90.20000000298023,
+            94.40000000596046
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "canonical-index",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 99.89999999850988,
+          "samplesMs": [
+            121.79999999701977,
+            87.70000000298023,
+            115.20000000298023,
+            123.70000000298023,
+            99.89999999850988,
+            83.5,
+            84.39999999850988
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "key-scan",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 106.69999999552965,
+          "samplesMs": [
+            111.10000000149012,
+            113.20000000298023,
+            106.69999999552965,
+            103.39999999850988,
+            108.10000000149012,
+            96.29999999701977,
+            98.89999999850988
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "key-scan",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 101.19999999552965,
+          "samplesMs": [
+            113.20000000298023,
+            94.70000000298023,
+            97.70000000298023,
+            94,
+            101.19999999552965,
+            109.69999999552965,
+            105.70000000298023
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "full-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 85.29999999701977,
+          "samplesMs": [
+            89.30000000447035,
+            78.80000000447035,
+            76.79999999701977,
+            93.70000000298023,
+            90.70000000298023,
+            85.29999999701977,
+            82.40000000596046
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "full-cache",
+          "state": "warm",
+          "iterations": 4,
+          "medianMs": 0.42500000074505806,
+          "samplesMs": [
+            0.44999999925494194,
+            0.4249999988824129,
+            0.42500000074505806,
+            0.375,
+            0.5249999985098839,
+            0.44999999925494194,
+            0.4249999988824129
+          ]
+        }
+      ]
+    }
+  ],
+  "allocationSampling": {
+    "samplingIntervalBytes": 16384,
+    "includeObjectsCollectedByMajorGC": true,
+    "includeObjectsCollectedByMinorGC": true,
+    "preparation": "Reseed both databases when fixture changes; clear both caches and force GC before every sample",
+    "verification": "Deep result comparison after stopSampling; operation stores result and returns no array over CDP",
+    "limitation": "Estimated V8 allocation including collected objects; excludes native buffers, process RSS, database size and migration/write cost"
+  },
+  "allocationRounds": [
+    {
+      "mode": "working-tree",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "scenario": "url-read",
+      "experimental": true,
+      "methods": [
+        "full-cache",
+        "key-scan",
+        "canonical-index",
+        "indexed-cache"
+      ],
+      "results": [
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "full-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.8999999985098839,
+          "samplesMs": [
+            0.8999999985098839,
+            0.8999999985098839,
+            1,
+            1.5,
+            0.7000000029802322,
+            0.8999999985098839,
+            1.1999999955296516
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "full-cache",
+          "state": "warm",
+          "iterations": 1000,
+          "medianMs": 0.0025999999940395356,
+          "samplesMs": [
+            0.002899999998509884,
+            0.002600000001490116,
+            0.0023000000044703485,
+            0.0025999999940395356,
+            0.0024000000059604646,
+            0.0021999999955296516,
+            0.003100000001490116
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "key-scan",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.8999999985098839,
+          "samplesMs": [
+            0.7999999970197678,
+            0.8999999985098839,
+            0.5,
+            1.3000000044703484,
+            1.6999999955296516,
+            1.1000000014901161,
+            0.8000000044703484
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "key-scan",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.7999999970197678,
+          "samplesMs": [
+            1,
+            0.5,
+            0.5,
+            0.6000000014901161,
+            1.3000000044703484,
+            0.7999999970197678,
+            1.1000000014901161
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "canonical-index",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.20000000298023224,
+          "samplesMs": [
+            0.19999999552965164,
+            0.20000000298023224,
+            0.6000000014901161,
+            0.19999999552965164,
+            0.20000000298023224,
+            0.3999999985098839,
+            0.10000000149011612
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "canonical-index",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.10000000149011612,
+          "samplesMs": [
+            0.09999999403953552,
+            0.20000000298023224,
+            0.10000000149011612,
+            0.10000000149011612,
+            0.09999999403953552,
+            0.10000000149011612,
+            0.20000000298023224
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "indexed-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.10000000149011612,
+          "samplesMs": [
+            0.10000000149011612,
+            0.7000000029802322,
+            0.19999999552965164,
+            0.20000000298023224,
+            0.10000000149011612,
+            0.09999999403953552,
+            0.10000000149011612
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "indexed-cache",
+          "state": "warm",
+          "iterations": 1000,
+          "medianMs": 0.002399999998509884,
+          "samplesMs": [
+            0.0025,
+            0.002399999998509884,
+            0.0025,
+            0.002200000002980232,
+            0.0022999999970197676,
+            0.0028000000044703485,
+            0.002399999998509884
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "full-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.8000000044703484,
+          "samplesMs": [
+            0.6000000014901161,
+            0.6000000014901161,
+            0.6000000014901161,
+            1,
+            0.8000000044703484,
+            1.1999999955296516,
+            0.8000000044703484
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "full-cache",
+          "state": "warm",
+          "iterations": 400,
+          "medianMs": 0.00474999999627471,
+          "samplesMs": [
+            0.005500000007450581,
+            0.00425000000745058,
+            0.005,
+            0.004750000014901161,
+            0.004249999988824129,
+            0.00474999999627471,
+            0.004500000011175871
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "key-scan",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.7999999970197678,
+          "samplesMs": [
+            0.7000000029802322,
+            0.7000000029802322,
+            0.7999999970197678,
+            0.7999999970197678,
+            0.7000000029802322,
+            1.1000000014901161,
+            1.2999999970197678
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "key-scan",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.7000000029802322,
+          "samplesMs": [
+            0.7000000029802322,
+            0.6999999955296516,
+            0.8000000044703484,
+            0.5999999940395355,
+            0.7000000029802322,
+            1.2999999970197678,
+            2
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "canonical-index",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.7000000029802322,
+          "samplesMs": [
+            0.7999999970197678,
+            0.7000000029802322,
+            0.6000000014901161,
+            1.1999999955296516,
+            0.8999999985098839,
+            0.7000000029802322,
+            0.5
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "canonical-index",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.8000000044703484,
+          "samplesMs": [
+            0.6000000014901161,
+            0.6000000014901161,
+            1.1999999955296516,
+            1.3000000044703484,
+            0.9000000059604645,
+            0.5999999940395355,
+            0.8000000044703484
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "indexed-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.6999999955296516,
+          "samplesMs": [
+            0.6999999955296516,
+            0.6000000014901161,
+            1.1999999955296516,
+            1,
+            0.8000000044703484,
+            0.5999999940395355,
+            0.6000000014901161
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "indexed-cache",
+          "state": "warm",
+          "iterations": 400,
+          "medianMs": 0.00474999999627471,
+          "samplesMs": [
+            0.00474999999627471,
+            0.004249999988824129,
+            0.00425000000745058,
+            0.004500000011175871,
+            0.00474999999627471,
+            0.005,
+            0.00799999998882413
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "full-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 93.89999999850988,
+          "samplesMs": [
+            99.19999999552965,
+            93.89999999850988,
+            97.10000000149012,
+            112.10000000149012,
+            91.39999999850988,
+            90.39999999850988,
+            91.60000000149012
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "full-cache",
+          "state": "warm",
+          "iterations": 1000,
+          "medianMs": 0.002399999998509884,
+          "samplesMs": [
+            0.002399999998509884,
+            0.0025,
+            0.002399999998509884,
+            0.002399999998509884,
+            0.002399999998509884,
+            0.002399999998509884,
+            0.0024000000059604646
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "key-scan",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 79.10000000149012,
+          "samplesMs": [
+            79.20000000298023,
+            75.89999999850988,
+            79.10000000149012,
+            74.89999999850988,
+            79.10000000149012,
+            85.30000000447035,
+            88.69999999552965
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "key-scan",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 92.60000000149012,
+          "samplesMs": [
+            92.60000000149012,
+            85.20000000298023,
+            96.90000000596046,
+            95.79999999701977,
+            81.60000000149012,
+            80.20000000298023,
+            97
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "canonical-index",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.20000000298023224,
+          "samplesMs": [
+            0.29999999701976776,
+            0.10000000149011612,
+            0.3999999985098839,
+            0.30000000447034836,
+            0.09999999403953552,
+            0.20000000298023224,
+            0.10000000149011612
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "canonical-index",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.20000000298023224,
+          "samplesMs": [
+            0.20000000298023224,
+            0.3999999985098839,
+            0.19999999552965164,
+            0.30000000447034836,
+            0.19999999552965164,
+            0.30000000447034836,
+            0.19999999552965164
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "indexed-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.20000000298023224,
+          "samplesMs": [
+            0.20000000298023224,
+            0.19999999552965164,
+            0.20000000298023224,
+            0.3999999985098839,
+            0.20000000298023224,
+            0.19999999552965164,
+            0.30000000447034836
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "indexed-cache",
+          "state": "warm",
+          "iterations": 1000,
+          "medianMs": 0.002399999998509884,
+          "samplesMs": [
+            0.002399999998509884,
+            0.002399999998509884,
+            0.0025,
+            0.002399999998509884,
+            0.0023000000044703485,
+            0.0025,
+            0.0065
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "full-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 85,
+          "samplesMs": [
+            87.89999999850988,
+            82.89999999850988,
+            96.70000000298023,
+            82,
+            86.29999999701977,
+            70,
+            85
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "full-cache",
+          "state": "warm",
+          "iterations": 4,
+          "medianMs": 0.42500000074505806,
+          "samplesMs": [
+            0.5,
+            0.44999999925494194,
+            0.40000000037252903,
+            0.4500000011175871,
+            0.42500000074505806,
+            0.42500000074505806,
+            0.3999999985098839
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "key-scan",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 98.70000000298023,
+          "samplesMs": [
+            98.60000000149012,
+            94.5,
+            89.69999999552965,
+            98.70000000298023,
+            104.39999999850988,
+            123.19999999552965,
+            109.30000000447035
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "key-scan",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 100.89999999850988,
+          "samplesMs": [
+            105.5,
+            100.89999999850988,
+            102.60000000149012,
+            100.30000000447035,
+            94,
+            104.5,
+            99.29999999701977
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "canonical-index",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 93.70000000298023,
+          "samplesMs": [
+            118.70000000298023,
+            110.80000000447035,
+            98.29999999701977,
+            72.39999999850988,
+            84.09999999403954,
+            91.19999999552965,
+            93.70000000298023
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "canonical-index",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 83.19999999552965,
+          "samplesMs": [
+            92.89999999850988,
+            89.39999999850988,
+            99.60000000149012,
+            83.19999999552965,
+            78.5,
+            81.5,
+            74.5
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "indexed-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 84.10000000149012,
+          "samplesMs": [
+            91.29999999701977,
+            77.70000000298023,
+            92.30000000447035,
+            77.09999999403954,
+            84.10000000149012,
+            89.5,
+            76.89999999850988
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "indexed-cache",
+          "state": "warm",
+          "iterations": 4,
+          "medianMs": 0.44999999925494194,
+          "samplesMs": [
+            0.47499999962747097,
+            0.44999999925494194,
+            0.5,
+            0.40000000037252903,
+            0.44999999925494194,
+            0.40000000037252903,
+            0.4500000011175871
+          ]
+        }
+      ],
+      "allocationSamples": [
+        {
+          "records": 100,
+          "name": "sparse-full-cache",
+          "medianBytes": 200360,
+          "samplesBytes": [
+            133416,
+            316804,
+            200360,
+            218532,
+            200112,
+            232436,
+            183020
+          ]
+        },
+        {
+          "records": 100,
+          "name": "sparse-key-scan",
+          "medianBytes": 16400,
+          "samplesBytes": [
+            65640,
+            16400,
+            0,
+            16400,
+            0,
+            49176,
+            16400
+          ]
+        },
+        {
+          "records": 100,
+          "name": "sparse-canonical-index",
+          "medianBytes": 0,
+          "samplesBytes": [
+            0,
+            16500,
+            17116,
+            0,
+            0,
+            0,
+            16448
+          ]
+        },
+        {
+          "records": 100,
+          "name": "sparse-indexed-cache",
+          "medianBytes": 0,
+          "samplesBytes": [
+            0,
+            0,
+            17040,
+            0,
+            16416,
+            0,
+            16400
+          ]
+        },
+        {
+          "records": 100,
+          "name": "dense-full-cache",
+          "medianBytes": 199464,
+          "samplesBytes": [
+            199352,
+            184556,
+            116276,
+            233632,
+            200516,
+            365644,
+            199464
+          ]
+        },
+        {
+          "records": 100,
+          "name": "dense-key-scan",
+          "medianBytes": 201328,
+          "samplesBytes": [
+            217040,
+            115460,
+            233904,
+            282324,
+            182856,
+            201328,
+            185000
+          ]
+        },
+        {
+          "records": 100,
+          "name": "dense-canonical-index",
+          "medianBytes": 182608,
+          "samplesBytes": [
+            182608,
+            199836,
+            133720,
+            149412,
+            167416,
+            249812,
+            216308
+          ]
+        },
+        {
+          "records": 100,
+          "name": "dense-indexed-cache",
+          "medianBytes": 266436,
+          "samplesBytes": [
+            283504,
+            150684,
+            267120,
+            201112,
+            266436,
+            349532,
+            250084
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "sparse-full-cache",
+          "medianBytes": 22508848,
+          "samplesBytes": [
+            21277492,
+            22577824,
+            23202612,
+            22508848,
+            23623960,
+            21730644,
+            21333084
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "sparse-key-scan",
+          "medianBytes": 1860968,
+          "samplesBytes": [
+            1942832,
+            2008636,
+            1697764,
+            1861268,
+            1860968,
+            1695824,
+            1378516
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "sparse-canonical-index",
+          "medianBytes": 17040,
+          "samplesBytes": [
+            16400,
+            50556,
+            50556,
+            0,
+            32800,
+            0,
+            17040
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "sparse-indexed-cache",
+          "medianBytes": 49896,
+          "samplesBytes": [
+            33640,
+            0,
+            66364,
+            82424,
+            83496,
+            49896,
+            32832
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "dense-full-cache",
+          "medianBytes": 20447184,
+          "samplesBytes": [
+            19229776,
+            21675884,
+            20234880,
+            20510080,
+            20741076,
+            20447184,
+            19846132
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "dense-key-scan",
+          "medianBytes": 22137184,
+          "samplesBytes": [
+            22137184,
+            21348268,
+            21184212,
+            22592620,
+            22457496,
+            22170268,
+            21955520
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "dense-canonical-index",
+          "medianBytes": 20740832,
+          "samplesBytes": [
+            20345096,
+            20018892,
+            20740832,
+            20927460,
+            22589024,
+            22201024,
+            20729052
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "dense-indexed-cache",
+          "medianBytes": 20870872,
+          "samplesBytes": [
+            21141828,
+            19854144,
+            20704580,
+            20870872,
+            21472432,
+            21090208,
+            20793956
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "working-tree",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "scenario": "url-read",
+      "experimental": true,
+      "methods": [
+        "indexed-cache",
+        "canonical-index",
+        "key-scan",
+        "full-cache"
+      ],
+      "results": [
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "indexed-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.10000000149011612,
+          "samplesMs": [
+            0.20000000298023224,
+            0.19999999552965164,
+            0,
+            0.20000000298023224,
+            0.10000000149011612,
+            0.09999999403953552,
+            0.10000000149011612
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "indexed-cache",
+          "state": "warm",
+          "iterations": 1000,
+          "medianMs": 0.0023000000044703485,
+          "samplesMs": [
+            0.002899999998509884,
+            0.0023000000044703485,
+            0.0022999999970197676,
+            0.002200000002980232,
+            0.002399999998509884,
+            0.0022999999970197676,
+            0.0025
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "canonical-index",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.19999999552965164,
+          "samplesMs": [
+            0.20000000298023224,
+            0.29999999701976776,
+            0.20000000298023224,
+            0.10000000149011612,
+            0.19999999552965164,
+            0.10000000149011612,
+            0.10000000149011612
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "canonical-index",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.10000000149011612,
+          "samplesMs": [
+            0.10000000149011612,
+            0.10000000149011612,
+            0.20000000298023224,
+            0.19999999552965164,
+            0.10000000149011612,
+            0.10000000149011612,
+            0.19999999552965164
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "key-scan",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.6000000014901161,
+          "samplesMs": [
+            0.6000000014901161,
+            0.6000000014901161,
+            0.5,
+            0.6000000014901161,
+            0.5999999940395355,
+            0.6000000014901161,
+            0.6000000014901161
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "key-scan",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 1.0999999940395355,
+          "samplesMs": [
+            0.7000000029802322,
+            0.5,
+            0.6000000014901161,
+            2.899999998509884,
+            2.100000001490116,
+            1.0999999940395355,
+            1.3000000044703484
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "full-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.7000000029802322,
+          "samplesMs": [
+            1.6000000014901161,
+            0.7000000029802322,
+            1,
+            0.6000000014901161,
+            0.8999999985098839,
+            0.6000000014901161,
+            0.5999999940395355
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "sparse",
+          "matches": 1,
+          "method": "full-cache",
+          "state": "warm",
+          "iterations": 1000,
+          "medianMs": 0.0025,
+          "samplesMs": [
+            0.0025,
+            0.002899999998509884,
+            0.002600000001490116,
+            0.002399999998509884,
+            0.002100000001490116,
+            0.0023000000044703485,
+            0.0025
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "indexed-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 1,
+          "samplesMs": [
+            0.7000000029802322,
+            1.6000000014901161,
+            1,
+            0.8000000044703484,
+            0.6999999955296516,
+            1.1000000014901161,
+            1.5
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "indexed-cache",
+          "state": "warm",
+          "iterations": 400,
+          "medianMs": 0.00474999999627471,
+          "samplesMs": [
+            0.00625,
+            0.00525000000372529,
+            0.005,
+            0.00474999999627471,
+            0.00400000000372529,
+            0.004249999988824129,
+            0.00449999999254942
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "canonical-index",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 1,
+          "samplesMs": [
+            1,
+            1.1000000014901161,
+            0.6000000014901161,
+            1.2000000029802322,
+            1.1999999955296516,
+            0.8000000044703484,
+            0.7999999970197678
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "canonical-index",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.8000000044703484,
+          "samplesMs": [
+            0.8000000044703484,
+            1.1000000014901161,
+            0.8000000044703484,
+            1,
+            1,
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "key-scan",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 1.2999999970197678,
+          "samplesMs": [
+            1.1000000014901161,
+            1.2999999970197678,
+            1,
+            2.899999998509884,
+            3,
+            2.2999999970197678,
+            0.9000000059604645
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "key-scan",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 1,
+          "samplesMs": [
+            1.2999999970197678,
+            0.7999999970197678,
+            1.1000000014901161,
+            1.2000000029802322,
+            0.9000000059604645,
+            0.6000000014901161,
+            1
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "full-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.7000000029802322,
+          "samplesMs": [
+            0.6999999955296516,
+            0.7000000029802322,
+            1,
+            1.8999999985098839,
+            0.6000000014901161,
+            0.8999999985098839,
+            0.6999999955296516
+          ]
+        },
+        {
+          "records": 100,
+          "distribution": "dense",
+          "matches": 50,
+          "method": "full-cache",
+          "state": "warm",
+          "iterations": 400,
+          "medianMs": 0.00474999999627471,
+          "samplesMs": [
+            0.005,
+            0.00449999999254942,
+            0.00474999999627471,
+            0.00474999999627471,
+            0.004750000014901161,
+            0.004500000011175871,
+            0.005
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "indexed-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.3999999985098839,
+          "samplesMs": [
+            4.4000000059604645,
+            2.899999998509884,
+            1.1999999955296516,
+            0.30000000447034836,
+            0.3999999985098839,
+            0.3999999985098839,
+            0.20000000298023224
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "indexed-cache",
+          "state": "warm",
+          "iterations": 1000,
+          "medianMs": 0.002600000001490116,
+          "samplesMs": [
+            0.0025,
+            0.002600000001490116,
+            0.002600000001490116,
+            0.0026999999955296516,
+            0.002600000001490116,
+            0.002600000001490116,
+            0.002600000001490116
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "canonical-index",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 0.3999999985098839,
+          "samplesMs": [
+            0.3999999985098839,
+            0.3999999985098839,
+            0.30000000447034836,
+            3,
+            0.3999999985098839,
+            0.29999999701976776,
+            0.20000000298023224
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "canonical-index",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 0.29999999701976776,
+          "samplesMs": [
+            0.20000000298023224,
+            0.5,
+            1.1999999955296516,
+            0.20000000298023224,
+            0.29999999701976776,
+            0.20000000298023224,
+            0.6000000014901161
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "key-scan",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 99.20000000298023,
+          "samplesMs": [
+            99.79999999701977,
+            101.39999999850988,
+            90.5,
+            99.20000000298023,
+            110.59999999403954,
+            97.80000000447035,
+            98.5
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "key-scan",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 85.79999999701977,
+          "samplesMs": [
+            92.79999999701977,
+            89.5,
+            85.20000000298023,
+            82.60000000149012,
+            85.79999999701977,
+            113.10000000149012,
+            84.59999999403954
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "full-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 113.70000000298023,
+          "samplesMs": [
+            142,
+            113.70000000298023,
+            102,
+            128.79999999701977,
+            111.39999999850988,
+            115.20000000298023,
+            100.59999999403954
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "sparse",
+          "matches": 10,
+          "method": "full-cache",
+          "state": "warm",
+          "iterations": 1000,
+          "medianMs": 0.0025,
+          "samplesMs": [
+            0.0023000000044703485,
+            0.002399999998509884,
+            0.002600000001490116,
+            0.0025,
+            0.005199999995529652,
+            0.0024000000059604646,
+            0.0025
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "indexed-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 122.30000000447035,
+          "samplesMs": [
+            129.09999999403954,
+            197.80000000447035,
+            122.30000000447035,
+            93.20000000298023,
+            124.39999999850988,
+            115.10000000149012,
+            117.89999999850988
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "indexed-cache",
+          "state": "warm",
+          "iterations": 4,
+          "medianMs": 0.5,
+          "samplesMs": [
+            0.525000000372529,
+            0.44999999925494194,
+            0.525000000372529,
+            0.47499999962747097,
+            0.5,
+            0.4500000011175871,
+            0.625
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "canonical-index",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 102,
+          "samplesMs": [
+            102.69999999552965,
+            115.09999999403954,
+            92.20000000298023,
+            86.5,
+            104.20000000298023,
+            102,
+            93.20000000298023
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "canonical-index",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 90.5,
+          "samplesMs": [
+            88.10000000149012,
+            91.30000000447035,
+            136.60000000149012,
+            88.80000000447035,
+            90.5,
+            90.5,
+            94.10000000149012
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "key-scan",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 103.39999999850988,
+          "samplesMs": [
+            113.09999999403954,
+            122.89999999850988,
+            102.80000000447035,
+            105.89999999850988,
+            97.80000000447035,
+            103.39999999850988,
+            98
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "key-scan",
+          "state": "warm",
+          "iterations": 1,
+          "medianMs": 114.60000000149012,
+          "samplesMs": [
+            117,
+            118.39999999850988,
+            117.70000000298023,
+            97.5,
+            111.79999999701977,
+            107.5,
+            114.60000000149012
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "full-cache",
+          "state": "cold",
+          "iterations": 1,
+          "medianMs": 116.10000000149012,
+          "samplesMs": [
+            138.69999999552965,
+            125.09999999403954,
+            124.5,
+            114.29999999701977,
+            109,
+            104,
+            116.10000000149012
+          ]
+        },
+        {
+          "records": 10000,
+          "distribution": "dense",
+          "matches": 5000,
+          "method": "full-cache",
+          "state": "warm",
+          "iterations": 4,
+          "medianMs": 0.625,
+          "samplesMs": [
+            0.6750000007450581,
+            0.599999999627471,
+            0.625,
+            0.625,
+            0.625,
+            0.775000000372529,
+            0.599999999627471
+          ]
+        }
+      ],
+      "allocationSamples": [
+        {
+          "records": 100,
+          "name": "sparse-indexed-cache",
+          "medianBytes": 16392,
+          "samplesBytes": [
+            0,
+            0,
+            34232,
+            16392,
+            17116,
+            33516,
+            0
+          ]
+        },
+        {
+          "records": 100,
+          "name": "sparse-canonical-index",
+          "medianBytes": 0,
+          "samplesBytes": [
+            0,
+            16500,
+            17116,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "records": 100,
+          "name": "sparse-key-scan",
+          "medianBytes": 32792,
+          "samplesBytes": [
+            49208,
+            0,
+            49172,
+            32792,
+            49932,
+            32792,
+            16400
+          ]
+        },
+        {
+          "records": 100,
+          "name": "sparse-full-cache",
+          "medianBytes": 282992,
+          "samplesBytes": [
+            333716,
+            233912,
+            316632,
+            165408,
+            282992,
+            232660,
+            350340
+          ]
+        },
+        {
+          "records": 100,
+          "name": "dense-indexed-cache",
+          "medianBytes": 216708,
+          "samplesBytes": [
+            66868,
+            233996,
+            216708,
+            233688,
+            150320,
+            250136,
+            166296
+          ]
+        },
+        {
+          "records": 100,
+          "name": "dense-canonical-index",
+          "medianBytes": 216436,
+          "samplesBytes": [
+            148716,
+            183248,
+            234048,
+            284688,
+            149968,
+            249892,
+            216436
+          ]
+        },
+        {
+          "records": 100,
+          "name": "dense-key-scan",
+          "medianBytes": 183728,
+          "samplesBytes": [
+            165748,
+            150812,
+            199668,
+            183728,
+            233688,
+            166952,
+            249804
+          ]
+        },
+        {
+          "records": 100,
+          "name": "dense-full-cache",
+          "medianBytes": 216872,
+          "samplesBytes": [
+            350496,
+            216872,
+            182632,
+            233216,
+            99904,
+            332548,
+            200096
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "sparse-indexed-cache",
+          "medianBytes": 16600,
+          "samplesBytes": [
+            16600,
+            33440,
+            33000,
+            50344,
+            0,
+            0,
+            16416
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "sparse-canonical-index",
+          "medianBytes": 16400,
+          "samplesBytes": [
+            16400,
+            0,
+            0,
+            16440,
+            0,
+            50344,
+            17116
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "sparse-key-scan",
+          "medianBytes": 1974860,
+          "samplesBytes": [
+            1729724,
+            1974860,
+            2271448,
+            2007916,
+            1926760,
+            2008092,
+            1712212
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "sparse-full-cache",
+          "medianBytes": 22093740,
+          "samplesBytes": [
+            22357796,
+            23151364,
+            22416560,
+            21846100,
+            22093740,
+            22019936,
+            22045680
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "dense-indexed-cache",
+          "medianBytes": 21304664,
+          "samplesBytes": [
+            21690408,
+            21304664,
+            21606896,
+            21078380,
+            21062936,
+            21346736,
+            19470128
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "dense-canonical-index",
+          "medianBytes": 20696568,
+          "samplesBytes": [
+            20696568,
+            20675940,
+            21055364,
+            21012248,
+            20682160,
+            20741128,
+            20321124
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "dense-key-scan",
+          "medianBytes": 22221008,
+          "samplesBytes": [
+            21644708,
+            21438236,
+            22088724,
+            23218128,
+            22575488,
+            22221008,
+            22623448
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "dense-full-cache",
+          "medianBytes": 20606520,
+          "samplesBytes": [
+            20606520,
+            20353436,
+            20613672,
+            20469416,
+            20672068,
+            20641956,
+            20454496
+          ]
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "nativeResultAssertions": "All timed and allocation samples passed; alternate-query page-cache priority passed",
+    "existingSamplerMode": "normalize --allocations passed with no optional verify hook",
+    "driverCompatibility": {
+      "mode": "working-tree",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "scenario": "normalize",
+      "results": [
+        {
+          "records": 100,
+          "completeDates": false,
+          "medianMs": 0.10000000149011612,
+          "samplesMs": [
+            0.09999999403953552,
+            0.10000000149011612,
+            0,
+            0.10000000149011612,
+            0.10000000149011612,
+            0,
+            0.19999999552965164
+          ],
+          "explicitClockReads": 0
+        },
+        {
+          "records": 100,
+          "completeDates": true,
+          "medianMs": 0,
+          "samplesMs": [
+            0,
+            0,
+            0.10000000149011612,
+            0,
+            0,
+            0.10000000149011612,
+            0
+          ],
+          "explicitClockReads": 0
+        },
+        {
+          "records": 10000,
+          "completeDates": false,
+          "medianMs": 4.100000001490116,
+          "samplesMs": [
+            4.399999998509884,
+            4.100000001490116,
+            4.800000004470348,
+            3.8000000044703484,
+            3.7000000029802322,
+            4.600000001490116,
+            3.899999998509884
+          ],
+          "explicitClockReads": 0
+        },
+        {
+          "records": 10000,
+          "completeDates": true,
+          "medianMs": 0.30000000447034836,
+          "samplesMs": [
+            0.5999999940395355,
+            0.29999999701976776,
+            0.29999999701976776,
+            0.30000000447034836,
+            1.2000000029802322,
+            0.19999999552965164,
+            0.30000000447034836
+          ],
+          "explicitClockReads": 0
+        }
+      ],
+      "allocationSamples": [
+        {
+          "records": 100,
+          "name": "missing-updatedAt",
+          "medianBytes": 16432,
+          "samplesBytes": [
+            0,
+            16900,
+            16448,
+            16432,
+            0,
+            32832,
+            0
+          ]
+        },
+        {
+          "records": 100,
+          "name": "complete-dates",
+          "medianBytes": 16448,
+          "samplesBytes": [
+            0,
+            16560,
+            0,
+            33776,
+            16448,
+            33348,
+            0
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "missing-updatedAt",
+          "medianBytes": 1929760,
+          "samplesBytes": [
+            2146916,
+            1929760,
+            1907400,
+            1687428,
+            1907880,
+            1935444,
+            2022348
+          ]
+        },
+        {
+          "records": 10000,
+          "name": "complete-dates",
+          "medianBytes": 1122424,
+          "samplesBytes": [
+            1123840,
+            1179720,
+            988180,
+            1122424,
+            989776,
+            1166852,
+            1061736
+          ]
+        }
+      ]
+    },
+    "productionTests": "Not repeated; production source unchanged"
+  },
+  "rejectedRuns": [
+    {
+      "kind": "reverse timing",
+      "reason": "Experimental page route did not handle query parameters",
+      "exitCode": 1,
+      "action": "Repaired; completed the same comparison in reverse order"
+    },
+    {
+      "kind": "allocation",
+      "reason": "Preparation read the last seeded fixture and returned arrays over CDP",
+      "action": "Discarded; preparation and post-sampling result verification repaired"
+    }
+  ],
+  "remaining": [
+    "Production migration and rollback",
+    "Index maintenance on all writes",
+    "Bounded cache with global reads, concurrent URLs and invalidation",
+    "Dense and intermediate match ratios",
+    "Index write/migration overhead",
+    "Actual extension runtime acceptance",
+    "Peak live heap and cross-browser performance"
+  ]
+}

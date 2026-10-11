@@ -68,4 +68,4 @@ CHROME_PATH='/path/to/Chrome for Testing' PLAYWRIGHT_MODULE='/path/to/playwright
 
 原生扩展基线使用 `90d1311` 阶段已验收的 Chrome 构建副本，优化版在本轮改动后重新构建；可通过 `EXTENSION_PATH` 指定基线产物。缓存时间基线同时读取 storage、cache-manager、clip-index 和 clip-normalizer，纯标准化基线只读取 clip-normalizer，不修改工作树。
 
-精确峰值、休眠后的后台冷启动、低端硬件、真实数据分布、Edge/Firefox 运行时及远端 CI 尚未验收；下一步应继续检查原生数据库读取与全量结果复制成本。
+精确峰值、休眠后的后台冷启动、低端硬件、真实数据分布、Edge/Firefox 运行时及远端 CI 尚未验收；后续[URL 读取实验](./performance-url-read.md)比较了全库缓存、键扫描与规范化索引/页缓存，正式接入仍需迁移和失效验证。
