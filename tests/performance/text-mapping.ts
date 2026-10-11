@@ -32,19 +32,21 @@ try {
     });
   }
   const results = [];
-  const layouts = ['latin1', 'chinese', 'unicode'] as const;
+  const layouts = ['latin1', 'chinese', 'unicode', 'sparse-whitespace'] as const;
   for (const paragraphs of reverse ? [10000, 100] : [100, 10000]) for (const layout of reverse ? [...layouts].reverse() : layouts) {
     const fixture = document.createElement('article');
     const quotes: string[] = [], texts: Text[] = [];
     for (let i = 0; i < paragraphs; i++) {
       const p = document.createElement('p');
-      const prefix = layout === 'latin1' ? `Paragraph ${i} Café naïve Über prefix `
+      const latin1 = layout === 'latin1' || layout === 'sparse-whitespace';
+      const prefix = latin1 ? `Paragraph ${i} Café naïve Über prefix `
         : layout === 'chinese' ? `这是第 ${i} 段，中文背景与英文 English 混排。 `
         : `İΣΟΣ𐐀🙂 第 ${i} 段\u00a0\u3000prefix\t\n `;
-      const quote = layout === 'latin1' ? `QUOTE-${i}!` : layout === 'chinese' ? `摘录-${i} 中文🙂` : `İSTANBUL\u2003\u3000${i}!🙂`;
+      const quote = latin1 ? `QUOTE-${i}!` : layout === 'chinese' ? `摘录-${i} 中文🙂` : `İSTANBUL\u2003\u3000${i}!🙂`;
       const strong = document.createElement('strong'); strong.id = `q-${i}`; strong.textContent = quote;
-      const em = document.createElement('em'); em.textContent = layout === 'latin1' ? 'emphasis' : '后文与 Café';
+      const em = document.createElement('em'); em.textContent = latin1 ? 'emphasis' : '后文与 Café';
       p.append(prefix, strong, ' tail text ', em, layout === 'unicode' ? '\u202f 中文\u2028' : ' final text ');
+      if (layout === 'sparse-whitespace' && i === paragraphs - 1) p.append('\t');
       fixture.append(p); quotes.push(quote); texts.push(strong.firstChild as Text);
     }
     const original = fixture.textContent;

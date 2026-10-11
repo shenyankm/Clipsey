@@ -4,6 +4,25 @@ import { findTextRangeInNode, normalizeWhitespace } from '@/content/highlight/te
 beforeEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ''; });
 
 describe('text range search', () => {
+  it('normalizes every whitespace code unit and pair while preserving original range boundaries', () => {
+    const spaces: string[] = [];
+    const whitespace = /\s/;
+    for (let code = 0; code <= 0xffff; code++) {
+      const char = String.fromCharCode(code);
+      if (whitespace.test(char)) spaces.push(char);
+    }
+    for (const separator of [...spaces, ...spaces.flatMap(a => spaces.map(b => a + b))]) {
+      const original = ' \tHello' + separator + 'World \n';
+      expect(normalizeWhitespace(original)).toBe('Hello World');
+      expect(normalizeWhitespace(separator)).toBe('');
+      document.body.textContent = original;
+      const range = findTextRangeInNode(document.body, 'hello world');
+      expect(range?.toString()).toBe('Hello' + separator + 'World');
+      expect(range?.startOffset).toBe(2);
+      expect(range?.endOffset).toBe(original.length - 2);
+    }
+  });
+
   it('preserves range boundaries through every Latin-1 code unit and whitespace run', () => {
     for (let code = 0; code <= 0xff; code++) {
       const prefix = document.createTextNode('prefix' + String.fromCharCode(code).repeat(3));

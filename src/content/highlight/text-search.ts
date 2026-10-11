@@ -1,8 +1,11 @@
 import { createTextNodeWalker } from './dom-utils';
 
+// 单个普通空格无需替换，减少全文规范化的临时分配。
+const whitespaceToNormalize = /\s{2,}|[^\S ]/g;
+
 // 规范化空白：连续空白合并为单个空格。
 export function normalizeWhitespace(text: string): string {
-  return text.replace(/\s+/g, ' ').trim();
+  return text.replace(whitespaceToNormalize, ' ').trim();
 }
 
 // 把规范化后的字符位置映射回原文，包含大小写转换增加字符的情况。
@@ -56,7 +59,7 @@ export function findTextRangeInNode(root: Node, text: string, skipHighlighted = 
   }
 
   const original = nodes.map(node => node.data).join('');
-  const normalized = original.replace(/\s+/g, ' ').toLowerCase();
+  const normalized = original.replace(whitespaceToNormalize, ' ').toLowerCase();
   let index = normalized.indexOf(query);
   while (index !== -1) {
     const [start, end] = mapNormalizedRangeToOriginal(original, index, index + query.length - 1);

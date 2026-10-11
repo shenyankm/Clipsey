@@ -2,7 +2,7 @@
 
 日期：2026-10-11；基线：`287ab8c`。延续[搜索优化](./performance-search.md)。摘录数据库的主要验收规模为 10,000 条，同时兼顾小数据体验；本轮另外测量 100 与 10,000 段网页，恢复其中 20 条高亮，不代表同页绘制 10,000 条高亮。
 
-后续[动态样式补充验收](./performance-ui-validation.md)已覆盖前置文本隐藏、目标仍可见的 CSSOM 与媒体查询组合，并提供可复跑原生扩展脚本；[文本边界映射与跨浏览器验收](./performance-text-range-mapping.md)进一步覆盖真实 10,000 条库、全文回退及 Firefox 运行；[隐藏祖先定位修复与验收](./performance-hidden-text.md)处理嵌套隐藏内容的匹配与偏移问题；[文本遍历游标与分配采样](./performance-text-cursor.md)跳过隐藏子树并减少查询分配；[高亮恢复调度与响应性验收](./performance-highlight-scheduling.md)移除逐项固定等待，并检查页面任务与取消；最新[Latin-1 文本边界映射的分配优化](./performance-latin1-mapping.md)减少尾部查询的临时分配，并单独记录整批恢复波动。下面保留原阶段结果与当时的边界。
+后续[动态样式补充验收](./performance-ui-validation.md)已覆盖前置文本隐藏、目标仍可见的 CSSOM 与媒体查询组合，并提供可复跑原生扩展脚本；[文本边界映射与跨浏览器验收](./performance-text-range-mapping.md)进一步覆盖真实 10,000 条库、全文回退及 Firefox 运行；[隐藏祖先定位修复与验收](./performance-hidden-text.md)处理嵌套隐藏内容的匹配与偏移问题；[文本遍历游标与分配采样](./performance-text-cursor.md)跳过隐藏子树并减少查询分配；[高亮恢复调度与响应性验收](./performance-highlight-scheduling.md)移除逐项固定等待，并检查页面任务与取消；[Latin-1 文本边界映射的分配优化](./performance-latin1-mapping.md)减少尾部查询的临时分配，并单独记录整批恢复波动；最新[空白规范化的分配优化](./performance-whitespace.md)减少普通空格的重复替换，并加入尾部稀疏空白对照。下面保留原阶段结果与当时的边界。
 
 ## 改动
 
