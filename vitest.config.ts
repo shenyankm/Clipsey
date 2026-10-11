@@ -12,20 +12,15 @@ export default defineConfig({
       reporter: ['text', 'html'],
       reportsDirectory: 'coverage',
       include: [
-        'src/background/handlers/**/*.ts',
-        'src/background/services/**/*.ts',
-        'src/content/highlight-engine.ts',
-        'src/content/color-manager.ts'
+        'src/background/**/*.ts',
+        'src/content/**/*.ts',
+        'src/utils/**/*.ts',
+        'src/composables/**/*.ts'
       ],
       exclude: [
         'src/options/**',
         'src/popup/**',
-        'src/background/dev-tools.ts',
-        'src/background/storage.ts',
-        'src/background/indexeddb*.ts',
-        'src/utils/**',
-        'src/types/**',
-        'src/content/selection.ts'
+        'src/background/dev-tools.ts'
       ]
     }
   },

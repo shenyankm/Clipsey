@@ -6,21 +6,8 @@ import { exportService } from './services/export-service';
 import type { ErrorLogRecord } from '@/types/indexeddb';
 import { IndexedDBQuery } from './indexeddb-query';
 
-export interface SyncResponse {
-  success: boolean;
-  syncedAt: string;
-}
-
 // 重新导出类型
 export type { SearchQuery, SearchResult, SearchType, SortBy };
-
-// 远程同步占位实现：请替换为真实后端逻辑
-export async function syncClips(_clips: Clip[]): Promise<SyncResponse> {
-  return {
-    success: true,
-    syncedAt: new Date().toISOString()
-  };
-}
 
 // 获取所有 Clips（走 storage 层缓存）
 export async function getClips(): Promise<Clip[]> {

@@ -69,7 +69,7 @@ useBroadcastSync('clipsey-storage-sync', (data) => {
     });
   }
   // 静默刷新,不显示loader,不打扰用户
-  void loadClips(false, false);
+  void loadClips(false);
 });
 
 // 显示URL（简洁形式）
@@ -106,19 +106,12 @@ async function getCurrentTabUrl(): Promise<void> {
   }
 }
 
-/** 加载剪辑数据：支持静默刷新与缓存强制更新（默认显示加载状态） */
-async function loadClips(showLoader: boolean = true, refreshCache: boolean = false): Promise<void> {
+/** 直接分页读取数据库，静默刷新时不显示加载状态。 */
+async function loadClips(showLoader: boolean = true): Promise<void> {
   if (showLoader) {
     if (!unmounted) loading.value = true;
   }
   try {
-    // 先刷新后端缓存，避免读取到过时数据
-    try {
-      await sendMessage({ type: 'REFRESH_CACHE' });
-    } catch (error) {
-      console.debug('[Popup] Cache refresh failed (non-critical):', error);
-    }
-    
     // 精确按当前页面 URL 分页读取
     const response = await sendMessage<{ success: boolean; data?: { items: Clip[]; total: number }; error?: string }>({
       type: 'REQUEST_CLIPS_PAGED',
@@ -176,7 +169,7 @@ function openSettings(): void {
  * 手动刷新摘要列表
  */
 async function handleRefresh(): Promise<void> {
-  await loadClips(true, true);
+  await loadClips(true);
   message.success(t('popupRefreshed'));
 }
 
@@ -185,7 +178,7 @@ async function handleRefresh(): Promise<void> {
  */
 onMounted(async () => {
   await getCurrentTabUrl();
-  await loadClips(true, true);
+  await loadClips(true);
 });
 
 let unmounted = false;
@@ -196,7 +189,7 @@ onBeforeUnmount(() => {
 function handlePrevPage(): void {
   if (currentPage.value > 1) {
     currentPage.value -= 1;
-    void loadClips(true, false);
+    void loadClips(true);
   }
 }
 
@@ -204,7 +197,7 @@ function handleNextPage(): void {
   const totalPages = Math.max(1, Math.ceil(total.value / pageSize));
   if (currentPage.value < totalPages) {
     currentPage.value += 1;
-    void loadClips(true, false);
+    void loadClips(true);
   }
 }
 </script>

@@ -89,51 +89,7 @@ export class SearchService {
     return { items: result.items as Clip[], total: result.total, page: result.page, pageSize: result.pageSize };
   }
 
-  /** 判断记录是否满足过滤条件。 */
-  private matchesSearch(record: Clip, type: SearchType, lowerKeyword: string): boolean {
-    const title = (record.title ?? '').toLowerCase();
-    const url = (record.sourceUrl ?? '').toLowerCase();
-    const content = (record.textContent ?? '').toLowerCase();
 
-    switch (type) {
-      case 'title':
-        return title.includes(lowerKeyword);
-      case 'website':
-        return url.includes(lowerKeyword);
-      case 'content':
-        return content.includes(lowerKeyword);
-      default:
-        return title.includes(lowerKeyword) || url.includes(lowerKeyword) || content.includes(lowerKeyword);
-    }
-  }
-
-  private sortClips(clips: Clip[], sortBy: SortBy, sortOrder: 'asc' | 'desc'): Clip[] {
-    const factor = sortOrder === 'asc' ? 1 : -1;
-    const access = (clip: Clip): string | number => {
-      switch (sortBy) {
-        case 'sourceUrl':
-          return (clip.sourceUrl ?? '').toLowerCase();
-        case 'textContent':
-          return (clip.textContent ?? '').toLowerCase();
-        case 'title':
-          return (clip.title ?? '').toLowerCase();
-        default:
-          return clip.createdAt ? new Date(clip.createdAt).getTime() : 0;
-      }
-    };
-
-    return [...clips].sort((a, b) => {
-      const left = access(a);
-      const right = access(b);
-      if (left === right) {
-        return 0;
-      }
-      if (typeof left === 'number' && typeof right === 'number') {
-        return (left - right) * factor;
-      }
-      return (left < right ? -1 : 1) * factor;
-    });
-  }
 }
 
 // 单例
