@@ -63,8 +63,7 @@ const emptyImage = Empty.PRESENTED_IMAGE_SIMPLE;
 useBroadcastSync('clipsey-storage-sync', (data) => {
   if (import.meta.env.DEV) {
     console.log('[Popup Sync] Received storage change event:', {
-      oldCount: data.oldCount,
-      newCount: data.newCount,
+      countDelta: data.countDelta,
       timestamp: data.timestamp
     });
   }

@@ -6,7 +6,7 @@ import { searchService } from '@/background/services/search-service';
 import type { Clip } from '@/types/clip';
 
 vi.mock('wxt/browser', () => ({ browser: {} }));
-vi.mock('@/background/storage/sync-manager', () => ({ syncManager: { notifyChange: vi.fn() }, storage: {} }));
+vi.mock('@/background/storage/sync-manager', () => ({ syncManager: { notifyChange: vi.fn() } }));
 const clips: Clip[] = [
   { id: 'z', title: 'Zebra', textContent: 'shared', sourceUrl: 'https://z.example', createdAt: '2026-10-01T00:00:00Z' },
   { id: 'b', title: 'Alpha', textContent: 'shared', sourceUrl: 'https://b.example', createdAt: '2026-10-02T00:00:00Z' },

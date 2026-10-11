@@ -56,6 +56,26 @@ describe('IndexedDB offset queries', () => {
     vi.spyOn(IDBObjectStore.prototype, 'openCursor').mockImplementation(() => {
       throw new DOMException('Invalid cursor', 'InvalidStateError');
     });
-    await expect(IndexedDBQuery.getAll('clips')).rejects.toThrow('Invalid cursor');
+    await expect(IndexedDBQuery.getAll('clips', { limit: 10 })).rejects.toThrow('Invalid cursor');
+  });
+
+  it.each(['next', 'prev'] as const)('uses a native batch read and preserves duplicate index keys in %s order', async direction => {
+    const cursor = vi.spyOn(IDBIndex.prototype, 'openCursor');
+    const batch = vi.spyOn(IDBIndex.prototype, 'getAll');
+    const range = IDBKeyRange.bound('https://example.com/1', 'https://example.com/2');
+    const expected = clips.slice(10, 30);
+    expect(await IndexedDBQuery.getAll('clips', { indexName: 'sourceUrl', query: range, direction }))
+      .toEqual(direction === 'next' ? expected : expected.reverse());
+    expect(batch).toHaveBeenCalledExactlyOnceWith(range);
+    expect(cursor).not.toHaveBeenCalled();
+  });
+
+  it('propagates batch read failures instead of caching an empty result', async () => {
+    vi.spyOn(IDBObjectStore.prototype, 'getAll').mockImplementation(() => {
+      const request = { result: undefined, error: new Error('Read failed'), onerror: null } as unknown as IDBRequest<Clip[]>;
+      queueMicrotask(() => request.onerror!(new Event('error')));
+      return request;
+    });
+    await expect(IndexedDBQuery.getAll('clips')).rejects.toThrow('Failed to query records');
   });
 });

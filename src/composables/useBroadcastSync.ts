@@ -4,8 +4,8 @@ import { browser } from 'wxt/browser';
 export interface SyncMessage {
   type: 'CLIPS_CHANGED';
   timestamp: number;
-  oldCount?: number;
-  newCount?: number;
+  // 未提供增量表示全部替换，需要重新定位分页。
+  countDelta?: number;
 }
 
 /** 页面间同步：通过 BroadcastChannel 监听剪辑变更并回调处理。 */

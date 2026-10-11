@@ -32,6 +32,17 @@ export class IndexedDBQuery {
         const store = transaction.objectStore(storeName as string);
         const source = indexName ? store.index(indexName) : store;
 
+        // 无分页、非 unique 查询可以一次读取，避免每条记录一次游标回调。
+        if (!limit && !(offset > 0) && (direction === 'next' || direction === 'prev')) {
+          return new Promise<DBSchema[K]['value'][]>((resolve, reject) => {
+            const request = source.getAll(query);
+            request.onsuccess = () => resolve(direction === 'prev' ? request.result.reverse() : request.result);
+            request.onerror = () => reject(new IndexedDBError(
+              'Failed to query records', 'QUERY_ERROR', request.error || undefined
+            ));
+          });
+        }
+
         return new Promise<DBSchema[K]['value'][]>((resolve, reject) => {
           const results: DBSchema[K]['value'][] = [];
           let count = 0;

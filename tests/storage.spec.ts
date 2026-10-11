@@ -15,7 +15,6 @@ const local = vi.hoisted(() => ({ get: vi.fn(), remove: vi.fn() }));
 vi.mock('wxt/browser', () => ({ browser: { storage: { local } } }));
 vi.mock('@/background/storage/sync-manager', () => ({
   syncManager: { notifyChange: vi.fn() },
-  storage: {}
 }));
 
 const clip = (id: string): Clip => ({
@@ -37,6 +36,64 @@ beforeEach(async () => {
 afterAll(() => indexedDBManager.close());
 
 describe('clip storage transactions', () => {
+  it('uses only primary keys and the highlight index for writes', async () => {
+    const fullRead = vi.spyOn(IDBObjectStore.prototype, 'getAll');
+    const count = vi.spyOn(IDBObjectStore.prototype, 'count');
+    await saveClips([clip('old')]);
+    await addClip({ ...clip('new'), highlightId: 'highlight' });
+    await deleteClip('new');
+    await clearClips();
+    expect(fullRead).not.toHaveBeenCalled();
+    expect(count).not.toHaveBeenCalled();
+    expect(vi.mocked(syncManager.notifyChange).mock.calls).toEqual([[], [1], [-1], []]);
+  });
+
+  it('replaces all same-page highlight duplicates and preserves other pages', async () => {
+    await saveClips([
+      { ...clip('a'), highlightId: 'same' }, { ...clip('b'), highlightId: 'same' },
+      { ...clip('other'), highlightId: 'same', sourceUrl: 'https://other.com' }
+    ]);
+    await addClip({ ...clip('new'), highlightId: 'same' });
+    expect((await getClips()).map(item => item.id).sort()).toEqual(['new', 'other']);
+    expect(syncManager.notifyChange).toHaveBeenLastCalledWith(-1);
+    await addClip({ ...clip('new'), highlightId: 'same', textContent: 'updated' });
+    expect(syncManager.notifyChange).toHaveBeenLastCalledWith(0);
+    expect((await getClips()).find(item => item.id === 'new')?.textContent).toBe('updated');
+  });
+
+  it('returns the deleted record and keeps counts correct for missing IDs', async () => {
+    await saveClips([clip('old')]);
+    expect(await deleteClip('old')).toMatchObject(clip('old'));
+    expect(syncManager.notifyChange).toHaveBeenLastCalledWith(-1);
+    expect(await deleteClip('missing')).toBeUndefined();
+    expect(syncManager.notifyChange).toHaveBeenLastCalledWith(0);
+  });
+
+  it('rolls back duplicate removals if the replacement cannot be written', async () => {
+    const saved = { ...clip('old'), highlightId: 'same' };
+    await saveClips([saved]);
+    const before = await getClips();
+    vi.mocked(syncManager.notifyChange).mockClear();
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    });
+    await expect(addClip({ ...clip('new'), highlightId: 'same' })).rejects.toThrow('Quota exceeded');
+    expect(await indexedDBManager.getAllData('clips')).toEqual(before);
+    expect(await getClips()).toEqual(before);
+    expect(syncManager.notifyChange).not.toHaveBeenCalled();
+  });
+
+  it('preserves the record and sends no notification when deletion fails', async () => {
+    await saveClips([clip('old')]);
+    vi.mocked(syncManager.notifyChange).mockClear();
+    vi.spyOn(IDBObjectStore.prototype, 'delete').mockImplementation(() => {
+      throw new Error('Delete failed');
+    });
+    await expect(deleteClip('old')).rejects.toThrow('Delete failed');
+    expect(await indexedDBManager.get('clips', 'old')).toMatchObject(clip('old'));
+    expect(syncManager.notifyChange).not.toHaveBeenCalled();
+  });
+
   it('clears persisted clips with a cold cache', async () => {
     await indexedDBManager.put('clips', clip('old'));
     await clearClips();

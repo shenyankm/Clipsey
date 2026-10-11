@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { parseSearchQuery } from '@/utils/search/query-parser';
 import { searchClips } from '@/background/api';
 import type { SearchQuery } from '@/background/services/search-service';
@@ -13,6 +13,11 @@ export function useClipSearch() {
   const searchTotal = ref(0);
   const isSearching = ref(false);
   let latestRequest = 0;
+
+  watch(searchQuery, () => {
+    latestRequest += 1;
+    isSearching.value = false;
+  }, { flush: 'sync' });
 
   // 执行搜索并更新结果与总数
   async function performSearch(

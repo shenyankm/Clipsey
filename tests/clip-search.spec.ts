@@ -61,6 +61,18 @@ it('clearing search invalidates an outstanding request', async () => {
   expect(search.isSearching.value).toBe(false);
 });
 
+it.each(['success', 'failure'])('invalidates an old %s as soon as input changes, before the next debounced search', async outcome => {
+  const request = pendingSearch();
+  vi.mocked(searchClips).mockReturnValueOnce(request.promise);
+  const search = useClipSearch();
+  const pending = search.performSearch(1, 20);
+  search.searchQuery.value = 'changed';
+  if (outcome === 'success') request.resolve(result('old')); else request.reject(new Error('Old failure'));
+  await pending;
+  expect(search.searchResults.value).toEqual([]);
+  expect(search.isSearching.value).toBe(false);
+});
+
 it('reports a current failure and clears loading', async () => {
   const log = vi.spyOn(console, 'error').mockImplementation(() => {});
   vi.mocked(searchClips).mockRejectedValueOnce(new Error('Current failure'));

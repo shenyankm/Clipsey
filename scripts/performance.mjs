@@ -6,9 +6,13 @@ import { resolve, join } from 'node:path';
 import { createServer } from 'vite';
 
 const baseline = process.argv.includes('--baseline');
+const writes = process.argv.includes('--writes');
 const baselineRef = baseline
   ? execFileSync('git', ['rev-parse', process.env.BASELINE_REF ?? 'HEAD'], { encoding: 'utf8' }).trim()
   : undefined;
+const legacyUrlLookup = baseline && !writes && !/async getByUrl\(/.test(
+  execFileSync('git', ['show', `${baselineRef}:src/background/storage/cache-manager.ts`], { encoding: 'utf8' })
+);
 const profile = await mkdtemp(join(tmpdir(), 'clipsey-perf-'));
 const server = await createServer({
   configFile: false,
@@ -20,10 +24,13 @@ const server = await createServer({
     load(id) {
       if (!baseline) return;
       const path = id.split('?')[0];
-      if (['src/background/storage/cache-manager.ts', 'src/background/indexeddb-query.ts'].some(file => path === resolve(file))) {
+      const files = writes
+        ? ['src/background/storage.ts', 'src/background/storage/sync-manager.ts']
+        : ['src/background/storage/cache-manager.ts', 'src/background/indexeddb-query.ts'];
+      if (files.some(file => path === resolve(file))) {
         return execFileSync('git', ['show', `${baselineRef}:${path.slice(resolve('.').length + 1)}`], { encoding: 'utf8' });
       }
-      if (path === resolve('tests/performance/browser.ts')) {
+      if (legacyUrlLookup && path === resolve('tests/performance/browser.ts')) {
         return readFile(path, 'utf8').then(source => source.replace(
           "const matches = await cache.getByUrl('https://example.com/article/0', loader);",
           "await cache.get(loader); const matches = cache.getByUrl('https://example.com/article/0');"
@@ -34,7 +41,7 @@ const server = await createServer({
       server.middlewares.use((req, res, next) => {
         if (req.url !== '/') return next();
         res.setHeader('Content-Type', 'text/html');
-        res.end('<!doctype html><script type="module" src="/tests/performance/browser.ts"></script>');
+        res.end(`<!doctype html><script type="module" src="/tests/performance/${writes ? 'writes' : 'browser'}.ts"></script>`);
       });
     }
   }]

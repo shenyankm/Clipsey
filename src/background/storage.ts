@@ -3,7 +3,7 @@ import { indexedDBManager } from './indexeddb';
 import { IndexedDBQuery } from './indexeddb-query';
 import { IndexedDBError } from '@/types/indexeddb';
 import { cacheManager } from './storage/cache-manager';
-import { syncManager, storage } from './storage/sync-manager';
+import { syncManager } from './storage/sync-manager';
 import { normalizeClips } from './storage/utils/clip-normalizer';
 
 async function ensureInitialized(): Promise<void> {
@@ -34,16 +34,14 @@ export async function saveClips(clips: Clip[]): Promise<void> {
   }
 
   await ensureInitialized();
-  const oldClips = await indexedDBManager.executeTransaction('clips', 'readwrite', async transaction => {
+  await indexedDBManager.executeTransaction('clips', 'readwrite', async transaction => {
     const store = transaction.objectStore('clips');
-    const currentClips = await requestResult<Clip[]>(store.getAll());
     store.clear();
     for (const clip of normalizedClips) store.put(clip);
-    return currentClips;
   });
 
   cacheManager.clear();
-  syncManager.notifyChange(oldClips, normalizedClips);
+  syncManager.notifyChange();
 }
 
 // 添加单个剪辑：只去重同页面的同高亮，不淘汰历史记录。
@@ -54,44 +52,40 @@ export async function addClip(clip: Clip): Promise<void> {
   }
 
   await ensureInitialized();
-  const oldClips = await indexedDBManager.executeTransaction('clips', 'readwrite', async transaction => {
+  const countDelta = await indexedDBManager.executeTransaction('clips', 'readwrite', async transaction => {
     const store = transaction.objectStore('clips');
-    const currentClips = await requestResult<Clip[]>(store.getAll());
-    const duplicates = currentClips.filter(existing =>
-      normalizedClip.highlightId &&
-      existing.highlightId === normalizedClip.highlightId &&
+    const [previous, matches] = await Promise.all([
+      requestResult<Clip | undefined>(store.get(normalizedClip.id)),
+      normalizedClip.highlightId
+        ? requestResult<Clip[]>(store.index('highlightId').getAll(normalizedClip.highlightId))
+        : Promise.resolve([])
+    ]);
+    const duplicates = matches.filter(existing =>
       existing.sourceUrl === normalizedClip.sourceUrl &&
       existing.id !== normalizedClip.id
     );
     for (const existing of duplicates) store.delete(existing.id);
     store.put(normalizedClip);
-    return currentClips;
+    return (previous ? 0 : 1) - duplicates.length;
   });
 
-  const newClips = oldClips.filter(existing =>
-    existing.id !== normalizedClip.id &&
-    !(normalizedClip.highlightId &&
-      existing.highlightId === normalizedClip.highlightId &&
-      existing.sourceUrl === normalizedClip.sourceUrl)
-  );
-  newClips.push(normalizedClip);
   cacheManager.clear();
-  syncManager.notifyChange(oldClips, newClips);
+  syncManager.notifyChange(countDelta);
 }
 
 // 按 ID 删除，不把其他页面的旧快照写回数据库。
 export async function deleteClip(id: string): Promise<Clip | undefined> {
   await ensureInitialized();
-  const oldClips = await indexedDBManager.executeTransaction('clips', 'readwrite', async transaction => {
+  const deleted = await indexedDBManager.executeTransaction('clips', 'readwrite', async transaction => {
     const store = transaction.objectStore('clips');
-    const currentClips = await requestResult<Clip[]>(store.getAll());
+    const deleted = await requestResult<Clip | undefined>(store.get(id));
     store.delete(id);
-    return currentClips;
+    return deleted;
   });
 
   cacheManager.clear();
-  syncManager.notifyChange(oldClips, oldClips.filter(clip => clip.id !== id));
-  return oldClips.find(clip => clip.id === id);
+  syncManager.notifyChange(deleted ? -1 : 0);
+  return deleted;
 }
 
 export async function clearClips(): Promise<void> {
@@ -166,8 +160,7 @@ export async function getStorageStats(): Promise<{
   }
 }
 
-// 导出IndexedDBQuery和storage API
-export { IndexedDBQuery, storage };
+export { IndexedDBQuery };
 
 
 

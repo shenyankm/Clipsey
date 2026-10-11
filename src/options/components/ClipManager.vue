@@ -14,6 +14,7 @@
               :placeholder="searchPlaceholder"
               allow-clear
               enter-button
+              @search="resetPageAndSearch"
             >
               <template #addonBefore>
                 <a-tooltip placement="bottom">
@@ -137,7 +138,7 @@
                 </template>
                 <template v-else-if="column.key === 'actions'">
                   <a-space :size="8" align="center">
-                    <a-button size="small" @click="openClipDetail(record)">
+                    <a-button size="small" @click="openClipDetail(record as Clip)">
                       {{ t('clipViewButton') }}
                     </a-button>
                     <a-button
@@ -145,7 +146,7 @@
                       type="primary"
                       :disabled="!record.sourceUrl"
                       :loading="openingId === record.id"
-                      @click="openClipAction(record)"
+                      @click="openClipAction(record as Clip)"
                     >
                       {{ t('clipOpenButton') }}
                     </a-button>
@@ -193,8 +194,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
-import { message } from 'ant-design-vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import {
+  message, InputSearch as AInputSearch, RadioGroup as ARadioGroup, RadioButton as ARadioButton,
+  Popconfirm as APopconfirm, Tag as ATag, Table as ATable, Pagination as APagination,
+  Modal as AModal, Tooltip as ATooltip
+} from 'ant-design-vue';
 import { useI18n } from 'vue-i18n';
 import type { Clip } from '@/types/clip';
 import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
@@ -216,10 +221,11 @@ const { deleteClip: deleteClipAction, openClip: openClipAction, openingId } = us
 
 useBroadcastSync('clipsey-storage-sync', (message) => {
   if (message.type === 'CLIPS_CHANGED') {
-    if (message.newCount && message.oldCount && message.newCount > message.oldCount) {
+    if ((message.countDelta === undefined || message.countDelta > 0) && currentPage.value !== 1) {
       currentPage.value = 1;
+    } else {
+      void refreshClips(false);
     }
-    void refreshClips(false);
   }
 });
 
@@ -227,6 +233,8 @@ const showModal = ref(false);
 const selectedClip = ref<Clip | null>(null);
 const pageSize = 20;
 const classificationMode = ref<ClassificationMode>('none');
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+onBeforeUnmount(() => clearTimeout(searchTimer));
 
 // 动态计算搜索框占位符
 const searchPlaceholder = computed(() => {
@@ -312,6 +320,7 @@ function getSortOptions() {
 }
 
 function resetPageAndSearch(): void {
+  clearTimeout(searchTimer);
   if (currentPage.value !== 1) {
     currentPage.value = 1;
   } else {
@@ -376,7 +385,7 @@ const columns = computed(() => [
     title: t('clipTableColumnActions'),
     key: 'actions',
     width: 200,
-    align: 'center'
+    align: 'center' as const
   }
 ].map(column => isSortableColumn(column.key) ? {
   ...column,
@@ -397,7 +406,8 @@ const getClipPreview = (clip: Clip) => formatClipPreview(clip);
 const getDomainFromUrl = (url?: string) => getClipDomain(url);
 
 watch(searchQuery, () => {
-  resetPageAndSearch();
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(resetPageAndSearch, 180);
 });
 
 watch([sortColumn, sortOrder], () => {
@@ -405,10 +415,12 @@ watch([sortColumn, sortOrder], () => {
 });
 
 watch(currentPage, () => {
+  clearTimeout(searchTimer);
   void performSearch(currentPage.value, pageSize, getSortOptions());
 });
 
 async function refreshClips(showMessage = true) {
+  clearTimeout(searchTimer);
   await performSearch(currentPage.value, pageSize, getSortOptions());
   if (showMessage) {
     message.success(t('clipRefreshed'));

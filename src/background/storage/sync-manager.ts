@@ -1,21 +1,15 @@
-import type { Clip } from '@/types/clip';
 import { browser } from 'wxt/browser';
 import { cacheManager } from './cache-manager';
-
-/** 数据变更监听回调。 */
-type ChangeListener = (changes: any, areaName: string) => void;
 
 /** 统一的同步消息结构 */
 type SyncPayload = {
   type: 'CLIPS_CHANGED';
   timestamp: number;
-  oldCount: number;
-  newCount: number;
+  countDelta?: number;
 };
 
 /** 同步管理器：使用 BroadcastChannel 跨页同步数据。 */
 export class SyncManager {
-  private changeListeners: ChangeListener[] = [];
   private syncChannel: BroadcastChannel | null = null;
   private runtimeListener: Parameters<typeof browser.runtime.onMessage.addListener>[0] = message => {
     if (message?.type === 'CLIPS_CHANGED') cacheManager.clear();
@@ -38,63 +32,12 @@ export class SyncManager {
     }
   }
 
-  /** 添加变更监听 */
-  addListener(callback: ChangeListener): void {
-    this.changeListeners.push(callback);
-  }
-
-  /** 移除变更监听 */
-  removeListener(callback: ChangeListener): void {
-    const index = this.changeListeners.indexOf(callback);
-    if (index > -1) {
-      this.changeListeners.splice(index, 1);
-    }
-  }
-
-  /** 通知数据变更并同步到其他页面 */
-  notifyChange(oldValue: Clip[], newValue: Clip[]): void {
-    const changes = {
-      clips: {
-        oldValue,
-        newValue
-      }
-    };
-    
-    if (import.meta.env.DEV) {
-      console.log('[Storage Sync] Data changed:', {
-        oldCount: oldValue.length,
-        newCount: newValue.length,
-        operation: newValue.length > oldValue.length ? 'ADD' : 
-                   newValue.length < oldValue.length ? 'DELETE' : 'UPDATE',
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    let customListenerCount = 0;
-    this.changeListeners.forEach(listener => {
-      try {
-        listener(changes, 'local');
-        customListenerCount++;
-      } catch (error) {
-        console.error('[Storage Sync] Custom listener error:', error);
-      }
-    });
-    
-    if (import.meta.env.DEV && customListenerCount > 0) {
-      console.log(`[Storage Sync] Notified ${customListenerCount} custom listener(s)`);
-    }
-    
-    // 使用 BroadcastChannel + runtime 消息同步
-    this.broadcastChange(oldValue, newValue);
-  }
-
-  /** 广播给前端页面。 */
-  private broadcastChange(oldValue: Clip[], newValue: Clip[]): void {
+  /** undefined 表示全部替换；单条写入只广播数量增量。 */
+  notifyChange(countDelta?: number): void {
     const payload: SyncPayload = {
       type: 'CLIPS_CHANGED',
       timestamp: Date.now(),
-      oldCount: oldValue.length,
-      newCount: newValue.length
+      countDelta
     };
 
     if (this.syncChannel) {
@@ -132,17 +75,8 @@ export class SyncManager {
       this.syncChannel.close();
       this.syncChannel = null;
     }
-    this.changeListeners = [];
   }
 }
 
 // 管理器单例
 export const syncManager = new SyncManager();
-
-// 复用数据的 storage API
-export const storage = {
-  onChanged: {
-    addListener: (callback: ChangeListener) => syncManager.addListener(callback),
-    removeListener: (callback: ChangeListener) => syncManager.removeListener(callback)
-  }
-};
