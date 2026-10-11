@@ -21,7 +21,7 @@ type RemoteHighlight = {
 /** 高亮引擎：编排定位/渲染/缓存，批量激活或管理高亮，并支持滚动定位。 */
 export class HighlightEngine {
   private cache = new HighlightCache();
-  private throttled = 8;
+  private throttled = 0;
   private abortController: AbortController | null = null;
   private lastPerf: { durationMs: number; appliedCount: number } | null = null;
 
@@ -160,7 +160,7 @@ export class HighlightEngine {
         // 本次绘制的同步 DOM 修改不使其他实时 Range 失效；外部修改会触发回退。
         observer?.takeRecords();
         // 每次定位/绘制后让出主线程，下一项开始前重新检查取消信号。
-        await this.sleep(this.throttled);
+        await this.sleep(this.throttled, signal);
       }
 
       if (signal.aborted) return false;
@@ -195,7 +195,12 @@ export class HighlightEngine {
     }
   }
 
-  private sleep(ms: number): Promise<void> {
+  private sleep(ms: number, signal: AbortSignal): Promise<void> {
+    // 恢复批次不应优先于页面的取消定时器与绘制。
+    if (ms === 0 && typeof globalThis.scheduler?.postTask === 'function') {
+      return globalThis.scheduler.postTask(() => {}, { priority: 'background', signal })
+        .catch(error => { if (!signal.aborted) throw error; });
+    }
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 

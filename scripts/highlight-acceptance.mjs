@@ -77,6 +77,24 @@ try{
  assert.equal(await page.evaluate(()=>document.body.textContent),source.text);
  record('actual full-text fallback restores all 20 quotes without saved offsets');
  await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[],autoLocate:false}});
+ const bulk=await page.evaluate(()=>{
+  document.body.replaceChildren();let offset=0;const highlights=[];
+  for(let i=0;i<1000;i++){const p=document.createElement('p');p.id=`bulk-${i}`;p.textContent=`item-${i}!`;document.body.append(p);highlights.push({textContent:p.textContent,textOffset:offset,highlightId:p.id});offset+=p.textContent.length;}
+  window.__bulkTimerCount=undefined;
+  const observer=new MutationObserver(()=>{if(document.querySelector('[data-clipsey-id]')){observer.disconnect();setTimeout(()=>{window.__bulkTimerCount=document.querySelectorAll('[data-clipsey-id]').length},0)}});
+  observer.observe(document.body,{subtree:true,childList:true});
+  return{original:document.body.textContent,highlights:highlights.reverse()};
+ });
+ assert.equal((await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:bulk.highlights,autoLocate:false}})).success,true);
+ const bulkProof=await page.evaluate(highlights=>({text:document.body.textContent,count:document.querySelectorAll('[data-clipsey-id]').length,correct:highlights.every(h=>document.querySelector(`#${h.highlightId} [data-clipsey-id="${h.highlightId}"]`)?.textContent===h.textContent),timerCount:window.__bulkTimerCount}),bulk.highlights);
+ assert.equal(bulkProof.text,bulk.original);assert.equal(bulkProof.count,1000);assert.equal(bulkProof.correct,true);
+ assert(bulkProof.timerCount>0&&bulkProof.timerCount<1000,'Page timer must run before the batch finishes');
+ record('page timer runs during native restoration of 1000 highlights');
+ assert.equal((await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:bulk.highlights,autoLocate:false}})).success,true);
+ assert.equal(await page.locator('[data-clipsey-id]').count(),1000);
+ await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[],autoLocate:false}});
+ assert.equal(await page.locator('[data-clipsey-id]').count(),0);assert.equal(await page.evaluate(()=>document.body.textContent),bulk.original);
+ record('native reversed 1000-item batch, repeat and clear preserve original text');
  await page.evaluate(()=>{document.body.innerHTML='<p>one two three</p>';});
  const adjacent=[{textContent:'three',textOffset:8,highlightId:'three'},{textContent:'one',textOffset:0,highlightId:'one'},{textContent:'two',textOffset:4,highlightId:'two'}];
  assert.equal((await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:adjacent,autoLocate:false}})).success,true);
@@ -111,7 +129,7 @@ try{
  for (const mode of ['cssom', 'media']) {
   await page.setViewportSize({width: 1000, height: 700});
   await page.evaluate(mode=>{
-   const gates=mode==='media' ? Array.from({length:20},(_,i)=>`<p id="gate-${i}">gate-${i}!</p>`).join('') : '';
+   const gates=mode==='media' ? Array.from({length:2000},(_,i)=>`<p id="gate-${i}">gate-${i}!</p>`).join('') : '';
    document.body.innerHTML=`<p id="before">aaaa</p><p id="first">one</p>${gates}<p id="original">two</p><p>b</p><p id="duplicate">two</p>`;
    const text=document.body.textContent;
    window.__dynamicHighlights=Array.from(document.querySelectorAll('#first, [id^="gate-"], #original')).map(el=>({textContent:el.textContent,textOffset:text.indexOf(el.textContent),highlightId:el.id==='original'?'second':el.id}));
@@ -159,7 +177,7 @@ try{
  await page.evaluate(()=>{const range=document.createRange();range.selectNodeContents(Array.from(document.querySelector('#visible').childNodes).find(node=>node.nodeType===Node.TEXT_NODE&&node.textContent==='target'));window.getSelection().removeAllRanges();window.getSelection().addRange(range)});
  assert.equal((await send({type:'REQUEST_SELECTION'})).success,true);
  const selectedVisible=await options.evaluate(()=>chrome.runtime.sendMessage({type:'EXPORT_DATA'}));
- const visibleClip=selectedVisible.data.clips.find(c=>c.textContent==='target');assert(visibleClip);assert.equal(visibleClip.textOffset,7);assert.equal(visibleClip.contextBefore,'before ');assert.equal(visibleClip.contextAfter,' after');
+ assert.equal(selectedVisible.data.clips.length,10001);const visibleClip=selectedVisible.data.clips.find(c=>c.textContent==='target');assert(visibleClip);assert.equal(visibleClip.textOffset,7);assert.equal(visibleClip.contextBefore,'before ');assert.equal(visibleClip.contextAfter,' after');
  record('native selection excludes nested hidden text from the saved offset and contexts');
  await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[],autoLocate:false}});
  await page.evaluate(()=>{document.body.innerHTML='<div style="visibility:hidden"><span id="override" style="visibility:visible;display:contents">visible override</span></div>'});
@@ -168,7 +186,7 @@ try{
  record('visible descendants of visibility:hidden and display:contents remain highlightable');
  assert.deepEqual(errors,[]);record('no extension or fixture page exceptions');
  await page.screenshot({path:join(artifacts,'highlights.png'),fullPage:true});
- await writeFile(join(artifacts,'result.json'),JSON.stringify({browser:await context.browser().version(),extensionPath:root,passed,errors},null,2));
+ await writeFile(join(artifacts,'result.json'),JSON.stringify({browser:await context.browser().version(),extensionPath:root,passed,errors,bulkAcceptance:{fixtureParagraphs:1000,payloadHighlights:1000,renderedCount:bulkProof.count,correctTargets:bulkProof.correct,pageTimerAtCount:bulkProof.timerCount},finalLibraryRecords:selectedVisible.data.clips.length},null,2));
  console.log('ARTIFACTS:',artifacts);
 }catch(error){for(const [i,page]of (context?.pages() ?? []).entries())await page.screenshot({path:join(artifacts,`failure-${i}.png`),fullPage:false}).catch(()=>{});throw error;}
 finally{try{await context?.close();}finally{await rm(profile,{recursive:true,force:true});}}

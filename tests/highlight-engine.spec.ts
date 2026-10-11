@@ -25,6 +25,7 @@ describe('HighlightEngine 基本功能', () => {
     engine.abort();
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('同步时移除已删除的高亮，保留其余高亮', async () => {
@@ -70,6 +71,81 @@ describe('HighlightEngine 基本功能', () => {
     expect(await pending).toBe(false);
     expect(locate).toHaveBeenCalledTimes(1);
     expect(document.querySelector('[data-clipsey-id="second"]')).toBeNull();
+  });
+
+  it('uses the native scheduling boundary and can abort before the next highlight', async () => {
+    vi.useFakeTimers();
+    let resume!: () => void;
+    const yieldTask = vi.fn(() => new Promise<void>(resolve => { resume = resolve; }));
+    vi.stubGlobal('scheduler', { postTask: yieldTask });
+    const pending = engine.activateHighlights([
+      { textContent: 'Vitest', highlightId: 'first' },
+      { textContent: '另一个文本节点', highlightId: 'second' }
+    ]);
+    await vi.advanceTimersByTimeAsync(51);
+    expect(yieldTask).toHaveBeenCalledTimes(1);
+    expect(yieldTask).toHaveBeenCalledWith(expect.any(Function), { priority: 'background', signal: expect.any(AbortSignal) });
+    expect(document.querySelector('[data-clipsey-id="first"]')).not.toBeNull();
+    expect(document.querySelector('[data-clipsey-id="second"]')).toBeNull();
+    engine.abort(); resume();
+    await vi.runAllTimersAsync();
+    expect(await pending).toBe(false);
+    expect(document.querySelector('[data-clipsey-id="second"]')).toBeNull();
+  });
+
+  it('keeps an explicit positive throttle when native scheduling is available', async () => {
+    vi.useFakeTimers();
+    const yieldTask = vi.fn(() => Promise.resolve());
+    vi.stubGlobal('scheduler', { postTask: yieldTask });
+    engine.setThrottle(12);
+    const pending = engine.activateHighlights([
+      { textContent: 'Vitest', highlightId: 'first' },
+      { textContent: '另一个文本节点', highlightId: 'second' }
+    ]);
+    await vi.advanceTimersByTimeAsync(51);
+    await vi.advanceTimersByTimeAsync(11);
+    expect(document.querySelector('[data-clipsey-id="second"]')).toBeNull();
+    await vi.runAllTimersAsync();
+    expect(await pending).toBe(true);
+    expect(document.querySelector('[data-clipsey-id="second"]')).not.toBeNull();
+    expect(yieldTask).not.toHaveBeenCalled();
+  });
+
+  it('uses timer yielding when the scheduler has no postTask method', async () => {
+    vi.stubGlobal('scheduler', {});
+    expect(await engine.activateHighlights([{ textContent: 'Vitest', highlightId: 'timer' }])).toBe(true);
+    expect(document.querySelector('[data-clipsey-id="timer"]')?.textContent).toBe('Vitest');
+  });
+
+  it('disconnects a prepared batch when its queued task is aborted without executing', async () => {
+    document.body.innerHTML = '<p>one two</p>';
+    vi.useFakeTimers();
+    vi.stubGlobal('scheduler', { postTask: (_callback: () => void, { signal }: { signal: AbortSignal }) => new Promise<void>((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(new DOMException('Cancelled', 'AbortError')), { once: true });
+    }) });
+    const disconnect = vi.spyOn(MutationObserver.prototype, 'disconnect');
+    const pending = engine.activateHighlights([
+      { textContent: 'one', textOffset: 0, highlightId: 'one' },
+      { textContent: 'two', textOffset: 4, highlightId: 'two' }
+    ]);
+    await vi.advanceTimersByTimeAsync(51);
+    expect(document.querySelector('[data-clipsey-id="one"]')).not.toBeNull();
+    engine.abort();
+    expect(await pending).toBe(false);
+    expect(document.querySelector('[data-clipsey-id="two"]')).toBeNull();
+    expect(disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves unexpected scheduling failures and disconnects the observer', async () => {
+    document.body.innerHTML = '<p>one two</p>';
+    const failure = new Error('Scheduling failed');
+    vi.stubGlobal('scheduler', { postTask: () => Promise.reject(failure) });
+    const disconnect = vi.spyOn(MutationObserver.prototype, 'disconnect');
+    await expect(engine.activateHighlights([
+      { textContent: 'one', textOffset: 0, highlightId: 'one' },
+      { textContent: 'two', textOffset: 4, highlightId: 'two' }
+    ])).rejects.toBe(failure);
+    expect(disconnect).toHaveBeenCalledTimes(1);
   });
 
   it('prepares offsets once and keeps ranges valid after wrapping another quote in the same text node', async () => {
