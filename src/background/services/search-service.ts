@@ -32,14 +32,10 @@ export class SearchService {
       query.type === 'content' ? ['textContent'] : ['title', 'sourceUrl', 'textContent'];
 
     if (query.sortBy === 'title') {
-      // shortcut: 标题排序读取全部候选记录；规模导致卡顿时升级含空标题的数据库索引。
-      const clips = await IndexedDBQuery.getAll('clips');
-      const matches = clips.filter(clip => !keyword || fields.some(field =>
-        typeof clip[field] === 'string' && clip[field].toLowerCase().includes(keyword)
-      ));
-      const direction = query.sortOrder === 'asc' ? 1 : -1;
-      matches.sort((a, b) => direction * ((a.title ?? '').localeCompare(b.title ?? '') || a.id.localeCompare(b.id)));
-      return { items: matches.slice((page - 1) * pageSize, page * pageSize), total: matches.length, page, pageSize };
+      // 标题索引不包含空标题；从主键分批读取，仍使用本地化标题顺序。
+      return IndexedDBQuery.filterByKeywordPaged('clips', keyword, fields, page, pageSize, {
+        orderBy: 'title', direction: query.sortOrder === 'asc' ? 'next' : 'prev'
+      });
     }
 
     const options = {

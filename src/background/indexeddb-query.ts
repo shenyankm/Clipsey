@@ -344,7 +344,7 @@ export class IndexedDBQuery {
   }
 
   /**
-   * 关键字分页检索：使用游标按索引遍历，流式匹配并分页收集，避免 getAll 带来的内存占用。
+   * 关键字分页检索：常用排序分批匹配；范围和 unique 查询保留游标路径。
    * - fields：参与匹配的字段集合（字符串字段）
    * - keyword：大小写不敏感匹配
    * - page/pageSize：分页参数
@@ -372,6 +372,70 @@ export class IndexedDBQuery {
         direction = 'next';
       } else if (options.direction) {
         direction = options.direction as IDBCursorDirection;
+      }
+
+      if (storeName === 'clips' && options.query === undefined &&
+          (direction === 'next' || direction === 'prev') &&
+          Number.isSafeInteger(offset) && Number.isSafeInteger(limit) &&
+          (options.orderBy === 'title' || ['createdAt', 'sourceUrl', 'textContent'].includes(options.indexName ?? ''))) {
+        const read = <T>(request: IDBRequest<T>) => new Promise<T>((resolve, reject) => {
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(new IndexedDBError('Failed to query with keyword', 'QUERY_ERROR', request.error || undefined));
+        });
+        const localeSort = options.orderBy === 'title';
+        const sortField = localeSort ? 'title' : options.indexName as 'createdAt' | 'sourceUrl' | 'textContent';
+        const matches: { id: string; key: string }[] = [];
+        const compareString = localeSort
+          ? (a: string, b: string) => a.localeCompare(b)
+          : (a: string, b: string) => a === b ? 0 : a < b ? -1 : 1;
+        const order = direction === 'next' ? 1 : -1;
+        // 本地化比较相等时沿用原始主键顺序，保持旧排序的稳定性。
+        const compare = (a: typeof matches[number], b: typeof matches[number]) =>
+          order * (compareString(a.key, b.key) || compareString(a.id, b.id)) || (a.id === b.id ? 0 : a.id < b.id ? -1 : 1);
+        const windowSize = offset + limit;
+        let total = 0;
+        let range: IDBKeyRange | undefined;
+        while (true) {
+          const batch = await read(store.getAll(range, 256)) as DBSchema['clips']['value'][];
+          for (const record of batch) {
+            const key = localeSort ? record.title ?? '' : record[sortField];
+            if (typeof key === 'string' && ((localeSort && !lower) || fields.some(field => {
+              const value = record[field as keyof typeof record];
+              return typeof value === 'string' && value.toLowerCase().includes(lower);
+            }))) {
+              total += 1;
+              const candidate = { id: record.id, key };
+              // 最大堆只保留截至本页的主键，深页也无需逐次搬移排序数组。
+              if (matches.length < windowSize) {
+                let position = matches.length;
+                matches.push(candidate);
+                while (position > 0) {
+                  const parent = (position - 1) >>> 1;
+                  if (compare(matches[parent]!, candidate) >= 0) break;
+                  matches[position] = matches[parent]!;
+                  position = parent;
+                }
+                matches[position] = candidate;
+              } else if (compare(candidate, matches[0]!) < 0) {
+                let position = 0;
+                while (position * 2 + 1 < matches.length) {
+                  let child = position * 2 + 1;
+                  if (child + 1 < matches.length && compare(matches[child + 1]!, matches[child]!) > 0) child += 1;
+                  if (compare(matches[child]!, candidate) <= 0) break;
+                  matches[position] = matches[child]!;
+                  position = child;
+                }
+                matches[position] = candidate;
+              }
+            }
+          }
+          if (batch.length < 256) break;
+          range = IDBKeyRange.lowerBound(batch[batch.length - 1]!.id, true);
+        }
+        // 保留截至本页的排序主键；单批内容及本页以外的 HTML 可回收。
+        matches.sort(compare);
+        const items = await Promise.all(matches.slice(offset, offset + limit).map(({ id }) => read(store.get(id)))) as DBSchema[K]['value'][];
+        return { items, total, page, pageSize };
       }
 
       return new Promise<{ items: DBSchema[K]['value'][]; total: number; page: number; pageSize: number }>((resolve, reject) => {
