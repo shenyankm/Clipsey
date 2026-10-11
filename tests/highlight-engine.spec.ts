@@ -7,6 +7,8 @@ describe('HighlightEngine 基本功能', () => {
   let engine: HighlightEngine;
 
   beforeEach(async () => {
+    // jsdom 没有浏览器消息任务队列；默认保持可控的定时器回退。
+    vi.stubGlobal('MessageChannel', undefined);
     // 重置文档内容
     document.body.innerHTML = `
       <main>
@@ -78,6 +80,8 @@ describe('HighlightEngine 基本功能', () => {
     let resume!: () => void;
     const yieldTask = vi.fn(() => new Promise<void>(resolve => { resume = resolve; }));
     vi.stubGlobal('scheduler', { postTask: yieldTask });
+    const messageChannel = vi.fn();
+    vi.stubGlobal('MessageChannel', messageChannel);
     const pending = engine.activateHighlights([
       { textContent: 'Vitest', highlightId: 'first' },
       { textContent: '另一个文本节点', highlightId: 'second' }
@@ -85,6 +89,7 @@ describe('HighlightEngine 基本功能', () => {
     await vi.advanceTimersByTimeAsync(51);
     expect(yieldTask).toHaveBeenCalledTimes(1);
     expect(yieldTask).toHaveBeenCalledWith(expect.any(Function), { priority: 'background', signal: expect.any(AbortSignal) });
+    expect(messageChannel).not.toHaveBeenCalled();
     expect(document.querySelector('[data-clipsey-id="first"]')).not.toBeNull();
     expect(document.querySelector('[data-clipsey-id="second"]')).toBeNull();
     engine.abort(); resume();
@@ -97,6 +102,8 @@ describe('HighlightEngine 基本功能', () => {
     vi.useFakeTimers();
     const yieldTask = vi.fn(() => Promise.resolve());
     vi.stubGlobal('scheduler', { postTask: yieldTask });
+    const messageChannel = vi.fn();
+    vi.stubGlobal('MessageChannel', messageChannel);
     engine.setThrottle(12);
     const pending = engine.activateHighlights([
       { textContent: 'Vitest', highlightId: 'first' },
@@ -109,12 +116,67 @@ describe('HighlightEngine 基本功能', () => {
     expect(await pending).toBe(true);
     expect(document.querySelector('[data-clipsey-id="second"]')).not.toBeNull();
     expect(yieldTask).not.toHaveBeenCalled();
+    expect(messageChannel).not.toHaveBeenCalled();
   });
 
-  it('uses timer yielding when the scheduler has no postTask method', async () => {
+  it('uses timer yielding when both task scheduling APIs are unavailable', async () => {
     vi.stubGlobal('scheduler', {});
     expect(await engine.activateHighlights([{ textContent: 'Vitest', highlightId: 'timer' }])).toBe(true);
     expect(document.querySelector('[data-clipsey-id="timer"]')?.textContent).toBe('Vitest');
+  });
+
+  it('keeps timer boundaries for full-text fallback even when message tasks are available', async () => {
+    vi.stubGlobal('scheduler', undefined);
+    const messageChannel = vi.fn();
+    vi.stubGlobal('MessageChannel', messageChannel);
+    expect(await engine.activateHighlights([
+      { textContent: 'Vitest', highlightId: 'one' },
+      { textContent: '另一个文本节点', highlightId: 'two' }
+    ])).toBe(true);
+    expect(messageChannel).not.toHaveBeenCalled();
+  });
+
+  it.each(['complete', 'abort', 'timer'])('closes message ports on %s without advancing a cancelled batch', async outcome => {
+    document.body.innerHTML = '<p>one two</p>';
+    vi.useFakeTimers();
+    vi.stubGlobal('scheduler', undefined);
+    const channels: { port1: { onmessage: (() => void) | null; close: ReturnType<typeof vi.fn> }; port2: { postMessage: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> } }[] = [];
+    vi.stubGlobal('MessageChannel', class {
+      port1 = { onmessage: null as (() => void) | null, close: vi.fn() };
+      port2 = { postMessage: vi.fn(), close: vi.fn() };
+      constructor() { channels.push(this); }
+    });
+    const disconnect = vi.spyOn(MutationObserver.prototype, 'disconnect');
+    const removeListener = vi.spyOn(AbortSignal.prototype, 'removeEventListener');
+    const pending = engine.activateHighlights([
+      { textContent: 'one', textOffset: 0, highlightId: 'one' },
+      { textContent: 'two', textOffset: 4, highlightId: 'two' }
+    ]);
+    await vi.advanceTimersByTimeAsync(51);
+    expect(document.querySelector('[data-clipsey-id="one"]')).not.toBeNull();
+    expect(document.querySelector('[data-clipsey-id="two"]')).toBeNull();
+    expect(channels).toHaveLength(1);
+    expect(channels[0]!.port2.postMessage).toHaveBeenCalledOnce();
+    if (outcome === 'abort') engine.abort();
+    else {
+      if (outcome === 'timer') await vi.advanceTimersByTimeAsync(8);
+      channels[0]!.port1.onmessage!();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(channels).toHaveLength(1);
+      if (outcome === 'complete') {
+        expect(channels[0]!.port1.close).not.toHaveBeenCalled();
+        channels[0]!.port1.onmessage!();
+      }
+    }
+    expect(await pending).toBe(outcome !== 'abort');
+    for (const channel of channels) {
+      expect(channel.port1.onmessage).toBeNull();
+      expect(channel.port1.close).toHaveBeenCalledOnce();
+      expect(channel.port2.close).toHaveBeenCalledOnce();
+    }
+    expect(removeListener).toHaveBeenCalledTimes(outcome === 'complete' ? 2 : 1);
+    expect(document.querySelector('[data-clipsey-id="two"]') !== null).toBe(outcome !== 'abort');
+    expect(disconnect).toHaveBeenCalledOnce();
   });
 
   it('disconnects a prepared batch when its queued task is aborted without executing', async () => {

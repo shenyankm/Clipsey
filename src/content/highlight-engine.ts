@@ -22,6 +22,7 @@ type RemoteHighlight = {
 export class HighlightEngine {
   private cache = new HighlightCache();
   private throttled = 0;
+  private lastTimerYield = 0;
   private abortController: AbortController | null = null;
   private lastPerf: { durationMs: number; appliedCount: number } | null = null;
 
@@ -106,6 +107,7 @@ export class HighlightEngine {
     const ids = new Set(validHighlights.map(h => h.highlightId ?? h.id ?? h.textContent!.trim()));
     this.cache.retain(ids);
     const start = this.now();
+    this.lastTimerYield = start;
     let appliedCount = 0;
 
     const offsetTargets = validHighlights.filter(h =>
@@ -121,7 +123,10 @@ export class HighlightEngine {
       offsetTargets.forEach((h, index) => prepared.set(h, ranges[index] ?? null));
     }
 
+    let channel: MessageChannel | undefined;
     try {
+      if (this.throttled === 0 && typeof globalThis.scheduler?.postTask !== 'function' &&
+          typeof MessageChannel === 'function' && prepared.size) channel = new MessageChannel();
       for (const h of validHighlights) {
         if (signal.aborted) return false;
         const text = h.textContent!.trim();
@@ -140,6 +145,7 @@ export class HighlightEngine {
               current?.startContainer !== range.startContainer || current?.startOffset !== range.startOffset ||
               current?.endContainer !== range.endContainer || current?.endOffset !== range.endOffset) range = null;
         }
+        const preparedOffset = !!range;
         range ??= LocationStrategy.locate({
           text,
           textOffset: h.textOffset,
@@ -160,13 +166,15 @@ export class HighlightEngine {
         // 本次绘制的同步 DOM 修改不使其他实时 Range 失效；外部修改会触发回退。
         observer?.takeRecords();
         // 每次定位/绘制后让出主线程，下一项开始前重新检查取消信号。
-        await this.sleep(this.throttled, signal);
+        await this.sleep(this.throttled, signal, preparedOffset ? channel : undefined);
       }
 
       if (signal.aborted) return false;
       this.lastPerf = { durationMs: Math.max(0, this.now() - start), appliedCount };
       return validHighlights.length === 0 || appliedCount > 0;
     } finally {
+      channel?.port1.close();
+      channel?.port2.close();
       observer?.disconnect();
     }
   }
@@ -195,12 +203,27 @@ export class HighlightEngine {
     }
   }
 
-  private sleep(ms: number, signal: AbortSignal): Promise<void> {
+  private sleep(ms: number, signal: AbortSignal, channel?: MessageChannel): Promise<void> {
     // 恢复批次不应优先于页面的取消定时器与绘制。
     if (ms === 0 && typeof globalThis.scheduler?.postTask === 'function') {
       return globalThis.scheduler.postTask(() => {}, { priority: 'background', signal })
         .catch(error => { if (!signal.aborted) throw error; });
     }
+    // 仅预定位范围避开逐项定时器延迟；完整扫描保留原边界，每 8ms 仍让出一次定时器任务。
+    if (ms === 0 && channel && this.now() - this.lastTimerYield < 8) {
+      return new Promise(resolve => {
+        const finish = () => {
+          signal.removeEventListener('abort', finish);
+          channel.port1.onmessage = null;
+          resolve();
+        };
+        channel.port1.onmessage = finish;
+        signal.addEventListener('abort', finish, { once: true });
+        if (signal.aborted) finish();
+        else channel.port2.postMessage(null);
+      });
+    }
+    this.lastTimerYield = this.now();
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
