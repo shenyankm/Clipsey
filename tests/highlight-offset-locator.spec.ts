@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { locateByOffset } from '@/content/highlight/locators/offset-locator';
-import { computeDocumentTextData } from '@/content/highlight/metadata';
+import { locateByOffset, locateByOffsets } from '@/content/highlight/locators/offset-locator';
+import { captureHighlightMetadata } from '@/content/highlight/metadata';
 import { LocationStrategy } from '@/content/highlight/locators';
 
 describe('locateByOffset', () => {
@@ -35,10 +35,10 @@ describe('locateByOffset', () => {
     const range = document.createRange();
     range.setStart(strongText, 0);
     range.setEnd(strongText, strongText.textContent?.length ?? 0);
-    const docData = computeDocumentTextData(range);
+    const docData = captureHighlightMetadata(range, null, 'fixture');
     expect(docData).not.toBeNull();
 
-    const located = locateByOffset(docData!.offset, range.toString().length);
+    const located = locateByOffset(docData!.textOffset!, range.toString().length);
     expect(located?.toString()).toBe(range.toString());
     expect(located?.startContainer).toBe(strongText);
     expect(located?.collapsed).toBe(false);
@@ -53,12 +53,47 @@ describe('locateByOffset', () => {
     const range = document.createRange();
     range.setStart(strongText, 0);
     range.setEnd(spanText, spanText.textContent?.length ?? 0);
-    const docData = computeDocumentTextData(range);
+    const docData = captureHighlightMetadata(range, null, 'fixture');
     expect(docData).not.toBeNull();
 
-    const located = locateByOffset(docData!.offset, range.toString().length);
+    const located = locateByOffset(docData!.textOffset!, range.toString().length);
     expect(located?.toString()).toBe(range.toString());
     expect(located?.startContainer).toBe(strongText);
     expect(located?.endContainer).toBe(spanText);
+  });
+
+  it('maps unsorted, duplicate and adjacent boundaries with one traversal', () => {
+    document.body.innerHTML = '<p>abc<b>def</b>ghi</p><div style="display:none">HIDE</div><p>JK</p>';
+    const p = document.querySelector('p')!;
+    const texts = [p.firstChild!, p.querySelector('b')!.firstChild!, p.lastChild!, document.querySelectorAll('p')[1]!.firstChild!] as Text[];
+    const targets = Array.from({ length: 12 }, (_, offset) =>
+      Array.from({ length: 12 }, (_, length) => ({ offset, length: length + 1 }))
+    ).flat().reverse();
+    targets.push({ offset: 3, length: 3 }, { offset: 2, length: 1 });
+    const ranges = locateByOffsets(targets);
+    targets.forEach(({ offset, length }, index) => {
+      const range = ranges[index];
+      if (offset >= 11) { expect(range).toBeNull(); return; }
+      let position = 0;
+      const start = texts.find(node => { const end = position + node.length; if (offset < end) return true; position = end; return false; })!;
+      expect(range?.startContainer).toBe(start);
+      expect(range?.startOffset).toBe(offset - position);
+      const endOffset = Math.min(11, offset + length);
+      position = 0;
+      const end = texts.find(node => { const next = position + node.length; if (endOffset <= next) return true; position = next; return false; })!;
+      expect(range?.endContainer).toBe(end);
+      expect(range?.endOffset).toBe(endOffset - position);
+    });
+  });
+
+  it('retains single-offset normalization and stops before an unneeded tail', () => {
+    document.body.innerHTML = '<p>abcdef</p><p>unneeded</p>';
+    expect(locateByOffset(NaN, Infinity)?.toString()).toBe('a');
+    expect(locateByOffset(-10, 1.5)?.toString()).toBe('a');
+    expect(locateByOffset(1.8, 2.9)?.toString()).toBe('bc');
+    expect(locateByOffsets([])).toEqual([]);
+    const tail = document.querySelectorAll('p')[1]!;
+    Object.defineProperty(tail.firstChild!, 'textContent', { get() { throw new Error('Tail must not be visited'); } });
+    expect(locateByOffsets([{ offset: 0, length: 3 }, { offset: 3, length: 3 }]).map(range => range?.toString())).toEqual(['abc', 'def']);
   });
 });

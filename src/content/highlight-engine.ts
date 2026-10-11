@@ -1,6 +1,8 @@
 import { ensureHighlightColorsReady } from '@/content/color-manager';
 import { applyInline, applyOverlay } from '@/content/highlight/painters';
 import { LocationStrategy } from '@/content/highlight/locators';
+import { locateByOffsets } from '@/content/highlight/locators/offset-locator';
+import { findTextRangeInNode, normalizeWhitespace } from '@/content/highlight/text-search';
 import { HighlightCache } from '@/content/highlight/cache-manager';
 import { ScrollManager } from '@/content/highlight/scroll-manager';
 import type { FocusClipPayload } from '@/types/message';
@@ -106,39 +108,67 @@ export class HighlightEngine {
     const start = this.now();
     let appliedCount = 0;
 
-    for (const h of validHighlights) {
-      if (signal.aborted) return false;
-      const text = h.textContent!.trim();
-      const id = h.highlightId ?? h.id ?? text;
-      if (this.cache.has(id)) {
-        appliedCount += 1;
-        continue;
-      }
-
-      const range = LocationStrategy.locate({
-        text,
-        textOffset: h.textOffset,
-        anchorSelector: h.anchorSelector,
-        contextBefore: h.contextBefore,
-        contextAfter: h.contextAfter
-      });
-      if (range) {
-        const spans = h.highlightStyle === 'overlay'
-          ? applyOverlay(range, id)
-          : applyInline(range, id);
-        if (spans.length) {
-          this.cache.add(id, spans);
-          appliedCount += 1;
-        }
-      }
-
-      // 每次定位/绘制后让出主线程，下一项开始前重新检查取消信号。
-      await this.sleep(this.throttled);
+    const offsetTargets = validHighlights.filter(h =>
+      Number.isSafeInteger(h.textOffset) && h.textOffset! >= 0 &&
+      !this.cache.has(h.highlightId ?? h.id ?? h.textContent!.trim())
+    );
+    let preparedValid = true;
+    const observer = offsetTargets.length > 1 ? new MutationObserver(() => { preparedValid = false; }) : null;
+    observer?.observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true });
+    const prepared = new Map<RemoteHighlight, Range | null>();
+    if (observer) {
+      const ranges = locateByOffsets(offsetTargets.map(h => ({ offset: h.textOffset!, length: h.textContent!.trim().length })));
+      offsetTargets.forEach((h, index) => prepared.set(h, ranges[index] ?? null));
     }
 
-    if (signal.aborted) return false;
-    this.lastPerf = { durationMs: Math.max(0, this.now() - start), appliedCount };
-    return validHighlights.length === 0 || appliedCount > 0;
+    try {
+      for (const h of validHighlights) {
+        if (signal.aborted) return false;
+        const text = h.textContent!.trim();
+        const id = h.highlightId ?? h.id ?? text;
+        if (this.cache.has(id)) {
+          appliedCount += 1;
+          continue;
+        }
+
+        if (observer?.takeRecords().length) preparedValid = false;
+        let range = preparedValid ? prepared.get(h) : null;
+        if (range) {
+          const root = range.commonAncestorContainer;
+          const current = findTextRangeInNode(root instanceof Text ? root.parentElement! : root, text, false);
+          if (!root.isConnected || normalizeWhitespace(range.toString()) !== normalizeWhitespace(text) ||
+              current?.startContainer !== range.startContainer || current?.startOffset !== range.startOffset ||
+              current?.endContainer !== range.endContainer || current?.endOffset !== range.endOffset) range = null;
+        }
+        range ??= LocationStrategy.locate({
+          text,
+          textOffset: h.textOffset,
+          anchorSelector: h.anchorSelector,
+          contextBefore: h.contextBefore,
+          contextAfter: h.contextAfter
+        });
+        if (range) {
+          const spans = h.highlightStyle === 'overlay'
+            ? applyOverlay(range, id)
+            : applyInline(range, id);
+          if (spans.length) {
+            this.cache.add(id, spans);
+            appliedCount += 1;
+          }
+        }
+
+        // 本次绘制的同步 DOM 修改不使其他实时 Range 失效；外部修改会触发回退。
+        observer?.takeRecords();
+        // 每次定位/绘制后让出主线程，下一项开始前重新检查取消信号。
+        await this.sleep(this.throttled);
+      }
+
+      if (signal.aborted) return false;
+      this.lastPerf = { durationMs: Math.max(0, this.now() - start), appliedCount };
+      return validHighlights.length === 0 || appliedCount > 0;
+    } finally {
+      observer?.disconnect();
+    }
   }
 
   getLastPerfStats(): { durationMs: number; appliedCount: number } | null {

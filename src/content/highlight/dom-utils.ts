@@ -4,27 +4,32 @@
 export function createTextNodeWalker(root: Node = document.body): TreeWalker | null {
   if (!root) return null;
   try {
+    // 调用方同步遍历；下一次定位使用新 walker，重新检查页面样式。
+    const visibleParents = new WeakMap<Element, boolean>();
     return document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
         const parent = (node as Text).parentElement;
         if (!parent) return NodeFilter.FILTER_REJECT;
-        // 排除不可见或不相关元素
-        if (parent.closest('script, style, noscript, svg, canvas')) {
-          return NodeFilter.FILTER_REJECT;
-        }
         const content = (node as Text).textContent ?? '';
         if (!content.trim()) {
           return NodeFilter.FILTER_SKIP;
         }
-        try {
-          const style = getComputedStyle(parent);
-          if (style && (style.visibility === 'hidden' || style.display === 'none')) {
-            return NodeFilter.FILTER_REJECT;
+        let visible = visibleParents.get(parent);
+        if (visible === undefined) {
+          if (parent.closest('script, style, noscript, svg, canvas')) {
+            visible = false;
+          } else {
+            try {
+              const style = getComputedStyle(parent);
+              visible = !style || (style.visibility !== 'hidden' && style.display !== 'none');
+            } catch {
+              // 样式读取失败不缓存，后续节点仍可重试。
+              return NodeFilter.FILTER_ACCEPT;
+            }
           }
-        } catch {
-          // 某些节点可能无法获取样式，忽略错误
+          visibleParents.set(parent, visible);
         }
-        return NodeFilter.FILTER_ACCEPT;
+        return visible ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
       }
     });
   } catch {

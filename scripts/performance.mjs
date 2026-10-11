@@ -8,10 +8,11 @@ import { createServer } from 'vite';
 const baseline = process.argv.includes('--baseline');
 const writes = process.argv.includes('--writes');
 const search = process.argv.includes('--search');
+const highlights = process.argv.includes('--highlights');
 const baselineRef = baseline
   ? execFileSync('git', ['rev-parse', process.env.BASELINE_REF ?? 'HEAD'], { encoding: 'utf8' }).trim()
   : undefined;
-const legacyUrlLookup = baseline && !writes && !search && !/async getByUrl\(/.test(
+const legacyUrlLookup = baseline && !writes && !search && !highlights && !/async getByUrl\(/.test(
   execFileSync('git', ['show', `${baselineRef}:src/background/storage/cache-manager.ts`], { encoding: 'utf8' })
 );
 const profile = await mkdtemp(join(tmpdir(), 'clipsey-perf-'));
@@ -28,6 +29,7 @@ const server = await createServer({
       const files = writes
         ? ['src/background/storage.ts', 'src/background/storage/sync-manager.ts']
         : search ? ['src/background/services/search-service.ts', 'src/background/indexeddb-query.ts']
+        : highlights ? ['src/content/highlight/dom-utils.ts', 'src/content/highlight/metadata.ts', 'src/content/highlight/locators/offset-locator.ts', 'src/content/highlight-engine.ts']
         : ['src/background/storage/cache-manager.ts', 'src/background/indexeddb-query.ts'];
       if (files.some(file => path === resolve(file))) {
         return execFileSync('git', ['show', `${baselineRef}:${path.slice(resolve('.').length + 1)}`], { encoding: 'utf8' });
@@ -43,7 +45,7 @@ const server = await createServer({
       server.middlewares.use((req, res, next) => {
         if (req.url !== '/') return next();
         res.setHeader('Content-Type', 'text/html');
-        res.end(`<!doctype html><script type="module" src="/tests/performance/${writes ? 'writes' : search ? 'search' : 'browser'}.ts"></script>`);
+        res.end(`<!doctype html><script type="module" src="/tests/performance/${writes ? 'writes' : search ? 'search' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
       });
     }
   }]

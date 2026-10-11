@@ -18,49 +18,54 @@ export function captureHighlightMetadata(
 ): HighlightMetadata | null {
   if (!range) return null;
 
-  const documentData = computeDocumentTextData(range);
   const selectionText = range.toString();
   const leadingWhitespace = selectionText.length - selectionText.trimStart().length;
+  const selectionLength = selectionText.trim().length;
   let contextBefore: string | undefined;
   let contextAfter: string | undefined;
   let textOffset: number | undefined;
 
-  if (documentData) {
-    textOffset = documentData.offset + leadingWhitespace;
-    const beforeStart = Math.max(0, textOffset - CONTEXT_RADIUS);
-    const afterStart = textOffset + selectionText.trim().length;
-    contextBefore = documentData.text.slice(beforeStart, textOffset);
-    contextAfter = documentData.text.slice(afterStart, afterStart + CONTEXT_RADIUS);
+  const walker = range.startContainer.nodeType === Node.TEXT_NODE && document.body?.contains(range.startContainer)
+    ? createTextNodeWalker() : null;
+  if (walker) {
+    const beforeParts: string[] = [];
+    let beforeLength = 0;
+    let after = '';
+    let aggregateOffset = 0;
+    let node = walker.nextNode();
+    while (node) {
+      const content = node.textContent ?? '';
+      if (node === range.startContainer) {
+        textOffset = aggregateOffset + Math.min(range.startOffset, content.length) + leadingWhitespace;
+      }
+      const beforeEnd = textOffset === undefined ? content.length : Math.max(0, Math.min(content.length, textOffset - aggregateOffset));
+      if (beforeEnd > 0) {
+        const part = content.slice(Math.max(0, beforeEnd - CONTEXT_RADIUS), beforeEnd);
+        beforeParts.push(part);
+        beforeLength += part.length;
+        while (beforeParts.length > 1 && beforeLength - beforeParts[0]!.length >= CONTEXT_RADIUS) {
+          beforeLength -= beforeParts.shift()!.length;
+        }
+      }
+      if (textOffset !== undefined) {
+        const afterStart = Math.max(0, textOffset + selectionLength - aggregateOffset);
+        after += content.slice(afterStart, afterStart + CONTEXT_RADIUS - after.length);
+      }
+      aggregateOffset += content.length;
+      if (textOffset !== undefined && after.length === CONTEXT_RADIUS) break;
+      node = walker.nextNode();
+    }
+    if (textOffset !== undefined) {
+      const beforeStart = Math.max(0, textOffset - CONTEXT_RADIUS);
+      const collectedStart = Math.max(0, Math.min(textOffset, aggregateOffset) - CONTEXT_RADIUS);
+      contextBefore = beforeParts.join('').slice(-CONTEXT_RADIUS).slice(beforeStart - collectedStart);
+      contextAfter = after;
+    }
   }
 
   const anchorSelector = buildCssPath(span?.parentElement ?? span ?? undefined);
 
   return { highlightId, contextBefore, contextAfter, anchorSelector, textOffset };
-}
-
-export function computeDocumentTextData(range: Range | null): { offset: number; text: string } | null {
-  if (!range || !document.body) return null;
-  const walker = createTextNodeWalker();
-  if (!walker) return null;
-
-  let node = walker.nextNode();
-  const textParts: string[] = [];
-  let aggregateOffset = 0;
-  let startOffset: number | null = null;
-
-  while (node) {
-    const textNode = node as Text;
-    const content = textNode.textContent ?? '';
-    if (textNode === range.startContainer) {
-      startOffset = aggregateOffset + Math.min(range.startOffset, content.length);
-    }
-    textParts.push(content);
-    aggregateOffset += content.length;
-    node = walker.nextNode();
-  }
-
-  if (startOffset == null) return null;
-  return { offset: startOffset, text: textParts.join('') };
 }
 
 export function buildCssPath(element: Element | undefined): string | undefined {

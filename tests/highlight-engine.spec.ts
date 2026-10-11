@@ -72,6 +72,56 @@ describe('HighlightEngine 基本功能', () => {
     expect(document.querySelector('[data-clipsey-id="second"]')).toBeNull();
   });
 
+  it('prepares offsets once and keeps ranges valid after wrapping another quote in the same text node', async () => {
+    document.body.innerHTML = '<p>one two three</p>';
+    const locate = vi.spyOn(LocationStrategy, 'locate');
+    expect(await engine.activateHighlights([
+      { textContent: 'three', textOffset: 8, highlightId: 'three' },
+      { textContent: 'one', textOffset: 0, highlightId: 'one' },
+      { textContent: 'two', textOffset: 4, highlightId: 'two' }
+    ])).toBe(true);
+    expect(document.body.textContent).toBe('one two three');
+    for (const id of ['one', 'two', 'three']) expect(document.querySelector(`[data-clipsey-id="${id}"]`)?.textContent).toBe(id);
+    expect(locate).not.toHaveBeenCalled();
+  });
+
+  it('invalidates prepared offsets when external content is inserted between items', async () => {
+    document.body.innerHTML = '<p>prefix <b>one</b> middle <i>two</i></p>';
+    vi.useFakeTimers();
+    const locate = vi.spyOn(LocationStrategy, 'locate');
+    const disconnect = vi.spyOn(MutationObserver.prototype, 'disconnect');
+    const pending = engine.activateHighlights([
+      { textContent: 'one', textOffset: 7, highlightId: 'one' },
+      { textContent: 'two', textOffset: 18, highlightId: 'two' }
+    ]);
+    await vi.advanceTimersByTimeAsync(51);
+    expect(document.querySelector('[data-clipsey-id="one"]')).not.toBeNull();
+    const prefix = document.createElement('p');
+    prefix.textContent = 'new prefix';
+    document.body.prepend(prefix);
+    await vi.runAllTimersAsync();
+    expect(await pending).toBe(true);
+    expect(locate).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ text: 'two' }));
+    expect(document.querySelector('i [data-clipsey-id="two"]')?.textContent).toBe('two');
+    expect(disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancels a prepared batch before its next item and disconnects observation', async () => {
+    document.body.innerHTML = '<p>one two</p>';
+    vi.useFakeTimers();
+    const disconnect = vi.spyOn(MutationObserver.prototype, 'disconnect');
+    const pending = engine.activateHighlights([
+      { textContent: 'one', textOffset: 0, highlightId: 'one' },
+      { textContent: 'two', textOffset: 4, highlightId: 'two' }
+    ]);
+    await vi.advanceTimersByTimeAsync(51);
+    engine.abort();
+    await vi.runAllTimersAsync();
+    expect(await pending).toBe(false);
+    expect(document.querySelector('[data-clipsey-id="two"]')).toBeNull();
+    expect(disconnect).toHaveBeenCalledTimes(1);
+  });
+
   it('activateHighlights: 能为匹配文本应用内联高亮', async () => {
     const ok = await engine.activateHighlights([
       { textContent: 'Vitest', highlightStyle: 'inline' }
