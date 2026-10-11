@@ -24,7 +24,7 @@ async function exportBackup() {
   try {
     const response = await sendRuntimeMessage<Awaited<ReturnType<typeof exportAllData>>>({ type: 'EXPORT_DATA' });
     if (!response.success || !response.data) throw new Error(response.error);
-    const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(response.data)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     try {
       const link = document.createElement('a');

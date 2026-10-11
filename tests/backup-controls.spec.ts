@@ -12,7 +12,8 @@ vi.mock('@/utils/chrome', () => ({ sendRuntimeMessage: vi.fn() }));
 let app: App;
 let container: HTMLDivElement;
 const restored = vi.fn();
-const backup = { clips: [{ id: 'saved', textContent: 'Quote', sourceUrl: 'https://example.com',
+const backup = { clips: [{ id: 'saved', textContent: 'Quote: "你好 👋"\nNext line',
+  htmlContent: '<p title="quoted">你好 👋</p>', sourceUrl: 'https://example.com',
   createdAt: '2026-10-11T00:00:00Z' }], errorLogs: [], version: '2.0', exportedAt: '2026-10-11T00:00:00Z' };
 
 beforeEach(() => {
