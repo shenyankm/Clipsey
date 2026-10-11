@@ -63,7 +63,7 @@ export function locateByContext(
   let idx = nodes.indexOf(startNode);
   while (remainingLength > 0 && idx + 1 < nodes.length) {
     idx++;
-    const nextNode = nodes[idx];
+    const nextNode = nodes[idx]!;
     const len = nextNode.textContent?.length ?? 0;
     if (len === 0) continue;
     

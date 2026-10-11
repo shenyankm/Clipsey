@@ -12,25 +12,6 @@ function wait(ms: number): Promise<void> {
 
 /** 内容脚本服务：负责在需要时按需注入并处理通信。 */
 export class ContentScriptService {
-  private cachedContentScriptFiles: string[] | null = null;
-
-  private resolveContentScriptFiles(): string[] {
-    if (this.cachedContentScriptFiles) {
-      return this.cachedContentScriptFiles;
-    }
-
-    const manifest = browser.runtime.getManifest();
-    const files =
-      manifest.content_scripts?.flatMap(entry => entry.js ?? [])?.filter(Boolean) ?? [];
-
-    if (!files.length) {
-      throw new Error('[ContentScriptService] No content script files defined in manifest.');
-    }
-
-    this.cachedContentScriptFiles = files;
-    return files;
-  }
-
   /** 如果 content script 尚未注入，则主动注入。 */
   async injectContentScript(tabId: number): Promise<boolean> {
     try {
@@ -45,7 +26,7 @@ export class ContentScriptService {
     try {
       await browser.scripting.executeScript({
         target: { tabId },
-        files: this.resolveContentScriptFiles()
+        files: ['/content-scripts/content.js']
       });
       await wait(100);
       return true;

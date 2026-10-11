@@ -87,8 +87,7 @@ export function buildCssPath(element: Element | undefined): string | undefined {
     const siblings = Array.from(parent.children) as Element[];
     let count = 0;
     let index = 0;
-    for (let i = 0; i < siblings.length; i += 1) {
-      const sibling = siblings[i];
+    for (const sibling of siblings) {
       if (sibling.tagName === el.tagName) {
         count += 1;
         if (sibling === el) index = count;

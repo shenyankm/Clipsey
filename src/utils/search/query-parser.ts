@@ -18,7 +18,7 @@ export function parseSearchQuery(query: string): ParsedSearchQuery {
   // 检查是否以 @ 开头
   if (trimmed.startsWith('@')) {
     const parts = trimmed.split(' ');
-    const typePrefix = parts[0].substring(1); // 移除 @
+    const typePrefix = parts[0]!.substring(1); // 移除 @
     const keyword = parts.slice(1).join(' ').trim();
     
     // 验证类型是否有效

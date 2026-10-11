@@ -292,7 +292,7 @@ const timelineGroups = computed<ClipsByDate[]>(() => {
 function getDateOnly(isoString?: string): string {
   if (!isoString) return 'unknown';
   try {
-    return isoString.split('T')[0];
+    return isoString.split('T')[0] ?? 'unknown';
   } catch {
     return 'unknown';
   }
@@ -477,7 +477,7 @@ function getSourceColor(url?: string): string {
   }, 0);
   
   const colors = ['blue', 'green', 'orange', 'purple', 'cyan', 'magenta', 'geekblue', 'red', 'volcano', 'gold'];
-  return colors[Math.abs(hash) % colors.length];
+  return colors[Math.abs(hash) % colors.length]!;
 }
 </script>
 

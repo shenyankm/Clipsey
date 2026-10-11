@@ -8,7 +8,7 @@ function mapNormalizedIndexToOriginal(original: string, normalizedIndex: number)
   let count = 0;
   let inWhitespace = false;
   for (let i = 0; i < original.length; i += 1) {
-    const char = original[i];
+    const char = original.charAt(i);
     const whitespace = /\s/.test(char);
     const length = whitespace ? (inWhitespace ? 0 : 1) : char.toLowerCase().length;
     if (count + length > normalizedIndex) return i;

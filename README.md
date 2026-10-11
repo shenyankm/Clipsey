@@ -20,12 +20,18 @@ Clipsey 是一款专注于网页摘录的浏览器扩展。无需注册，数据
 
 基于 [WXT](https://wxt.dev/) + Vue 3 + TypeScript 构建。
 
-```powershell
-pnpm install
-pnpm run dev
+开发环境需要 Node.js 22.22.2+（22.x）、24.15.0+（24.x）或 26+；使用项目固定的 pnpm 版本：
+
+```sh
+corepack enable
+pnpm install --frozen-lockfile
+pnpm dev
+pnpm typecheck
+pnpm test
+pnpm build:all
 ```
 
-更多细节请查看 [开发文档](./DEVELOPMENT.md)。
+依赖采用最新稳定兼容版本。TypeScript 暂使用 6.0.3：当前 vue-tsc 3.3.13 无法调用 TypeScript 7 的编译器入口，待上游兼容后再升级。测试使用 jsdom 与 fake-indexeddb，覆盖存储事务、迁移、缓存同步、高亮和原文链接；真实网页的原生滚动效果仍需浏览器验收。
 
 ---
 

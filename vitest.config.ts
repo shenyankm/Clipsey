@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import { resolve } from 'path';
-import wxtConfig from './wxt.config';
+import wxtConfig from './wxt.config.ts';
 
 export default defineConfig({
   test: {
