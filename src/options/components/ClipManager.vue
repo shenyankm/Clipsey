@@ -30,6 +30,7 @@
             </a-input-search>
           </div>
           <div class="clip-toolbar__actions">
+            <BackupControls @restored="resetPageAndSearch" />
             <div class="clip-toolbar__stat">
               <div class="clip-toolbar__stat-value">{{ searchTotal }}</div>
               <div class="clip-toolbar__stat-label">{{ t('clipTotalCount') }}</div>
@@ -197,12 +198,13 @@ import { message } from 'ant-design-vue';
 import { useI18n } from 'vue-i18n';
 import type { Clip } from '@/types/clip';
 import { getClipHtmlContent, hasClipRichContent } from '@/utils/rich-text';
-import { formatClipDate, getClipPreview as formatClipPreview, getClipDomain } from '@/utils/clip-format';
+import { formatClipDate, getClipDateKey, getClipPreview as formatClipPreview, getClipDomain } from '@/utils/clip-format';
 import { useClipSearch } from '../composables/useClipSearch';
 import { useClipCRUD } from '../composables/useClipCRUD';
 import { useBroadcastSync } from '@/composables/useBroadcastSync';
 import type { SortBy } from '@/background/services/search-service';
 import { parseSearchQuery } from '@/utils/search/query-parser';
+import BackupControls from './clip/BackupControls.vue';
 
 const { t } = useI18n();
 
@@ -268,7 +270,7 @@ const timelineGroups = computed<ClipsByDate[]>(() => {
   const dateList: string[] = [];
 
   for (const clip of searchResults.value) {
-    const date = getDateOnly(clip.createdAt);
+    const date = getClipDateKey(clip.createdAt);
     if (!groupMap.has(date)) {
       groupMap.set(date, []);
       dateList.push(date);
@@ -288,22 +290,12 @@ const timelineGroups = computed<ClipsByDate[]>(() => {
   }));
 });
 
-// 获取日期部分（YYYY-MM-DD）
-function getDateOnly(isoString?: string): string {
-  if (!isoString) return 'unknown';
-  try {
-    return isoString.split('T')[0] ?? 'unknown';
-  } catch {
-    return 'unknown';
-  }
-}
-
 
 
 type SortDirection = 'asc' | 'desc';
 const DEFAULT_SORT_COLUMN: SortBy = 'createdAt';
 const DEFAULT_SORT_ORDER: SortDirection = 'desc';
-const SORTABLE_COLUMNS: SortBy[] = ['title', 'sourceUrl', 'textContent'];
+const SORTABLE_COLUMNS: SortBy[] = ['title', 'sourceUrl', 'textContent', 'createdAt'];
 
 const sortColumn = ref<SortBy>(DEFAULT_SORT_COLUMN);
 const sortOrder = ref<SortDirection>(DEFAULT_SORT_ORDER);
@@ -336,9 +328,6 @@ function handleTableChange(_pagination: any, _filters: any, sorter: any) {
   if (isSortableColumn(columnKey) && sorter.order) {
     sortColumn.value = columnKey;
     sortOrder.value = sorter.order === 'ascend' ? 'asc' : 'desc';
-  } else if (isSortableColumn(columnKey) && !sorter.order) {
-    sortColumn.value = columnKey;
-    sortOrder.value = DEFAULT_SORT_ORDER;
   } else {
     sortColumn.value = DEFAULT_SORT_COLUMN;
     sortOrder.value = DEFAULT_SORT_ORDER;
@@ -389,7 +378,11 @@ const columns = computed(() => [
     width: 200,
     align: 'center'
   }
-]);
+].map(column => isSortableColumn(column.key) ? {
+  ...column,
+  sorter: true,
+  sortOrder: column.key === sortColumn.value ? (sortOrder.value === 'asc' ? 'ascend' as const : 'descend' as const) : null
+} : column));
 
 function resolveClipHtml(clip: Clip): string {
   return getClipHtmlContent(clip);
@@ -446,7 +439,7 @@ function formatDateDisplay(value?: string): string {
 
 function formatTimelineDate(isoString?: string): string {
   if (!isoString) return t('clipUnknownDate') || 'Unknown Date';
-  const date = new Date(isoString);
+  const date = new Date(`${isoString}T00:00:00`);
   if (Number.isNaN(date.getTime())) return t('clipUnknownDate') || 'Unknown Date';
   
   const locale = (t('languageZhCN') === '简体中文') ? 'zh-CN' : 'en-US';

@@ -20,76 +20,38 @@ export interface SearchResult {
   pageSize: number;
 }
 
-/** 规范化排序选项。 */
-function normalizeSort(query: SearchQuery): { indexName?: string; direction: 'next' | 'prev' } {
-  const sortBy = query.sortBy ?? 'createdAt';
-  const sortOrder = query.sortOrder ?? 'desc';
-  const indexMap: Record<Exclude<SortBy, 'title'>, string> = {
-    createdAt: 'createdAt',
-    sourceUrl: 'sourceUrl',
-    textContent: 'textContent'
-  };
-  const indexName = sortBy === 'title' ? 'createdAt' : indexMap[sortBy as Exclude<SortBy, 'title'>];
-  const direction = sortOrder === 'asc' ? 'next' : 'prev';
-  return { indexName, direction };
-}
-
 /** 搜索服务：支持无关键字分页与关键字过滤。 */
 export class SearchService {
   async search(query: SearchQuery): Promise<SearchResult> {
     const page = Math.max(1, (query.page ?? 1) | 0);
     const pageSize = Math.max(1, Math.min(100, (query.pageSize ?? 20) | 0));
-    const keyword = (query.keyword ?? '').trim();
-    const type: SearchType = (query.type ?? 'all');
+    const keyword = (query.keyword ?? '').trim().toLowerCase();
+    const fields: (keyof Clip)[] =
+      query.type === 'title' ? ['title'] :
+      query.type === 'website' ? ['sourceUrl'] :
+      query.type === 'content' ? ['textContent'] : ['title', 'sourceUrl', 'textContent'];
 
-    const { indexName, direction } = normalizeSort(query);
-
-    if (!keyword) {
-      return this.paginateWithoutKeyword(page, pageSize, indexName, direction);
+    if (query.sortBy === 'title') {
+      // shortcut: 标题排序读取全部候选记录；规模导致卡顿时升级含空标题的数据库索引。
+      const clips = await IndexedDBQuery.getAll('clips');
+      const matches = clips.filter(clip => !keyword || fields.some(field =>
+        typeof clip[field] === 'string' && clip[field].toLowerCase().includes(keyword)
+      ));
+      const direction = query.sortOrder === 'asc' ? 1 : -1;
+      matches.sort((a, b) => direction * ((a.title ?? '').localeCompare(b.title ?? '') || a.id.localeCompare(b.id)));
+      return { items: matches.slice((page - 1) * pageSize, page * pageSize), total: matches.length, page, pageSize };
     }
 
-    const sortBy = query.sortBy ?? 'createdAt';
-    const sortOrder: 'asc' | 'desc' = query.sortOrder ?? 'desc';
-    return this.searchWithKeyword(keyword, type, page, pageSize, sortBy, sortOrder);
+    const options = {
+      indexName: query.sortBy ?? 'createdAt',
+      direction: query.sortOrder === 'asc' ? 'next' as const : 'prev' as const
+    };
+    if (!keyword) {
+      const { data, total } = await IndexedDBQuery.paginate('clips', page, pageSize, options);
+      return { items: data, total, page, pageSize };
+    }
+    return IndexedDBQuery.filterByKeywordPaged('clips', keyword, fields, page, pageSize, options);
   }
-
-  /** 无关键字的分页查询。 */
-  private async paginateWithoutKeyword(
-    page: number,
-    pageSize: number,
-    indexName?: string,
-    direction: 'next' | 'prev' = 'prev'
-  ): Promise<SearchResult> {
-    const { data, total } = await IndexedDBQuery.paginate('clips', page, pageSize, {
-      indexName,
-      direction
-    });
-    return { items: data as Clip[], total, page, pageSize };
-  }
-
-  /** 关键字过滤搜索。 */
-  private async searchWithKeyword(
-    keyword: string,
-    type: SearchType,
-    page: number,
-    pageSize: number,
-    sortBy: SortBy,
-    sortOrder: 'asc' | 'desc'
-  ): Promise<SearchResult> {
-    const { indexName, direction } = normalizeSort({ sortBy, sortOrder });
-    const fields: (keyof Clip)[] =
-      type === 'title' ? ['title'] :
-      type === 'website' ? ['sourceUrl'] :
-      type === 'content' ? ['textContent'] : ['title', 'sourceUrl', 'textContent'];
-
-    const result = await IndexedDBQuery.filterByKeywordPaged('clips', keyword, fields as any, page, pageSize, {
-      indexName,
-      direction
-    });
-    return { items: result.items as Clip[], total: result.total, page: result.page, pageSize: result.pageSize };
-  }
-
-
 }
 
 // 单例

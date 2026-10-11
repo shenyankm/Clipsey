@@ -62,6 +62,14 @@
   "clipModalFieldContent": "Content:",
   "clipModalFieldCreatedAt": "Created At:",
   "clipRefreshed": "Refreshed",
-  "clipUnknownDate": "Unknown Date"
+  "clipUnknownDate": "Unknown Date",
+  "backupExport": "Export Backup",
+  "backupRestore": "Restore Backup",
+  "backupExported": "Backup generated",
+  "backupExportFailed": "Failed to export backup",
+  "backupRestoreConfirm": "Replace all current clips with the {count} clips in this backup (including an empty backup). Export your current data first. Restore?",
+  "backupCancel": "Cancel",
+  "backupRestored": "Backup restored",
+  "backupRestoreFailed": "Restore was not confirmed. Check the clip list before retrying",
+  "backupInvalid": "Invalid backup. Select a JSON file exported by Clipsey"
 }
-

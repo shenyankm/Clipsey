@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config';
-import { resolve } from 'path';
+import vue from '@vitejs/plugin-vue';
 import wxtConfig from './wxt.config.ts';
 
 export default defineConfig({
@@ -24,5 +24,6 @@ export default defineConfig({
       ]
     }
   },
-  ...wxtConfig.vite?.()
+  ...wxtConfig.vite?.(),
+  plugins: [vue()]
 });

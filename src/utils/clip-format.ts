@@ -14,6 +14,11 @@ export function formatClipDateTime(iso?: string): string {
 
 export const formatClipDate = formatClipDateTime;
 
+export function getClipDateKey(iso?: string): string {
+  const formatted = formatClipDateTime(iso);
+  return formatted === '--' ? 'unknown' : formatted.slice(0, 10);
+}
+
 export function getClipDomain(url?: string): string {
   if (!url) return '';
   try {
