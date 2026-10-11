@@ -123,14 +123,29 @@ try {
             await popup.close();
         }
         const afterPaged = await workerSnapshot();
-        const all = await seed.evaluate(async () => { const r = await chrome.runtime.sendMessage({ type: 'REQUEST_CLIPS' }); return { success: r.success, count: r.data?.length }; });
+        const coldAllHeapSamples = [];
+        const observationStart = performance.now();
+        let settled = false;
+        // shortcut: 5ms 轮询会漏过同步处理中的峰值；需要精确上限时升级为引擎内存跟踪。
+        const fullRequest = seed.evaluate(async () => { const r = await chrome.runtime.sendMessage({ type: 'REQUEST_CLIPS' }); return { success: r.success, count: r.data?.length }; })
+            .then(value => ({ value }), error => ({ error }))
+            .finally(() => { settled = true; });
+        while (!settled) {
+            assert(performance.now() - observationStart < 30000, 'Full clip request timed out');
+            const usage = await sendWorker('Runtime.getHeapUsage');
+            coldAllHeapSamples.push({ elapsedMs: performance.now() - observationStart, ...usage });
+            if (!settled) await new Promise(resolve => setTimeout(resolve, 5));
+        }
+        const reply = await fullRequest;
+        if ('error' in reply) throw reply.error;
+        const all = reply.value;
         assert.equal(all.success, true);
         assert.equal(all.count, size);
         const afterAll = await workerSnapshot();
         assert.equal((await seed.evaluate(() => chrome.runtime.sendMessage({ type: 'DELETE_CLIP', payload: { id: 'clip-0' } }))).success, true);
         const afterInvalidation = await workerSnapshot();
         const median = key => samples.map(s => s[key]).sort((a, b) => a - b)[3];
-        results.push({ size, medianMs: { shell: median('shell'), list: median('list'), ready: median('ready'), domReady: median('domReady'), script: median('scriptDurationMs'), layout: median('layoutDurationMs') }, heapMedianBytes: median('jsHeapUsed'), heapAfterGcMedianBytes: median('heapAfterGcBytes'), backgroundHeap: { afterImport, afterPaged, afterAll, afterInvalidation }, samples });
+        results.push({ size, medianMs: { shell: median('shell'), list: median('list'), ready: median('ready'), domReady: median('domReady'), script: median('scriptDurationMs'), layout: median('layoutDurationMs') }, heapMedianBytes: median('jsHeapUsed'), heapAfterGcMedianBytes: median('heapAfterGcBytes'), backgroundHeap: { afterImport, afterPaged, coldAllHeapSamples, coldAllObservedMaxBytes: Math.max(afterPaged.after.usedSize, afterAll.before.usedSize, ...coldAllHeapSamples.map(s => s.usedSize)), afterAll, afterInvalidation }, samples });
     }
     await browserCdp.send('Target.detachFromTarget', { sessionId });
     await browserCdp.detach();

@@ -40,7 +40,7 @@ export function normalizeClips(clips: Clip[]): Clip[] {
           ? 'inline'
           : undefined;
 
-    const now = Date.now();
+    const updatedAt = typeof clip.updatedAt === 'string' ? clip.updatedAt : new Date().toISOString();
     normalized.push({
       id,
       sourceUrl: typeof clip.sourceUrl === 'string' ? clip.sourceUrl : '',
@@ -48,7 +48,7 @@ export function normalizeClips(clips: Clip[]): Clip[] {
       textContent,
       htmlContent: typeof clip.htmlContent === 'string' ? clip.htmlContent : undefined,
       createdAt: typeof clip.createdAt === 'string' ? clip.createdAt : new Date().toISOString(),
-      updatedAt: typeof clip.updatedAt === 'string' ? clip.updatedAt : new Date(now).toISOString(),
+      updatedAt,
       highlightId,
       contextBefore,
       contextAfter,

@@ -60,4 +60,4 @@ EXTENSION_PATH='/path/to/baseline-build' CHROME_PATH='/path/to/Chrome for Testin
 
 基线应先在临时 checkout 构建 `aa12a80` 并保存产物；脚本不负责切换分支。所有用户目录在结束或启动失败后清理。可设置 `PROFILE` 保存一次原生 CPU profile。
 
-后台缓存的冷读取与采样分配量已完成[后续对照](./performance-cache.md)，连续峰值仍待测量；Edge/Firefox 运行时、低端硬件、服务工作线程休眠后启动及远端 CI 尚未验收。整个性能优化目标仍在进行。
+后台缓存的冷读取与采样分配量已完成[后续对照](./performance-cache.md)，[日期与后台观测](./performance-normalization.md)补充冷加载期间的轮询；观测可能漏过同步处理中的峰值，精确上限仍待验证。Edge/Firefox 运行时、低端硬件、服务工作线程休眠后启动及远端 CI 尚未验收。整个性能优化目标仍在进行。

@@ -75,6 +75,6 @@ BASELINE_REF=d41771c node scripts/performance.mjs --cache --baseline
 node scripts/performance.mjs --cache
 ```
 
-`CHROME_PATH` 可以指定 Chrome 可执行文件。基线索引从 Git 读取 `clip-index.ts`；缓存基线同时读取 storage、cache-manager 和 clip-index 实现，不修改工作树。
+`CHROME_PATH` 可以指定 Chrome 可执行文件。基线索引从 Git 读取 `clip-index.ts`；缓存基线同时读取 storage、cache-manager、clip-index 和 clip-normalizer 实现，不修改工作树。本页样本是 `90d1311` 阶段的缺失更新日期输入；当前工作树与缓存基准还包含后续[日期处理和完整记录对照](./performance-normalization.md)。
 
 真实 URL 分布、连续峰值、低端硬件、Edge/Firefox 运行时和远端 CI 尚未验证。全部不同来源的成本应结合实际分布继续评估。

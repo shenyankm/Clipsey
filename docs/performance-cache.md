@@ -57,6 +57,6 @@ BASELINE_REF=40b5998 node scripts/performance.mjs --cache --allocations --baseli
 node scripts/performance.mjs --cache --allocations
 ```
 
-`--allocations` 可用于 `--cache` 和 `--index`，默认 Chrome 路径可由 `CHROME_PATH` 替代。缓存基线从 Git 读取 storage、cache-manager 和 clip-index 实现，不改工作树。本页原始样本对应 `d41771c` 阶段；当前工作树包含后续索引优化，复跑优化端将得到最新叠加效果。
+`--allocations` 可用于 `--cache`、`--index` 和 `--normalize`，默认 Chrome 路径可由 `CHROME_PATH` 替代。缓存基线从 Git 读取 storage、cache-manager、clip-index 和 clip-normalizer 实现，不改工作树。本页原始样本对应 `d41771c` 阶段的缺失更新日期输入；当前基准同时测完整日期，工作树包含后续索引和日期优化，复跑优化端将得到最新叠加效果。显式时钟调用计数不再用于推断标准化次数。
 
-连续峰值、低端硬件、真实 URL 分布、Edge/Firefox 运行时和远端 CI 尚未验证；后续[URL 索引优化](./performance-url-index.md)在单次构建中复用相同来源的解析结果。整个优化目标仍在进行。
+精确峰值、低端硬件、真实 URL 分布、Edge/Firefox 运行时和远端 CI 尚未验证；后续[URL 索引优化](./performance-url-index.md)在单次构建中复用相同来源的解析结果，[日期与后台观测](./performance-normalization.md)补测完整日期数据及冷加载期间的堆使用量。整个优化目标仍在进行。

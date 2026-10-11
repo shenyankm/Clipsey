@@ -11,12 +11,13 @@ const search = process.argv.includes('--search');
 const highlights = process.argv.includes('--highlights');
 const cache = process.argv.includes('--cache');
 const index = process.argv.includes('--index');
+const normalize = process.argv.includes('--normalize');
 const allocations = process.argv.includes('--allocations');
-if (allocations && !cache && !index) throw new Error('--allocations requires --cache or --index');
+if (allocations && !cache && !index && !normalize) throw new Error('--allocations requires --cache, --index or --normalize');
 const baselineRef = baseline
   ? execFileSync('git', ['rev-parse', process.env.BASELINE_REF ?? 'HEAD'], { encoding: 'utf8' }).trim()
   : undefined;
-const legacyUrlLookup = baseline && !writes && !search && !highlights && !cache && !index && !/async getByUrl\(/.test(
+const legacyUrlLookup = baseline && !writes && !search && !highlights && !cache && !index && !normalize && !/async getByUrl\(/.test(
   execFileSync('git', ['show', `${baselineRef}:src/background/storage/cache-manager.ts`], { encoding: 'utf8' })
 );
 const profile = await mkdtemp(join(tmpdir(), 'clipsey-perf-'));
@@ -31,12 +32,13 @@ const server = await createServer({
       if (!baseline) return;
       const path = id.split('?')[0];
       const files = writes
-        ? ['src/background/storage.ts', 'src/background/storage/sync-manager.ts']
+        ? ['src/background/storage.ts', 'src/background/storage/sync-manager.ts', 'src/background/storage/utils/clip-normalizer.ts']
+        : normalize ? ['src/background/storage/utils/clip-normalizer.ts']
         : index ? ['src/background/storage/clip-index.ts']
-        : cache ? ['src/background/storage.ts', 'src/background/storage/cache-manager.ts', 'src/background/storage/clip-index.ts']
+        : cache ? ['src/background/storage.ts', 'src/background/storage/cache-manager.ts', 'src/background/storage/clip-index.ts', 'src/background/storage/utils/clip-normalizer.ts']
         : search ? ['src/background/services/search-service.ts', 'src/background/indexeddb-query.ts']
         : highlights ? ['src/content/highlight/dom-utils.ts', 'src/content/highlight/metadata.ts', 'src/content/highlight/locators/offset-locator.ts', 'src/content/highlight-engine.ts']
-        : ['src/background/storage/cache-manager.ts', 'src/background/indexeddb-query.ts', 'src/background/storage/clip-index.ts'];
+        : ['src/background/storage/cache-manager.ts', 'src/background/indexeddb-query.ts', 'src/background/storage/clip-index.ts', 'src/background/storage/utils/clip-normalizer.ts'];
       if (files.some(file => path === resolve(file))) {
         return execFileSync('git', ['show', `${baselineRef}:${path.slice(resolve('.').length + 1)}`], { encoding: 'utf8' });
       }
@@ -51,7 +53,7 @@ const server = await createServer({
       server.middlewares.use((req, res, next) => {
         if (req.url !== '/') return next();
         res.setHeader('Content-Type', 'text/html');
-        res.end(`<!doctype html><script type="module" src="/tests/performance/${writes ? 'writes' : index ? 'index' : cache ? 'cache' : search ? 'search' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
+        res.end(`<!doctype html><script type="module" src="/tests/performance/${writes ? 'writes' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : search ? 'search' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
       });
     }
   }]

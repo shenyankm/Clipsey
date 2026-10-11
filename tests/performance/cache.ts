@@ -31,13 +31,14 @@ try {
   const { syncManager } = await import('../../src/background/storage/sync-manager');
   const results = [];
   const allocations = [];
-  for (const records of [100, 10000]) {
+  for (const records of [100, 10000]) for (const completeDates of [false, true]) {
     const clips: Clip[] = Array.from({ length: records }, (_, i) => ({
       id: String(i).padStart(5, '0'), highlightId: `highlight-${i}`,
       textContent: 'Performance fixture '.repeat(32),
       htmlContent: `<p>${'Rich content '.repeat(64)}</p>`,
       sourceUrl: `https://example.com/article/${i % 1000}`,
-      createdAt: new Date(Date.UTC(2025, 0, 1) + i * 1000).toISOString()
+      createdAt: new Date(Date.UTC(2025, 0, 1) + i * 1000).toISOString(),
+      updatedAt: completeDates ? '2025-02-01T00:00:00.000Z' : undefined
     }));
     const seed = async () => {
       cacheManager.clear();
@@ -69,10 +70,11 @@ try {
       Date.now = () => { clockReads++; return clock(); };
       await coldUrlOperation();
     } finally { Date.now = clock; }
-    results.push({ records, coldAll, coldUrl, update, warmAll, warmUrl, coldUrlClockReads: clockReads });
-    allocations.push({ records, name: 'coldAll', prepare: seed, operation: coldAllOperation });
-    allocations.push({ records, name: 'coldUrl', prepare: seed, operation: coldUrlOperation });
-    allocations.push({ records, name: 'update', prepare: () => { cacheManager.clear(); }, operation: () => cacheManager.update(clips) });
+    results.push({ records, completeDates, coldAll, coldUrl, update, warmAll, warmUrl, coldUrlClockReads: clockReads });
+    const suffix = completeDates ? 'complete-dates' : 'missing-updatedAt';
+    allocations.push({ records, name: `coldAll-${suffix}`, prepare: seed, operation: coldAllOperation });
+    allocations.push({ records, name: `coldUrl-${suffix}`, prepare: seed, operation: coldUrlOperation });
+    allocations.push({ records, name: `update-${suffix}`, prepare: () => { cacheManager.clear(); }, operation: () => cacheManager.update(clips) });
   }
   (window as any).__cacheAllocationCases = allocations;
   (window as any).__performanceResult = { userAgent: navigator.userAgent, scenario: 'cache', results };
