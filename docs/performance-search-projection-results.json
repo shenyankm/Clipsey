@@ -1,0 +1,1633 @@
+{
+  "date": "2026-10-12",
+  "baselineRef": "6e2f954",
+  "decision": "defer-persistent-projection; no-production-change",
+  "normal": {
+    "mode": "working-tree",
+    "cpuProfiled": false,
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+    "scenario": "search-projection",
+    "reverse": false,
+    "experimentalStore": "searchProjectionProbe",
+    "results": [
+      {
+        "records": 100,
+        "mode": "full",
+        "scenarios": [
+          {
+            "query": {
+              "type": "content",
+              "keyword": "NEEDLE",
+              "sortBy": "createdAt",
+              "sortOrder": "desc",
+              "page": 1
+            },
+            "total": 50,
+            "largestRead": 100,
+            "medianMs": 0.8999999910593033,
+            "samplesMs": [
+              0.8999999910593033,
+              1,
+              0.7999999970197678,
+              0.7000000029802322,
+              0.9000000059604645,
+              0.8999999910593033,
+              1.5
+            ]
+          },
+          {
+            "query": {
+              "type": "website",
+              "keyword": "/article/1",
+              "sortBy": "sourceUrl",
+              "sortOrder": "asc",
+              "page": 1
+            },
+            "total": 11,
+            "largestRead": 100,
+            "medianMs": 0.6000000089406967,
+            "samplesMs": [
+              0.7000000029802322,
+              0.7999999970197678,
+              0.6000000089406967,
+              0.5,
+              0.7000000029802322,
+              0.3999999910593033,
+              0.6000000089406967
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "测试",
+              "sortBy": "textContent",
+              "sortOrder": "asc",
+              "page": 2
+            },
+            "total": 50,
+            "largestRead": 100,
+            "medianMs": 0.7000000029802322,
+            "samplesMs": [
+              0.7999999970197678,
+              0.7000000029802322,
+              0.7999999970197678,
+              0.7000000029802322,
+              0.7000000029802322,
+              0.5999999940395355,
+              0.7999999970197678
+            ]
+          },
+          {
+            "query": {
+              "type": "content",
+              "keyword": "absent",
+              "sortBy": "createdAt",
+              "sortOrder": "asc",
+              "page": 1
+            },
+            "total": 0,
+            "largestRead": 100,
+            "medianMs": 0.4000000059604645,
+            "samplesMs": [
+              0.29999999701976776,
+              0.4000000059604645,
+              0.3999999910593033,
+              0.4000000059604645,
+              0.4000000059604645,
+              0.3999999910593033,
+              0.7000000029802322
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "needle",
+              "sortBy": "title",
+              "sortOrder": "asc",
+              "page": 2
+            },
+            "total": 50,
+            "largestRead": 100,
+            "medianMs": 0.7000000029802322,
+            "samplesMs": [
+              1,
+              0.6000000089406967,
+              0.699999988079071,
+              0.7000000029802322,
+              0.7000000029802322,
+              0.9000000059604645,
+              0.5999999940395355
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "",
+              "sortBy": "title",
+              "sortOrder": "desc",
+              "page": 1
+            },
+            "total": 100,
+            "largestRead": 100,
+            "medianMs": 0.5999999940395355,
+            "samplesMs": [
+              0.6000000089406967,
+              0.5,
+              0.7000000029802322,
+              0.3999999910593033,
+              0.6000000089406967,
+              0.5999999940395355,
+              0.5999999940395355
+            ]
+          }
+        ]
+      },
+      {
+        "records": 100,
+        "mode": "projection",
+        "scenarios": [
+          {
+            "query": {
+              "type": "content",
+              "keyword": "NEEDLE",
+              "sortBy": "createdAt",
+              "sortOrder": "desc",
+              "page": 1
+            },
+            "total": 50,
+            "largestRead": 100,
+            "medianMs": 0.7000000029802322,
+            "samplesMs": [
+              0.7000000029802322,
+              0.5999999940395355,
+              0.7000000029802322,
+              0.7000000029802322,
+              1.0999999940395355,
+              0.6000000089406967,
+              0.5
+            ]
+          },
+          {
+            "query": {
+              "type": "website",
+              "keyword": "/article/1",
+              "sortBy": "sourceUrl",
+              "sortOrder": "asc",
+              "page": 1
+            },
+            "total": 11,
+            "largestRead": 100,
+            "medianMs": 0.4000000059604645,
+            "samplesMs": [
+              0.29999999701976776,
+              0.4000000059604645,
+              0.4000000059604645,
+              0.5,
+              0.29999999701976776,
+              0.3999999910593033,
+              0.4000000059604645
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "测试",
+              "sortBy": "textContent",
+              "sortOrder": "asc",
+              "page": 2
+            },
+            "total": 50,
+            "largestRead": 100,
+            "medianMs": 0.5999999940395355,
+            "samplesMs": [
+              0.6000000089406967,
+              0.3999999910593033,
+              1.1000000089406967,
+              0.5,
+              0.5999999940395355,
+              0.7000000029802322,
+              0.5
+            ]
+          },
+          {
+            "query": {
+              "type": "content",
+              "keyword": "absent",
+              "sortBy": "createdAt",
+              "sortOrder": "asc",
+              "page": 1
+            },
+            "total": 0,
+            "largestRead": 100,
+            "medianMs": 0.30000001192092896,
+            "samplesMs": [
+              0.29999999701976776,
+              0.3999999910593033,
+              0.30000001192092896,
+              0.3999999910593033,
+              0.29999999701976776,
+              0.20000000298023224,
+              0.4000000059604645
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "needle",
+              "sortBy": "title",
+              "sortOrder": "asc",
+              "page": 2
+            },
+            "total": 50,
+            "largestRead": 100,
+            "medianMs": 0.7999999970197678,
+            "samplesMs": [
+              0.5,
+              0.5999999940395355,
+              0.7000000029802322,
+              0.7999999970197678,
+              1.0999999940395355,
+              0.9000000059604645,
+              0.9000000059604645
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "",
+              "sortBy": "title",
+              "sortOrder": "desc",
+              "page": 1
+            },
+            "total": 100,
+            "largestRead": 100,
+            "medianMs": 0.5999999940395355,
+            "samplesMs": [
+              0.699999988079071,
+              0.5,
+              0.7000000029802322,
+              0.7000000029802322,
+              0.5,
+              0.5999999940395355,
+              0.4000000059604645
+            ]
+          }
+        ]
+      },
+      {
+        "records": 100,
+        "mode": "full",
+        "bulkPut": {
+          "medianMs": 6.5,
+          "samplesMs": [
+            6.399999991059303,
+            8.599999994039536,
+            5.700000002980232,
+            7.200000002980232,
+            6.600000008940697,
+            6.200000002980232,
+            6.5
+          ]
+        }
+      },
+      {
+        "records": 100,
+        "mode": "projection",
+        "bulkPut": {
+          "medianMs": 8.700000002980232,
+          "samplesMs": [
+            8.799999997019768,
+            10.200000002980232,
+            8.299999997019768,
+            8.5,
+            8.700000002980232,
+            7.9000000059604645,
+            10.099999994039536
+          ]
+        }
+      },
+      {
+        "records": 10000,
+        "mode": "full",
+        "scenarios": [
+          {
+            "query": {
+              "type": "content",
+              "keyword": "NEEDLE",
+              "sortBy": "createdAt",
+              "sortOrder": "desc",
+              "page": 100
+            },
+            "total": 5000,
+            "largestRead": 256,
+            "medianMs": 59.20000000298023,
+            "samplesMs": [
+              59.20000000298023,
+              56.29999999701977,
+              60.099999994039536,
+              50.400000005960464,
+              49,
+              61.400000005960464,
+              90.69999998807907
+            ]
+          },
+          {
+            "query": {
+              "type": "website",
+              "keyword": "/article/1",
+              "sortBy": "sourceUrl",
+              "sortOrder": "asc",
+              "page": 1
+            },
+            "total": 1100,
+            "largestRead": 256,
+            "medianMs": 55.79999999701977,
+            "samplesMs": [
+              60.900000005960464,
+              59.099999994039536,
+              60,
+              55.79999999701977,
+              42.30000001192093,
+              44,
+              50.29999999701977
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "测试",
+              "sortBy": "textContent",
+              "sortOrder": "asc",
+              "page": 2
+            },
+            "total": 5000,
+            "largestRead": 256,
+            "medianMs": 48.900000005960464,
+            "samplesMs": [
+              46.599999994039536,
+              48.900000005960464,
+              55.400000005960464,
+              47.69999998807907,
+              50,
+              47.6000000089407,
+              55.5
+            ]
+          },
+          {
+            "query": {
+              "type": "content",
+              "keyword": "absent",
+              "sortBy": "createdAt",
+              "sortOrder": "asc",
+              "page": 1
+            },
+            "total": 0,
+            "largestRead": 256,
+            "medianMs": 49,
+            "samplesMs": [
+              49,
+              54.6000000089407,
+              49.69999998807907,
+              48.70000000298023,
+              48.70000000298023,
+              53.70000000298023,
+              48.20000000298023
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "needle",
+              "sortBy": "title",
+              "sortOrder": "asc",
+              "page": 2
+            },
+            "total": 5000,
+            "largestRead": 256,
+            "medianMs": 50,
+            "samplesMs": [
+              54.29999999701977,
+              49,
+              46.79999999701977,
+              51.29999999701977,
+              54.6000000089407,
+              50,
+              47.20000000298023
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "",
+              "sortBy": "title",
+              "sortOrder": "desc",
+              "page": 100
+            },
+            "total": 10000,
+            "largestRead": 256,
+            "medianMs": 51.099999994039536,
+            "samplesMs": [
+              50.5,
+              51.099999994039536,
+              52.70000000298023,
+              60.29999999701977,
+              56.599999994039536,
+              47.400000005960464,
+              50.70000000298023
+            ]
+          }
+        ]
+      },
+      {
+        "records": 10000,
+        "mode": "projection",
+        "scenarios": [
+          {
+            "query": {
+              "type": "content",
+              "keyword": "NEEDLE",
+              "sortBy": "createdAt",
+              "sortOrder": "desc",
+              "page": 100
+            },
+            "total": 5000,
+            "largestRead": 256,
+            "medianMs": 34,
+            "samplesMs": [
+              32.6000000089407,
+              34.5,
+              33.3999999910593,
+              34.1000000089407,
+              34,
+              43.3999999910593,
+              31.200000002980232
+            ]
+          },
+          {
+            "query": {
+              "type": "website",
+              "keyword": "/article/1",
+              "sortBy": "sourceUrl",
+              "sortOrder": "asc",
+              "page": 1
+            },
+            "total": 1100,
+            "largestRead": 256,
+            "medianMs": 26.599999994039536,
+            "samplesMs": [
+              24.30000001192093,
+              27.5,
+              25.299999997019768,
+              26.599999994039536,
+              33.400000005960464,
+              24.799999997019768,
+              28
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "测试",
+              "sortBy": "textContent",
+              "sortOrder": "asc",
+              "page": 2
+            },
+            "total": 5000,
+            "largestRead": 256,
+            "medianMs": 30,
+            "samplesMs": [
+              29.80000001192093,
+              29.399999991059303,
+              38.400000005960464,
+              31.799999997019768,
+              30.5,
+              30,
+              28.700000002980232
+            ]
+          },
+          {
+            "query": {
+              "type": "content",
+              "keyword": "absent",
+              "sortBy": "createdAt",
+              "sortOrder": "asc",
+              "page": 1
+            },
+            "total": 0,
+            "largestRead": 256,
+            "medianMs": 30,
+            "samplesMs": [
+              38.20000000298023,
+              29.900000005960464,
+              32.599999994039536,
+              31.200000002980232,
+              29.400000005960464,
+              29.700000002980232,
+              30
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "needle",
+              "sortBy": "title",
+              "sortOrder": "asc",
+              "page": 2
+            },
+            "total": 5000,
+            "largestRead": 256,
+            "medianMs": 31.19999998807907,
+            "samplesMs": [
+              34.6000000089407,
+              31.19999998807907,
+              29.600000008940697,
+              30.5,
+              31.700000002980232,
+              37.5,
+              29.599999994039536
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "",
+              "sortBy": "title",
+              "sortOrder": "desc",
+              "page": 100
+            },
+            "total": 10000,
+            "largestRead": 256,
+            "medianMs": 32,
+            "samplesMs": [
+              31.100000008940697,
+              31.5,
+              31.599999994039536,
+              39.70000000298023,
+              32.29999999701977,
+              34.29999999701977,
+              32
+            ]
+          }
+        ]
+      },
+      {
+        "records": 10000,
+        "mode": "full",
+        "bulkPut": {
+          "medianMs": 1488.0999999940395,
+          "samplesMs": [
+            1355,
+            1353.1000000089407,
+            1517.5,
+            1432.5,
+            1555.2000000029802,
+            1488.0999999940395,
+            1547.5
+          ]
+        }
+      },
+      {
+        "records": 10000,
+        "mode": "projection",
+        "bulkPut": {
+          "medianMs": 1710.699999988079,
+          "samplesMs": [
+            1753.5999999940395,
+            1707.3999999910593,
+            1896.2000000029802,
+            2179.0999999940395,
+            1263.3999999910593,
+            1710.699999988079,
+            1709.5999999940395
+          ]
+        }
+      }
+    ],
+    "consistencyChecksPassed": true
+  },
+  "reverse": {
+    "mode": "working-tree",
+    "cpuProfiled": false,
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+    "scenario": "search-projection",
+    "reverse": true,
+    "experimentalStore": "searchProjectionProbe",
+    "results": [
+      {
+        "records": 10000,
+        "mode": "projection",
+        "scenarios": [
+          {
+            "query": {
+              "type": "all",
+              "keyword": "",
+              "sortBy": "title",
+              "sortOrder": "desc",
+              "page": 100
+            },
+            "total": 10000,
+            "largestRead": 256,
+            "medianMs": 34.69999998807907,
+            "samplesMs": [
+              31.900000005960464,
+              33.5,
+              34,
+              34.69999998807907,
+              38.400000005960464,
+              35.70000000298023,
+              49.79999999701977
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "needle",
+              "sortBy": "title",
+              "sortOrder": "asc",
+              "page": 2
+            },
+            "total": 5000,
+            "largestRead": 256,
+            "medianMs": 35.6000000089407,
+            "samplesMs": [
+              30.099999994039536,
+              33.099999994039536,
+              36.400000005960464,
+              34.099999994039536,
+              35.6000000089407,
+              41.099999994039536,
+              63.79999999701977
+            ]
+          },
+          {
+            "query": {
+              "type": "content",
+              "keyword": "absent",
+              "sortBy": "createdAt",
+              "sortOrder": "asc",
+              "page": 1
+            },
+            "total": 0,
+            "largestRead": 256,
+            "medianMs": 41.599999994039536,
+            "samplesMs": [
+              48.5,
+              42.900000005960464,
+              38.900000005960464,
+              40.69999998807907,
+              42,
+              38.400000005960464,
+              41.599999994039536
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "测试",
+              "sortBy": "textContent",
+              "sortOrder": "asc",
+              "page": 2
+            },
+            "total": 5000,
+            "largestRead": 256,
+            "medianMs": 31,
+            "samplesMs": [
+              31.700000002980232,
+              29.799999997019768,
+              29.400000005960464,
+              31,
+              32,
+              39.70000000298023,
+              30.299999997019768
+            ]
+          },
+          {
+            "query": {
+              "type": "website",
+              "keyword": "/article/1",
+              "sortBy": "sourceUrl",
+              "sortOrder": "asc",
+              "page": 1
+            },
+            "total": 1100,
+            "largestRead": 256,
+            "medianMs": 28.5,
+            "samplesMs": [
+              32.70000000298023,
+              26.69999998807907,
+              29.200000002980232,
+              37.29999999701977,
+              26,
+              28.5,
+              26.100000008940697
+            ]
+          },
+          {
+            "query": {
+              "type": "content",
+              "keyword": "NEEDLE",
+              "sortBy": "createdAt",
+              "sortOrder": "desc",
+              "page": 100
+            },
+            "total": 5000,
+            "largestRead": 256,
+            "medianMs": 32.70000000298023,
+            "samplesMs": [
+              30.799999997019768,
+              42.099999994039536,
+              34.20000000298023,
+              34.5,
+              32.70000000298023,
+              32.099999994039536,
+              31.700000002980232
+            ]
+          }
+        ]
+      },
+      {
+        "records": 10000,
+        "mode": "full",
+        "scenarios": [
+          {
+            "query": {
+              "type": "all",
+              "keyword": "",
+              "sortBy": "title",
+              "sortOrder": "desc",
+              "page": 100
+            },
+            "total": 10000,
+            "largestRead": 256,
+            "medianMs": 52.79999999701977,
+            "samplesMs": [
+              49.20000000298023,
+              59.900000005960464,
+              57.8999999910593,
+              60.79999999701977,
+              49.30000001192093,
+              49.5,
+              52.79999999701977
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "needle",
+              "sortBy": "title",
+              "sortOrder": "asc",
+              "page": 2
+            },
+            "total": 5000,
+            "largestRead": 256,
+            "medianMs": 49.79999999701977,
+            "samplesMs": [
+              48.79999999701977,
+              49.79999999701977,
+              56.30000001192093,
+              49.8999999910593,
+              49.6000000089407,
+              49,
+              54.79999999701977
+            ]
+          },
+          {
+            "query": {
+              "type": "content",
+              "keyword": "absent",
+              "sortBy": "createdAt",
+              "sortOrder": "asc",
+              "page": 1
+            },
+            "total": 0,
+            "largestRead": 256,
+            "medianMs": 51.20000000298023,
+            "samplesMs": [
+              50.19999998807907,
+              52.80000001192093,
+              46.8999999910593,
+              53,
+              51.20000000298023,
+              53,
+              49
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "测试",
+              "sortBy": "textContent",
+              "sortOrder": "asc",
+              "page": 2
+            },
+            "total": 5000,
+            "largestRead": 256,
+            "medianMs": 50.900000005960464,
+            "samplesMs": [
+              51.400000005960464,
+              55.099999994039536,
+              49.599999994039536,
+              50.6000000089407,
+              51.5,
+              47.29999999701977,
+              50.900000005960464
+            ]
+          },
+          {
+            "query": {
+              "type": "website",
+              "keyword": "/article/1",
+              "sortBy": "sourceUrl",
+              "sortOrder": "asc",
+              "page": 1
+            },
+            "total": 1100,
+            "largestRead": 256,
+            "medianMs": 49.30000001192093,
+            "samplesMs": [
+              49.20000000298023,
+              46.19999998807907,
+              44,
+              49.30000001192093,
+              51.69999998807907,
+              51.70000000298023,
+              51.400000005960464
+            ]
+          },
+          {
+            "query": {
+              "type": "content",
+              "keyword": "NEEDLE",
+              "sortBy": "createdAt",
+              "sortOrder": "desc",
+              "page": 100
+            },
+            "total": 5000,
+            "largestRead": 256,
+            "medianMs": 54.5,
+            "samplesMs": [
+              55.79999999701977,
+              50.70000000298023,
+              55.19999998807907,
+              52.5,
+              54.5,
+              52.900000005960464,
+              54.5
+            ]
+          }
+        ]
+      },
+      {
+        "records": 10000,
+        "mode": "projection",
+        "bulkPut": {
+          "medianMs": 1857,
+          "samplesMs": [
+            1953.4000000059605,
+            1915.2000000029802,
+            1857,
+            1903.5,
+            1811.8999999910593,
+            1732.7000000029802,
+            1835.0999999940395
+          ]
+        }
+      },
+      {
+        "records": 10000,
+        "mode": "full",
+        "bulkPut": {
+          "medianMs": 1405.5999999940395,
+          "samplesMs": [
+            1305,
+            1293.5,
+            1487.1000000089407,
+            1336,
+            1459.6000000089407,
+            1583.7999999970198,
+            1405.5999999940395
+          ]
+        }
+      },
+      {
+        "records": 100,
+        "mode": "projection",
+        "scenarios": [
+          {
+            "query": {
+              "type": "all",
+              "keyword": "",
+              "sortBy": "title",
+              "sortOrder": "desc",
+              "page": 1
+            },
+            "total": 100,
+            "largestRead": 100,
+            "medianMs": 6,
+            "samplesMs": [
+              5.9000000059604645,
+              6,
+              6.299999997019768,
+              6,
+              6.100000008940697,
+              6.399999991059303,
+              5.9000000059604645
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "needle",
+              "sortBy": "title",
+              "sortOrder": "asc",
+              "page": 2
+            },
+            "total": 50,
+            "largestRead": 100,
+            "medianMs": 6,
+            "samplesMs": [
+              6,
+              6.100000008940697,
+              5.899999991059303,
+              5.799999997019768,
+              6,
+              6,
+              6.100000008940697
+            ]
+          },
+          {
+            "query": {
+              "type": "content",
+              "keyword": "absent",
+              "sortBy": "createdAt",
+              "sortOrder": "asc",
+              "page": 1
+            },
+            "total": 0,
+            "largestRead": 100,
+            "medianMs": 0.30000001192092896,
+            "samplesMs": [
+              5.5,
+              5.200000002980232,
+              0.29999999701976776,
+              0.20000000298023224,
+              0.3999999910593033,
+              0.30000001192092896,
+              0.29999999701976776
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "测试",
+              "sortBy": "textContent",
+              "sortOrder": "asc",
+              "page": 2
+            },
+            "total": 50,
+            "largestRead": 100,
+            "medianMs": 0.5999999940395355,
+            "samplesMs": [
+              0.5999999940395355,
+              0.5,
+              0.5999999940395355,
+              0.4000000059604645,
+              0.5999999940395355,
+              0.6000000089406967,
+              0.5
+            ]
+          },
+          {
+            "query": {
+              "type": "website",
+              "keyword": "/article/1",
+              "sortBy": "sourceUrl",
+              "sortOrder": "asc",
+              "page": 1
+            },
+            "total": 11,
+            "largestRead": 100,
+            "medianMs": 0.3999999910593033,
+            "samplesMs": [
+              0.3999999910593033,
+              0.30000001192092896,
+              0.5,
+              0.3999999910593033,
+              0.29999999701976776,
+              0.4000000059604645,
+              0.5
+            ]
+          },
+          {
+            "query": {
+              "type": "content",
+              "keyword": "NEEDLE",
+              "sortBy": "createdAt",
+              "sortOrder": "desc",
+              "page": 1
+            },
+            "total": 50,
+            "largestRead": 100,
+            "medianMs": 0.5,
+            "samplesMs": [
+              0.5,
+              0.5,
+              0.5,
+              1.5,
+              0.5999999940395355,
+              0.5,
+              0.5
+            ]
+          }
+        ]
+      },
+      {
+        "records": 100,
+        "mode": "full",
+        "scenarios": [
+          {
+            "query": {
+              "type": "all",
+              "keyword": "",
+              "sortBy": "title",
+              "sortOrder": "desc",
+              "page": 1
+            },
+            "total": 100,
+            "largestRead": 100,
+            "medianMs": 0.5999999940395355,
+            "samplesMs": [
+              0.5,
+              0.7000000029802322,
+              0.5999999940395355,
+              0.5,
+              0.6000000089406967,
+              0.7000000029802322,
+              0.5999999940395355
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "needle",
+              "sortBy": "title",
+              "sortOrder": "asc",
+              "page": 2
+            },
+            "total": 50,
+            "largestRead": 100,
+            "medianMs": 0.7000000029802322,
+            "samplesMs": [
+              0.8999999910593033,
+              1,
+              0.800000011920929,
+              0.699999988079071,
+              0.7000000029802322,
+              0.6000000089406967,
+              0.699999988079071
+            ]
+          },
+          {
+            "query": {
+              "type": "content",
+              "keyword": "absent",
+              "sortBy": "createdAt",
+              "sortOrder": "asc",
+              "page": 1
+            },
+            "total": 0,
+            "largestRead": 100,
+            "medianMs": 0.3999999910593033,
+            "samplesMs": [
+              0.29999999701976776,
+              0.4000000059604645,
+              0.5,
+              0.29999999701976776,
+              0.4000000059604645,
+              0.29999999701976776,
+              0.3999999910593033
+            ]
+          },
+          {
+            "query": {
+              "type": "all",
+              "keyword": "测试",
+              "sortBy": "textContent",
+              "sortOrder": "asc",
+              "page": 2
+            },
+            "total": 50,
+            "largestRead": 100,
+            "medianMs": 0.5999999940395355,
+            "samplesMs": [
+              0.5,
+              0.7000000029802322,
+              0.5999999940395355,
+              0.7000000029802322,
+              0.5,
+              0.6000000089406967,
+              0.5999999940395355
+            ]
+          },
+          {
+            "query": {
+              "type": "website",
+              "keyword": "/article/1",
+              "sortBy": "sourceUrl",
+              "sortOrder": "asc",
+              "page": 1
+            },
+            "total": 11,
+            "largestRead": 100,
+            "medianMs": 0.5,
+            "samplesMs": [
+              0.5,
+              0.4000000059604645,
+              0.3999999910593033,
+              0.5,
+              0.4000000059604645,
+              0.5,
+              0.5
+            ]
+          },
+          {
+            "query": {
+              "type": "content",
+              "keyword": "NEEDLE",
+              "sortBy": "createdAt",
+              "sortOrder": "desc",
+              "page": 1
+            },
+            "total": 50,
+            "largestRead": 100,
+            "medianMs": 0.6000000089406967,
+            "samplesMs": [
+              0.5,
+              0.6000000089406967,
+              7.5,
+              0.8999999910593033,
+              0.7000000029802322,
+              0.5999999940395355,
+              0.6000000089406967
+            ]
+          }
+        ]
+      },
+      {
+        "records": 100,
+        "mode": "projection",
+        "bulkPut": {
+          "medianMs": 13.399999991059303,
+          "samplesMs": [
+            11.599999994039536,
+            14.099999994039536,
+            11.399999991059303,
+            14.400000005960464,
+            11.799999997019768,
+            15.900000005960464,
+            13.399999991059303
+          ]
+        }
+      },
+      {
+        "records": 100,
+        "mode": "full",
+        "bulkPut": {
+          "medianMs": 10.099999994039536,
+          "samplesMs": [
+            9.700000002980232,
+            7.200000002980232,
+            8.5,
+            12.599999994039536,
+            10.099999994039536,
+            11,
+            10.200000002980232
+          ]
+        }
+      }
+    ],
+    "consistencyChecksPassed": true
+  },
+  "sources": {
+    "scripts/performance.mjs": {
+      "sha256": "cc2bbd4ad951ccccb2b1198cbef2972fd496ea1ca028f1f6a934e5b269cdf450",
+      "source": "// 真实 Chrome + IndexedDB；临时用户目录，不访问已安装扩展或用户摘录。\nimport { spawn, execFileSync } from 'node:child_process';\nimport { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';\nimport { tmpdir } from 'node:os';\nimport { resolve, join } from 'node:path';\nimport { createServer } from 'vite';\n\nconst baseline = process.argv.includes('--baseline');\nconst writes = process.argv.includes('--writes');\nconst searchProjection = process.argv.includes('--search-projection');\nconst search = process.argv.includes('--search') || searchProjection;\nconst highlightScheduling = process.argv.includes('--highlight-scheduling');\nconst textMapping = process.argv.includes('--text-mapping');\nconst highlights = process.argv.includes('--highlights') || highlightScheduling || textMapping;\nconst cache = process.argv.includes('--cache');\nconst index = process.argv.includes('--index');\nconst normalize = process.argv.includes('--normalize');\nconst urlRead = process.argv.includes('--url-read');\nconst pageCache = process.argv.includes('--page-cache');\nconst writeLayout = process.argv.includes('--write-layout');\nconst keyLayout = process.argv.includes('--key-layout');\nconst allocations = process.argv.includes('--allocations');\nif (process.env.PROFILE && allocations) throw new Error('Run CPU profiling separately from allocation sampling');\nif (allocations && !cache && !index && !normalize && !urlRead && !pageCache && !keyLayout && !highlights) throw new Error('--allocations requires a cache or highlight benchmark');\nif (urlRead && baseline) throw new Error('--url-read compares the current cache path and experimental strategies in one run');\nif (searchProjection && baseline) throw new Error('--search-projection compares the current query path and experimental store in one run');\nconst baselineRef = baseline\n  ? execFileSync('git', ['rev-parse', process.env.BASELINE_REF ?? 'HEAD'], { encoding: 'utf8' }).trim()\n  : undefined;\nconst legacyUrlLookup = baseline && !writes && !search && !highlights && !cache && !index && !normalize && !/async getByUrl\\(/.test(\n  execFileSync('git', ['show', `${baselineRef}:src/background/storage/cache-manager.ts`], { encoding: 'utf8' })\n);\nconst profile = await mkdtemp(join(tmpdir(), 'clipsey-perf-'));\nconst server = await createServer({\n  configFile: false,\n  logLevel: 'silent',\n  resolve: { alias: { '@': resolve('src') } },\n  server: { host: '127.0.0.1', port: 0 },\n  plugins: [{\n    name: 'performance-page',\n    load(id) {\n      if (!baseline) return;\n      const path = id.split('?')[0];\n      const databaseFiles = ['src/background/indexeddb.ts', 'src/background/indexeddb-query.ts', 'src/types/indexeddb.ts', 'src/background/storage/utils/clip-url-record.ts'];\n      const cacheFiles = ['src/background/storage.ts', 'src/background/storage/cache-manager.ts', 'src/background/storage/clip-index.ts', 'src/background/storage/utils/clip-normalizer.ts'];\n      const files = pageCache || writeLayout || keyLayout ? [...cacheFiles, ...databaseFiles] : writes\n        ? ['src/background/storage.ts', 'src/background/storage/sync-manager.ts', 'src/background/storage/utils/clip-normalizer.ts', ...databaseFiles]\n        : normalize ? ['src/background/storage/utils/clip-normalizer.ts']\n        : index ? ['src/background/storage/clip-index.ts']\n        : cache ? [...cacheFiles, ...databaseFiles]\n        : search ? ['src/background/services/search-service.ts', 'src/background/indexeddb-query.ts']\n        : highlights ? ['src/content/highlight/dom-utils.ts', 'src/content/highlight/metadata.ts', 'src/content/highlight/locators/offset-locator.ts', 'src/content/highlight/text-search.ts', 'src/content/highlight-engine.ts']\n        : ['src/background/storage/cache-manager.ts', 'src/background/indexeddb-query.ts', 'src/background/storage/clip-index.ts', 'src/background/storage/utils/clip-normalizer.ts'];\n      if (files.some(file => path === resolve(file))) {\n        return execFileSync('git', ['show', `${baselineRef}:${path.slice(resolve('.').length + 1)}`], { encoding: 'utf8' });\n      }\n      if (legacyUrlLookup && path === resolve('tests/performance/browser.ts')) {\n        return readFile(path, 'utf8').then(source => source.replace(\n          \"const matches = await cache.getByUrl('https://example.com/article/0', loader);\",\n          \"await cache.get(loader); const matches = cache.getByUrl('https://example.com/article/0');\"\n        ));\n      }\n    },\n    configureServer(server) {\n      server.middlewares.use((req, res, next) => {\n        if (req.url?.split('?')[0] !== '/') return next();\n        res.setHeader('Content-Type', 'text/html');\n        res.end(`<!doctype html><script type=\"module\" src=\"/tests/performance/${keyLayout ? 'key-layout' : writeLayout ? 'write-layout' : pageCache ? 'page-cache' : writes ? 'writes' : urlRead ? 'url-read' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : searchProjection ? 'search-projection' : search ? 'search' : textMapping ? 'text-mapping' : highlightScheduling ? 'highlight-scheduling' : highlights ? 'highlights' : 'browser'}.ts\"></script>`);\n      });\n    }\n  }]\n});\nlet chrome;\nlet socket;\ntry {\n  await server.listen();\n  chrome = spawn(process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [\n    '--headless=new', '--no-first-run', '--no-default-browser-check',\n    `--user-data-dir=${profile}`, '--remote-debugging-port=0', 'about:blank'\n  ], { stdio: 'ignore' });\n  let launchError;\n  chrome.on('error', error => { launchError = error; });\n  const deadline = Date.now() + 120000;\n  let port;\n  while (!port) {\n    if (launchError) throw launchError;\n    if (Date.now() > deadline) throw new Error('Chrome startup timed out');\n    try { port = (await readFile(join(profile, 'DevToolsActivePort'), 'utf8')).split('\\n')[0]; }\n    catch { await new Promise(resolve => setTimeout(resolve, 100)); }\n  }\n  const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();\n  socket = new WebSocket(targets.find(target => target.type === 'page').webSocketDebuggerUrl);\n  await new Promise((resolve, reject) => {\n    socket.addEventListener('open', resolve, { once: true });\n    socket.addEventListener('error', reject, { once: true });\n  });\n  let id = 0;\n  const pending = new Map();\n  socket.addEventListener('message', event => {\n    const message = JSON.parse(event.data);\n    if (message.method === 'Runtime.exceptionThrown') console.error(JSON.stringify(message.params));\n    const callback = pending.get(message.id);\n    if (callback) {\n      pending.delete(message.id);\n      message.error ? callback.reject(new Error(JSON.stringify(message.error))) : callback.resolve(message.result);\n    }\n  });\n  const send = (method, params = {}) => new Promise((resolve, reject) => {\n    const requestId = ++id;\n    const timeout = setTimeout(() => {\n      pending.delete(requestId);\n      reject(new Error(`${method} timed out`));\n    }, 10000);\n    pending.set(requestId, {\n      resolve: value => { clearTimeout(timeout); resolve(value); },\n      reject: error => { clearTimeout(timeout); reject(error); }\n    });\n    socket.send(JSON.stringify({ id: requestId, method, params }));\n  });\n  await send('Runtime.enable');\n  if (process.env.PROFILE) {\n    await send('Profiler.enable');\n    await send('Profiler.start');\n  }\n  const query = new URLSearchParams();\n  if (allocations && highlights) query.set('allocations', '1');\n  if (highlightScheduling && process.argv.includes('--timer-yield')) query.set('timer-yield', '1');\n  if ((urlRead || pageCache || writeLayout || keyLayout || highlights || searchProjection) && process.argv.includes('--reverse')) query.set('reverse', '1');\n  if (pageCache && process.argv.includes('--legacy-v4')) query.set('legacy-v4', '1');\n  await send('Page.navigate', { url: server.resolvedUrls.local[0] + (query.size ? `?${query}` : '') });\n  let result;\n  while (!result) {\n    if (Date.now() > deadline) throw new Error('Performance run timed out');\n    await new Promise(resolve => setTimeout(resolve, 100));\n    const response = await send('Runtime.evaluate', { expression: 'window.__performanceResult', returnByValue: true });\n    result = response.result.value;\n  }\n  if (result.error) throw new Error(result.error);\n  if (process.env.PROFILE) {\n    const { profile: cpuProfile } = await send('Profiler.stop');\n    await writeFile(process.env.PROFILE, JSON.stringify(cpuProfile));\n  }\n  if (allocations) {\n    const caseList = highlights ? '__highlightAllocationCases' : '__cacheAllocationCases';\n    const describe = await send('Runtime.evaluate', {\n      expression: `window.${caseList}.map(({ records, paragraphs, hiddenParagraphs, emptyContainers, name }) => ({ records, paragraphs, hiddenParagraphs, emptyContainers, name }))`, returnByValue: true\n    });\n    const cases = describe.result.value;\n    if (!Array.isArray(cases)) throw new Error('Missing allocation cases');\n    const evaluate = async expression => {\n      const reply = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });\n      if (reply.exceptionDetails) throw new Error(JSON.stringify(reply.exceptionDetails));\n    };\n    const size = node => node.selfSize + node.children.reduce((sum, child) => sum + size(child), 0);\n    result.allocationSamples = [];\n    for (const [index, scenario] of cases.entries()) {\n      const samplesBytes = [];\n      const allocationSites = new Map();\n      for (let i = 0; i < 7; i++) {\n        await evaluate(`window.${caseList}[${index}].prepare()`);\n        await send('HeapProfiler.collectGarbage');\n        await send('HeapProfiler.startSampling', {\n          samplingInterval: 16384, includeObjectsCollectedByMajorGC: true, includeObjectsCollectedByMinorGC: true\n        });\n        await evaluate(`window.${caseList}[${index}].operation()`);\n        const { profile } = await send('HeapProfiler.stopSampling');\n        function collectSites(node) {\n          const frame = node.callFrame;\n          const key = JSON.stringify([frame.functionName, frame.url, frame.lineNumber, frame.columnNumber]);\n          if (node.selfSize) {\n            const site = allocationSites.get(key) ?? { ...frame, samplesBytes: Array(7).fill(0) };\n            site.samplesBytes[i] += node.selfSize;\n            allocationSites.set(key, site);\n          }\n          node.children.forEach(collectSites);\n        }\n        collectSites(profile.head);\n        await evaluate(`window.${caseList}[${index}].verify?.()`);\n        samplesBytes.push(size(profile.head));\n      }\n      const sites = [...allocationSites.values()].map(site => ({ ...site, medianBytes: site.samplesBytes.toSorted((a, b) => a - b)[3] }))\n        .sort((a, b) => b.medianBytes - a.medianBytes);\n      if (samplesBytes.some((bytes, index) => sites.reduce((sum, site) => sum + site.samplesBytes[index], 0) !== bytes)) throw new Error('Allocation site totals do not match sampled bytes');\n      result.allocationSamples.push({ ...scenario, medianBytes: samplesBytes.toSorted((a, b) => a - b)[3], samplesBytes, sites });\n    }\n  }\n  await send('Runtime.evaluate', { expression: 'window.__performanceCleanup?.()' });\n  console.log(JSON.stringify({ mode: baseline ? 'baseline' : 'working-tree', baselineRef: baseline ? baselineRef : undefined, cpuProfiled: Boolean(process.env.PROFILE), ...result }, null, 2));\n} finally {\n  socket?.close();\n  if (chrome?.pid && chrome.exitCode === null) {\n    const exited = new Promise(resolve => chrome.once('exit', resolve));\n    chrome.kill();\n    await exited;\n  }\n  await server.close();\n  await rm(profile, { recursive: true, force: true });\n}\n"
+    },
+    "tests/performance/search-projection.ts": {
+      "sha256": "6519d44c495d07d089d884602e6523d75ff762b643124cca8f49824b9df3bdab",
+      "source": "import { IndexedDB, indexedDBManager } from '../../src/background/indexeddb';\nimport { IndexedDBQuery } from '../../src/background/indexeddb-query';\nimport { searchService, type SearchQuery } from '../../src/background/services/search-service';\nimport { STORE_CONFIGS, type TransactionMode } from '../../src/types/indexeddb';\nimport type { Clip } from '../../src/types/clip';\n\nfunction assert(condition: unknown, message: string): asserts condition {\n  if (!condition) throw new Error(message);\n}\nconst median = (values: number[]) => values.toSorted((a, b) => a - b)[3];\nconst projectionStore = 'searchProjectionProbe';\nconst project = (clip: Clip) => ({ id: clip.id, title: clip.title, textContent: clip.textContent, sourceUrl: clip.sourceUrl, createdAt: clip.createdAt });\nconst getAll = IDBObjectStore.prototype.getAll;\nconst put = IDBObjectStore.prototype.put;\nconst remove = IDBObjectStore.prototype.delete;\nconst clear = IDBObjectStore.prototype.clear;\nconst execute = IndexedDB.prototype.executeTransaction;\nlet projection = false;\nlet largestRead = 0;\n\ntry {\n  // 仅为隔离夹具加 store；生产配置文件和迁移代码不变。\n  STORE_CONFIGS.push({ name: projectionStore, keyPath: 'id', indexes: [] });\n  IndexedDB.prototype.executeTransaction = (function(this: IndexedDB, names: string | string[], mode: TransactionMode, operation: (tx: IDBTransaction) => Promise<unknown>) {\n    const stores = typeof names === 'string' ? [names] : names;\n    return execute.call(this, projection && stores.includes('clips') ? [...new Set([...stores, projectionStore])] : stores, mode, operation);\n  }) as typeof execute;\n  IDBObjectStore.prototype.getAll = function(...args) {\n    const source = projection && this.name === 'clips' ? this.transaction.objectStore(projectionStore) : this;\n    const request = getAll.apply(source, args);\n    request.addEventListener('success', () => { largestRead = Math.max(largestRead, request.result.length); });\n    return request;\n  };\n  IDBObjectStore.prototype.put = function(value, key?) {\n    const request = put.call(this, value, key);\n    if (projection && this.name === 'clips') put.call(this.transaction.objectStore(projectionStore), project(value));\n    return request;\n  };\n  IDBObjectStore.prototype.delete = function(key) {\n    const request = remove.call(this, key);\n    if (projection && this.name === 'clips') remove.call(this.transaction.objectStore(projectionStore), key);\n    return request;\n  };\n  IDBObjectStore.prototype.clear = function() {\n    const request = clear.call(this);\n    if (projection && this.name === 'clips') clear.call(this.transaction.objectStore(projectionStore));\n    return request;\n  };\n  const reverse = new URLSearchParams(location.search).has('reverse');\n  const results = [];\n  async function reset() {\n    await indexedDBManager.executeTransaction(['clips', projectionStore], 'readwrite', async tx => {\n      clear.call(tx.objectStore('clips')); clear.call(tx.objectStore(projectionStore));\n    });\n  }\n  async function verifyProjection() {\n    await indexedDBManager.executeTransaction(['clips', projectionStore], 'readonly', async tx => {\n      const read = (store: string) => new Promise<Clip[]>((resolve, reject) => {\n        const request = getAll.call(tx.objectStore(store));\n        request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);\n      });\n      const [full, projected] = await Promise.all([read('clips'), read(projectionStore)]);\n      assert(JSON.stringify(full.map(project)) === JSON.stringify(projected), 'Projection differs from stored fields');\n    });\n  }\n  for (const records of reverse ? [10000, 100] : [100, 10000]) {\n    const clips: Clip[] = Array.from({ length: records }, (_, i) => ({\n      id: String(i).padStart(5, '0'), title: i % 7 ? `Title ${i % 100}` : undefined,\n      textContent: `${i % 2 ? '测试 Needle' : 'plain'} ${'Performance fixture '.repeat(32)}`,\n      htmlContent: `<p>${'Rich content '.repeat(64)}</p>`,\n      sourceUrl: `https://example.com/article/${i % 100}`,\n      createdAt: new Date(Date.UTC(2025, 0, 1) + Math.floor(i / 5) * 1000).toISOString()\n    }));\n    const queries: SearchQuery[] = [\n      { type: 'content', keyword: 'NEEDLE', sortBy: 'createdAt', sortOrder: 'desc', page: Math.max(1, records / 100) },\n      { type: 'website', keyword: '/article/1', sortBy: 'sourceUrl', sortOrder: 'asc', page: 1 },\n      { type: 'all', keyword: '测试', sortBy: 'textContent', sortOrder: 'asc', page: 2 },\n      { type: 'content', keyword: 'absent', sortBy: 'createdAt', sortOrder: 'asc', page: 1 },\n      { type: 'all', keyword: 'needle', sortBy: 'title', sortOrder: 'asc', page: 2 },\n      { type: 'all', keyword: '', sortBy: 'title', sortOrder: 'desc', page: Math.max(1, records / 100) }\n    ];\n    projection = true;\n    await reset(); await IndexedDBQuery.bulkPut('clips', clips, { batchSize: 1000 }); await verifyProjection();\n    for (const mode of reverse ? ['projection', 'full'] : ['full', 'projection']) {\n      projection = mode === 'projection';\n      const scenarios = [];\n      for (const query of reverse ? [...queries].reverse() : queries) {\n        const fields: (keyof Clip)[] = query.type === 'content' ? ['textContent'] : query.type === 'website' ? ['sourceUrl'] : ['title', 'sourceUrl', 'textContent'];\n        const expected = clips.filter(clip => fields.some(field => String(clip[field] ?? '').toLowerCase().includes(query.keyword!.toLowerCase())));\n        const direction = query.sortOrder === 'asc' ? 1 : -1; const sortBy = query.sortBy!;\n        expected.sort((a, b) => direction * (sortBy === 'title'\n          ? (a.title ?? '').localeCompare(b.title ?? '') || a.id.localeCompare(b.id)\n          : indexedDB.cmp(a[sortBy]!, b[sortBy]!) || indexedDB.cmp(a.id, b.id)));\n        const page = expected.slice((query.page! - 1) * 20, query.page! * 20);\n        const run = async () => {\n          const result = await searchService.search(query);\n          assert(result.total === expected.length, 'Wrong count');\n          assert(JSON.stringify(result.items) === JSON.stringify(page), 'Wrong order, fields or HTML hydration');\n        };\n        largestRead = 0; await run(); const samplesMs = [];\n        for (let i = 0; i < 7; i++) { const start = performance.now(); await run(); samplesMs.push(performance.now() - start); }\n        assert(largestRead <= 256, 'Unbounded scan');\n        scenarios.push({ query, total: expected.length, largestRead, medianMs: median(samplesMs), samplesMs });\n      }\n      results.push({ records, mode, scenarios });\n    }\n    for (const mode of reverse ? ['projection', 'full'] : ['full', 'projection']) {\n      projection = mode === 'projection'; const samplesMs = [];\n      for (let i = -1; i < 7; i++) {\n        await reset(); const start = performance.now(); await IndexedDBQuery.bulkPut('clips', clips, { batchSize: 1000 });\n        if (i >= 0) samplesMs.push(performance.now() - start);\n        if (projection) await verifyProjection();\n      }\n      results.push({ records, mode, bulkPut: { medianMs: median(samplesMs), samplesMs } });\n    }\n    projection = true;\n    await reset(); await IndexedDBQuery.bulkPut('clips', clips, { batchSize: 1000 });\n    await indexedDBManager.put('clips', { ...clips[0]!, title: 'Updated', textContent: 'unique update' });\n    await verifyProjection();\n    const update = await searchService.search({ type: 'content', keyword: 'unique update', sortBy: 'title' });\n    assert(update.total === 1 && update.items[0]?.id === clips[0]!.id && update.items[0]?.htmlContent === clips[0]!.htmlContent, 'Upsert/hydration failed');\n    await indexedDBManager.delete('clips', clips[0]!.id); await verifyProjection();\n    assert((await searchService.search({ keyword: 'unique update', sortBy: 'title' })).total === 0, 'Stale deletion');\n    await indexedDBManager.clear('clips'); await verifyProjection();\n  }\n  (window as any).__performanceResult = { userAgent: navigator.userAgent, scenario: 'search-projection', reverse, experimentalStore: projectionStore, results, consistencyChecksPassed: true };\n} catch (error) {\n  (window as any).__performanceResult = { error: String(error) };\n} finally {\n  IDBObjectStore.prototype.getAll = getAll; IDBObjectStore.prototype.put = put;\n  IDBObjectStore.prototype.delete = remove; IDBObjectStore.prototype.clear = clear;\n  IndexedDB.prototype.executeTransaction = execute; indexedDBManager.close();\n  const index = STORE_CONFIGS.findIndex(store => store.name === projectionStore);\n  if (index >= 0) STORE_CONFIGS.splice(index, 1);\n}\n"
+    },
+    "src/background/indexeddb-query.ts": {
+      "sha256": "23379cd1061e6e28ab225a4b0502d62cb5e8ec70f0665a4c9e4488d96d870a55",
+      "source": "import { IndexedDB, indexedDBManager } from './indexeddb';\nimport {\n  IndexedDBError,\n  type DBSchema,\n  type QueryOptions,\n  type BulkOperationOptions,\n  type TransactionMode\n} from '@/types/indexeddb';\n\n// IndexedDB 查询与批量操作封装\nexport class IndexedDBQuery {\n  static async getAll<K extends keyof DBSchema>(\n    storeName: K,\n    options: QueryOptions = {}\n  ): Promise<DBSchema[K]['value'][]> {\n    const { limit, offset = 0, indexName, query } = options;\n    let direction: IDBCursorDirection = 'next';\n    \n    // 转换direction参数\n    if (options.direction === 'desc' || options.direction === 'prev') {\n      direction = 'prev';\n    } else if (options.direction === 'asc' || options.direction === 'next') {\n      direction = 'next';\n    } else if (options.direction) {\n      direction = options.direction as IDBCursorDirection;\n    }\n\n    return indexedDBManager.executeTransaction(\n      storeName as string,\n      'readonly',\n      async (transaction) => {\n        const store = transaction.objectStore(storeName as string);\n        const source = indexName ? store.index(indexName) : store;\n\n        // 无分页、非 unique 查询可以一次读取，避免每条记录一次游标回调。\n        if (!limit && !(offset > 0) && (direction === 'next' || direction === 'prev')) {\n          return new Promise<DBSchema[K]['value'][]>((resolve, reject) => {\n            const request = source.getAll(query);\n            request.onsuccess = () => {\n              const rows = request.result.map(value => IndexedDB.readRecord(store, value));\n              resolve(direction === 'prev' ? rows.reverse() : rows);\n            };\n            request.onerror = () => reject(new IndexedDBError(\n              'Failed to query records', 'QUERY_ERROR', request.error || undefined\n            ));\n          });\n        }\n\n        return new Promise<DBSchema[K]['value'][]>((resolve, reject) => {\n          const results: DBSchema[K]['value'][] = [];\n          let count = 0;\n          let skipped = 0;\n\n          const request = source.openCursor(query, direction);\n\n          request.onsuccess = () => {\n            const cursor = request.result;\n\n            if (!cursor) {\n              resolve(results);\n              return;\n            }\n\n            // 跳过 offset 指定数量的记录\n            if (skipped < offset) {\n              if (Number.isSafeInteger(offset) && offset <= 0xffffffff) {\n                skipped = offset;\n                cursor.advance(offset);\n              } else {\n                skipped++;\n                cursor.continue();\n              }\n              return;\n            }\n\n            // 到达 limit 限制时结束\n            if (limit && count >= limit) {\n              resolve(results);\n              return;\n            }\n\n            results.push(IndexedDB.readRecord(store, cursor.value));\n            count++;\n            cursor.continue();\n          };\n\n          request.onerror = () => {\n            reject(new IndexedDBError(\n              'Failed to query records',\n              'QUERY_ERROR',\n              request.error || undefined\n            ));\n          };\n        });\n      }\n    );\n  }\n\n  static async getByIndex<K extends keyof DBSchema>(\n    storeName: K,\n    indexName: string,\n    value: IDBValidKey | IDBKeyRange,\n    options: QueryOptions = {}\n  ): Promise<DBSchema[K]['value'][]> {\n    return this.getAll(storeName, {\n      ...options,\n      indexName,\n      query: value\n    });\n  }\n\n  static async paginate<K extends keyof DBSchema>(\n    storeName: K,\n    page: number,\n    pageSize: number,\n    options: Omit<QueryOptions, 'limit' | 'offset'> = {}\n  ): Promise<{\n    data: DBSchema[K]['value'][];\n    total: number;\n    page: number;\n    pageSize: number;\n    totalPages: number;\n  }> {\n    const offset = (page - 1) * pageSize;\n    \n    const total = await this.count(storeName, options.indexName, options.query);\n    \n    const data = await this.getAll(storeName, {\n      ...options,\n      limit: pageSize,\n      offset\n    });\n\n    return {\n      data,\n      total,\n      page,\n      pageSize,\n      totalPages: Math.ceil(total / pageSize)\n    };\n  }\n\n  static async count<K extends keyof DBSchema>(\n    storeName: K,\n    indexName?: string,\n    query?: IDBValidKey | IDBKeyRange\n  ): Promise<number> {\n    return indexedDBManager.executeTransaction(storeName as string, 'readonly', async (transaction) => {\n      const store = transaction.objectStore(storeName as string);\n      if (indexName) {\n        const index = store.index(indexName);\n        return await new Promise<number>((resolve, reject) => {\n          const req = index.count(query);\n          req.onsuccess = () => resolve(req.result);\n          req.onerror = () => reject(req.error ?? new Error('Index count failed'));\n        });\n      }\n      return await new Promise<number>((resolve, reject) => {\n        const req = store.count(query);\n        req.onsuccess = () => resolve(req.result);\n        req.onerror = () => reject(req.error ?? new Error('Store count failed'));\n      });\n    });\n  }\n\n  static async keysetPaginate<K extends keyof DBSchema>(\n    storeName: K,\n    pageSize: number,\n    options: {\n      indexName?: string;\n      direction?: 'next' | 'prev';\n      pageToken?: IDBValidKey;\n    } = {}\n  ): Promise<{ items: DBSchema[K]['value'][]; nextPageToken?: IDBValidKey; hasNext: boolean }> {\n    const indexName = options.indexName ?? 'createdAt_id';\n    const direction: IDBCursorDirection = options.direction === 'next' ? 'next' : 'prev';\n\n    return indexedDBManager.executeTransaction(storeName as string, 'readonly', async (transaction) => {\n      const store = transaction.objectStore(storeName as string);\n      const index = store.index(indexName);\n\n      let range: IDBKeyRange | undefined;\n      if (options.pageToken !== undefined) {\n        if (direction === 'prev') {\n          range = IDBKeyRange.upperBound(options.pageToken, true);\n        } else {\n          range = IDBKeyRange.lowerBound(options.pageToken, true);\n        }\n      }\n\n      return await new Promise<{ items: DBSchema[K]['value'][]; nextPageToken?: IDBValidKey; hasNext: boolean }>((resolve, reject) => {\n        const items: DBSchema[K]['value'][] = [];\n        let lastKey: IDBValidKey | undefined;\n        let collected = 0;\n        let hasNext = false;\n\n        const req = index.openCursor(range, direction);\n        req.onsuccess = () => {\n          const cursor = req.result as IDBCursorWithValue | null;\n          if (!cursor) {\n            resolve({ items, nextPageToken: lastKey, hasNext });\n            return;\n          }\n          if (collected < pageSize) {\n            items.push(IndexedDB.readRecord(store, cursor.value) as DBSchema[K]['value']);\n            lastKey = cursor.key as IDBValidKey;\n            collected += 1;\n            cursor.continue();\n            return;\n          }\n          // 已收集满，探测是否存在下一项\n          hasNext = true;\n          resolve({ items, nextPageToken: lastKey, hasNext });\n        };\n        req.onerror = () => reject(req.error ?? new Error('Keyset paginate failed'));\n      });\n    });\n  }\n\n  static async bulkAdd<K extends keyof DBSchema>(\n    storeName: K,\n    records: DBSchema[K]['value'][],\n    options: BulkOperationOptions = {}\n  ): Promise<DBSchema[K]['key'][]> {\n    return this.writeBatches(storeName, records, 'add', options);\n  }\n\n  static async bulkPut<K extends keyof DBSchema>(\n    storeName: K,\n    records: DBSchema[K]['value'][],\n    options: BulkOperationOptions = {}\n  ): Promise<DBSchema[K]['key'][]> {\n    return this.writeBatches(storeName, records, 'put', options);\n  }\n\n  private static async writeBatches<K extends keyof DBSchema>(\n    storeName: K,\n    records: DBSchema[K]['value'][],\n    operation: 'add' | 'put',\n    { batchSize = 100 }: BulkOperationOptions\n  ): Promise<DBSchema[K]['key'][]> {\n    if (!Number.isSafeInteger(batchSize) || batchSize < 1) {\n      throw new Error('batchSize must be a positive integer');\n    }\n    const results: DBSchema[K]['key'][] = [];\n    // 每批独立提交；失败必须抛出，不能将部分写入报告为成功。\n    for (let i = 0; i < records.length; i += batchSize) {\n      const batch = records.slice(i, i + batchSize);\n      const keys = await indexedDBManager.executeTransaction(storeName, 'readwrite', transaction => {\n        const store = transaction.objectStore(storeName);\n        return Promise.all(batch.map(record => new Promise<DBSchema[K]['key']>((resolve, reject) => {\n          const request = IndexedDB.writeRecord(store, operation, record);\n          request.onsuccess = () => resolve(request.result as DBSchema[K]['key']);\n          request.onerror = () => reject(request.error ?? new Error(`Failed to ${operation} record`));\n        })));\n      });\n      results.push(...keys);\n    }\n    return results;\n  }\n\n  static async bulkDelete<K extends keyof DBSchema>(\n    storeName: K,\n    keys: DBSchema[K]['key'][],\n    { batchSize = 100 }: BulkOperationOptions = {}\n  ): Promise<void> {\n    if (!Number.isSafeInteger(batchSize) || batchSize < 1) {\n      throw new Error('batchSize must be a positive integer');\n    }\n    for (let i = 0; i < keys.length; i += batchSize) {\n      const batch = keys.slice(i, i + batchSize);\n      await indexedDBManager.executeTransaction(storeName, 'readwrite', async transaction => {\n        const store = transaction.objectStore(storeName);\n        await Promise.all(batch.map(key => new Promise<void>((resolve, reject) => {\n          const request = store.delete(key);\n          request.onsuccess = () => resolve();\n          request.onerror = () => reject(request.error ?? new Error('Failed to delete record'));\n        })));\n      });\n    }\n  }\n\n  static async getRange<K extends keyof DBSchema>(\n    storeName: K,\n    range: IDBKeyRange,\n    options: QueryOptions = {}\n  ): Promise<DBSchema[K]['value'][]> {\n    return this.getAll(storeName, {\n      ...options,\n      query: range\n    });\n  }\n\n  static createRange(\n    lower?: IDBValidKey,\n    upper?: IDBValidKey,\n    lowerOpen = false,\n    upperOpen = false\n  ): IDBKeyRange {\n    if (lower !== undefined && upper !== undefined) {\n      return IDBKeyRange.bound(lower, upper, lowerOpen, upperOpen);\n    } else if (lower !== undefined) {\n      return IDBKeyRange.lowerBound(lower, lowerOpen);\n    } else if (upper !== undefined) {\n      return IDBKeyRange.upperBound(upper, upperOpen);\n    } else {\n      throw new Error('At least one bound must be specified');\n    }\n  }\n\n  static async search<K extends keyof DBSchema>(\n    storeName: K,\n    searchTerm: string,\n    searchFields: (keyof DBSchema[K]['value'])[],\n    options: QueryOptions = {}\n  ): Promise<DBSchema[K]['value'][]> {\n    const allRecords = await this.getAll(storeName, options);\n    const searchTermLower = searchTerm.toLowerCase();\n\n    return allRecords.filter(record => {\n      return searchFields.some(field => {\n        const value = record[field];\n        if (typeof value === 'string') {\n          return value.toLowerCase().includes(searchTermLower);\n        }\n        return false;\n      });\n    });\n  }\n\n  static async getDistinct<K extends keyof DBSchema>(\n    storeName: K,\n    field: keyof DBSchema[K]['value'],\n    options: QueryOptions = {}\n  ): Promise<unknown[]> {\n    const allRecords = await this.getAll(storeName, options);\n    const uniqueValues = new Set<unknown>();\n\n    allRecords.forEach(record => {\n      const value = record[field];\n      if (value !== undefined && value !== null) {\n        uniqueValues.add(value);\n      }\n    });\n\n    return Array.from(uniqueValues);\n  }\n\n  /**\n   * 关键字分页检索：常用排序分批匹配；范围和 unique 查询保留游标路径。\n   * - fields：参与匹配的字段集合（字符串字段）\n   * - keyword：大小写不敏感匹配\n   * - page/pageSize：分页参数\n   * - options：支持 indexName 与 direction，用于选择遍历顺序\n   */\n  static async filterByKeywordPaged<K extends keyof DBSchema>(\n    storeName: K,\n    keyword: string,\n    fields: (keyof DBSchema[K]['value'])[],\n    page: number,\n    pageSize: number,\n    options: QueryOptions = {}\n  ): Promise<{ items: DBSchema[K]['value'][]; total: number; page: number; pageSize: number }> {\n    const lower = (keyword ?? '').toLowerCase();\n    const offset = Math.max(0, (page - 1) * pageSize);\n    const limit = Math.max(1, pageSize);\n\n    return indexedDBManager.executeTransaction(storeName as string, 'readonly', async (transaction) => {\n      const store = transaction.objectStore(storeName as string);\n      const source = options.indexName ? store.index(options.indexName) : store;\n      let direction: IDBCursorDirection = 'next';\n      if (options.direction === 'desc' || options.direction === 'prev') {\n        direction = 'prev';\n      } else if (options.direction === 'asc' || options.direction === 'next') {\n        direction = 'next';\n      } else if (options.direction) {\n        direction = options.direction as IDBCursorDirection;\n      }\n\n      if (storeName === 'clips' && options.query === undefined &&\n          (direction === 'next' || direction === 'prev') &&\n          Number.isSafeInteger(offset) && Number.isSafeInteger(limit) &&\n          (options.orderBy === 'title' || ['createdAt', 'sourceUrl', 'textContent'].includes(options.indexName ?? ''))) {\n        const read = <T>(request: IDBRequest<T>) => new Promise<T>((resolve, reject) => {\n          request.onsuccess = () => resolve(request.result);\n          request.onerror = () => reject(new IndexedDBError('Failed to query with keyword', 'QUERY_ERROR', request.error || undefined));\n        });\n        const localeSort = options.orderBy === 'title';\n        const sortField = localeSort ? 'title' : options.indexName as 'createdAt' | 'sourceUrl' | 'textContent';\n        const matches: { id: string; key: string }[] = [];\n        const compareString = localeSort\n          ? (a: string, b: string) => a.localeCompare(b)\n          : (a: string, b: string) => a === b ? 0 : a < b ? -1 : 1;\n        const order = direction === 'next' ? 1 : -1;\n        // 本地化比较相等时沿用原始主键顺序，保持旧排序的稳定性。\n        const compare = (a: typeof matches[number], b: typeof matches[number]) =>\n          order * (compareString(a.key, b.key) || compareString(a.id, b.id)) || (a.id === b.id ? 0 : a.id < b.id ? -1 : 1);\n        const windowSize = offset + limit;\n        let total = 0;\n        let range: IDBKeyRange | undefined;\n        while (true) {\n          const batch = await read(store.getAll(range, 256)) as DBSchema['clips']['value'][];\n          for (const record of batch) {\n            const key = localeSort ? record.title ?? '' : record[sortField];\n            if (typeof key === 'string' && ((localeSort && !lower) || fields.some(field => {\n              const value = record[field as keyof typeof record];\n              return typeof value === 'string' && value.toLowerCase().includes(lower);\n            }))) {\n              total += 1;\n              const candidate = { id: record.id, key };\n              // 最大堆只保留截至本页的主键，深页也无需逐次搬移排序数组。\n              if (matches.length < windowSize) {\n                let position = matches.length;\n                matches.push(candidate);\n                while (position > 0) {\n                  const parent = (position - 1) >>> 1;\n                  if (compare(matches[parent]!, candidate) >= 0) break;\n                  matches[position] = matches[parent]!;\n                  position = parent;\n                }\n                matches[position] = candidate;\n              } else if (compare(candidate, matches[0]!) < 0) {\n                let position = 0;\n                while (position * 2 + 1 < matches.length) {\n                  let child = position * 2 + 1;\n                  if (child + 1 < matches.length && compare(matches[child + 1]!, matches[child]!) > 0) child += 1;\n                  if (compare(matches[child]!, candidate) <= 0) break;\n                  matches[position] = matches[child]!;\n                  position = child;\n                }\n                matches[position] = candidate;\n              }\n            }\n          }\n          if (batch.length < 256) break;\n          range = IDBKeyRange.lowerBound(batch[batch.length - 1]!.id, true);\n        }\n        // 保留截至本页的排序主键；单批内容及本页以外的 HTML 可回收。\n        matches.sort(compare);\n        const items = (await Promise.all(matches.slice(offset, offset + limit).map(({ id }) => read(store.get(id)))))\n          .map(value => IndexedDB.readRecord(store, value)) as DBSchema[K]['value'][];\n        return { items, total, page, pageSize };\n      }\n\n      return new Promise<{ items: DBSchema[K]['value'][]; total: number; page: number; pageSize: number }>((resolve, reject) => {\n        const items: DBSchema[K]['value'][] = [];\n        let total = 0;\n        let skipped = 0;\n\n        const request = source.openCursor(options.query, direction);\n\n        request.onsuccess = () => {\n          const cursor = request.result as IDBCursorWithValue | null;\n          if (!cursor) {\n            resolve({ items, total, page, pageSize });\n            return;\n          }\n\n          const record = IndexedDB.readRecord(store, cursor.value) as DBSchema[K]['value'];\n          let matched = false;\n          for (const field of fields) {\n            const v = (record as any)[field];\n            if (typeof v === 'string' && v.toLowerCase().includes(lower)) {\n              matched = true;\n              break;\n            }\n          }\n\n          if (matched) {\n            total += 1;\n            if (skipped < offset) {\n              skipped += 1;\n            } else if (items.length < limit) {\n              items.push(record);\n            }\n            // 当已收集满本页数据后仍需继续迭代以计算 total\n          }\n\n          cursor.continue();\n        };\n\n        request.onerror = () => {\n          reject(new IndexedDBError('Failed to query with keyword', 'QUERY_ERROR', request.error || undefined));\n        };\n      });\n    });\n  }\n}\n"
+    },
+    "src/background/indexeddb.ts": {
+      "sha256": "4248b19a2f00b8cb920bd98a99b13a2adad689a5f3f5c717b2451a5379f2feb9",
+      "source": "import {\n  DB_CONFIG,\n  CLIP_URL_KEY,\n  STORE_CONFIGS,\n  IndexedDBError,\n  type DBSchema,\n  type QueryOptions,\n  type BulkOperationOptions,\n  type TransactionMode,\n  type StoreConfig\n} from '@/types/indexeddb';\nimport type { Clip } from '@/types/clip';\nimport { withClipUrlKey } from './storage/utils/clip-url-record';\nimport { createIndexKeys } from './storage/utils/url-normalizer';\n\n// IndexedDB 操作层：连接、升级、事务与基础 CRUD 封装\nexport class IndexedDB {\n  private db: IDBDatabase | null = null;\n  private dbPromise: Promise<IDBDatabase> | null = null;\n\n  private constructor() {}\n\n  static async create(dbName: string, version: number): Promise<IndexedDB> {\n    const instance = new IndexedDB();\n    await instance.init();\n    return instance;\n  }\n\n  isInitialized(): boolean {\n    return this.db !== null;\n  }\n\n  async init(): Promise<void> {\n    await this.getDB();\n  }\n\n  // 打开数据库并处理版本升级\n  private openDatabase(): Promise<IDBDatabase> {\n    return new Promise((resolve, reject) => {\n      const request = indexedDB.open(DB_CONFIG.name, DB_CONFIG.version);\n\n      request.onerror = () => {\n        reject(new IndexedDBError('Failed to open database', 'DB_OPEN_ERROR', request.error || undefined));\n      };\n\n      request.onsuccess = () => {\n        this.db = request.result;\n        this.setupErrorHandlers();\n        resolve(request.result);\n      };\n\n      request.onupgradeneeded = (event) => {\n        const db = (event.target as IDBOpenDBRequest).result;\n        const tx = (event.target as IDBOpenDBRequest).transaction!;\n        try {\n          this.upgradeDatabase(db, event.oldVersion, event.newVersion || DB_CONFIG.version, tx);\n        } catch {\n          tx.abort();\n        }\n      };\n    });\n  }\n\n  // 升级保留公开数据和未知 store，仅退役已确认属于旧版本的派生数据。\n  private upgradeDatabase(db: IDBDatabase, oldVersion: number, newVersion: number, tx: IDBTransaction): void {\n    console.log(`Upgrading database from version ${oldVersion} to ${newVersion}`);\n\n    if (oldVersion > 0 && oldVersion < 5 && db.objectStoreNames.contains('clips') && tx.objectStore('clips').indexNames.contains('urlKey')) {\n      throw new Error('URL index name already exists');\n    }\n\n    STORE_CONFIGS.forEach(storeConfig => {\n      const hasStore = db.objectStoreNames.contains(storeConfig.name);\n      let store: IDBObjectStore;\n      if (!hasStore) {\n        store = db.createObjectStore(storeConfig.name, {\n          keyPath: storeConfig.keyPath,\n          autoIncrement: storeConfig.autoIncrement\n        });\n      } else {\n        store = tx.objectStore(storeConfig.name);\n      }\n\n      const existingIndexes = new Set<string>(Array.from(store.indexNames));\n      for (const indexConfig of storeConfig.indexes) {\n        if (!existingIndexes.has(indexConfig.name)) {\n          store.createIndex(indexConfig.name, indexConfig.keyPath, indexConfig.options);\n        }\n      }\n    });\n\n    if (oldVersion > 0 && oldVersion < 5) {\n      const store = tx.objectStore('clips');\n      const backfill = () => {\n        if (store.keyPath !== 'id') return;\n        const request = store.openCursor();\n        request.onerror = () => tx.abort();\n        request.onsuccess = () => {\n          const cursor = request.result;\n          if (!cursor) return;\n          try {\n            cursor.update(withClipUrlKey(cursor.value, cursor.primaryKey));\n            cursor.continue();\n          } catch { tx.abort(); }\n        };\n      };\n      if (oldVersion === 4 && db.objectStoreNames.contains('clipUrls')) {\n        const legacy = tx.objectStore('clipUrls');\n        if (legacy.keyPath !== 'id' || legacy.autoIncrement || legacy.indexNames.length !== 1 ||\n            !legacy.indexNames.contains('urlKey') || legacy.index('urlKey').keyPath !== 'key' ||\n            legacy.index('urlKey').unique || legacy.index('urlKey').multiEntry) throw new Error('Unknown legacy URL store');\n        const request = legacy.openCursor();\n        request.onerror = () => tx.abort();\n        request.onsuccess = () => {\n          const cursor = request.result;\n          if (!cursor) { db.deleteObjectStore('clipUrls'); backfill(); return; }\n          try {\n            const row = cursor.value;\n            const key = row?.key;\n            const known = row && typeof row === 'object' && !Array.isArray(row) &&\n              Object.keys(row).every(name => name === 'id' || name === 'key') && indexedDB.cmp(row.id, cursor.primaryKey) === 0 &&\n              (key === undefined || (Array.isArray(key) && Object.keys(key).length === key.length && ((key.length === 1 && key[0] === '') ||\n                (key.length === 3 && typeof key[0] === 'string' && typeof key[1] === 'string' &&\n                 typeof row.id === 'string' && key[2] === row.id && createIndexKeys(key[0]).at(-1) === key[0]))));\n            if (!known) { tx.abort(); return; }\n            cursor.continue();\n          } catch { tx.abort(); }\n        };\n      } else backfill();\n    }\n  }\n\n  // 确保 store 结构与配置一致：如已存在则删除后重建索引\n  private createObjectStore(db: IDBDatabase, config: StoreConfig): void {\n    const store = db.createObjectStore(config.name, {\n      keyPath: config.keyPath,\n      autoIncrement: config.autoIncrement\n    });\n    config.indexes.forEach(indexConfig => {\n      store.createIndex(indexConfig.name, indexConfig.keyPath, indexConfig.options);\n    });\n    console.log(`Created object store: ${config.name} with ${config.indexes.length} indexes`);\n  }\n\n  // 数据库错误与版本变更的统一处理\n  private setupErrorHandlers(): void {\n    if (!this.db) return;\n\n    this.db.onerror = (event) => {\n      console.error('Database error:', event);\n    };\n\n    this.db.onversionchange = () => {\n      this.db?.close();\n      this.db = null;\n      this.dbPromise = null;\n      console.warn('Database version changed, connection closed');\n    };\n  }\n\n  private async getDB(): Promise<IDBDatabase> {\n    if (this.db && this.db.version === DB_CONFIG.version) {\n      return this.db;\n    }\n\n    if (!this.dbPromise) {\n      this.dbPromise = this.openDatabase().catch(error => {\n        this.dbPromise = null;\n        throw error;\n      });\n    }\n\n    return this.dbPromise;\n  }\n\n  private async createTransaction(\n    storeNames: string | string[],\n    mode: TransactionMode = 'readonly'\n  ): Promise<IDBTransaction> {\n    const db = await this.getDB();\n    return db.transaction(storeNames, mode);\n  }\n\n  // 统一事务包装：执行操作并等待 oncomplete，发生异常时主动 abort\n  async executeTransaction<T>(\n    storeNames: string | string[],\n    mode: TransactionMode,\n    operation: (transaction: IDBTransaction) => Promise<T>\n  ): Promise<T> {\n    const transaction = await this.createTransaction(storeNames, mode);\n    const completed = new Promise<void>((resolve, reject) => {\n      transaction.oncomplete = () => resolve();\n      transaction.onerror = () => reject(transaction.error ?? new Error('Transaction failed'));\n      transaction.onabort = () => reject(transaction.error ?? new Error('Transaction aborted'));\n    });\n\n    try {\n      const [result] = await Promise.all([\n        Promise.resolve().then(() => operation(transaction)),\n        completed\n      ]);\n      return result;\n    } catch (error) {\n      // 事务可能已自动回滚，不能让再次 abort 的异常覆盖原始错误。\n      try { transaction.abort(); } catch {}\n      throw error;\n    }\n  }\n\n  // 派生键随正文写入，索引由 IndexedDB 原子维护。\n  static writeRecord(store: IDBObjectStore, operation: 'add' | 'put', data: unknown): IDBRequest {\n    if (store.name === 'clips' && store.keyPath === 'id' && data && typeof data === 'object') data = withClipUrlKey(data as Clip);\n    return store[operation](data);\n  }\n\n  static readRecord<T>(store: IDBObjectStore, value: T): T {\n    // 原生请求已创建独立对象，移除私有字段无需再次复制正文。\n    if (store.name === 'clips' && store.keyPath === 'id' && value && typeof value === 'object') Reflect.deleteProperty(value, CLIP_URL_KEY);\n    return value;\n  }\n\n  async add<K extends keyof DBSchema>(\n    storeName: K,\n    data: DBSchema[K]['value']\n  ): Promise<DBSchema[K]['key']> {\n    return this.executeTransaction(storeName as string, 'readwrite', async (transaction) => {\n      const store = transaction.objectStore(storeName as string);\n      \n      return new Promise<DBSchema[K]['key']>((resolve, reject) => {\n        const request = IndexedDB.writeRecord(store, 'add', data);\n        \n        request.onsuccess = () => {\n          resolve(request.result as DBSchema[K]['key']);\n        };\n        \n        request.onerror = () => {\n          reject(new IndexedDBError(\n            'Failed to add record',\n            'ADD_ERROR',\n            request.error || undefined\n          ));\n        };\n      });\n    });\n  }\n\n  async put<K extends keyof DBSchema>(\n    storeName: K,\n    data: DBSchema[K]['value']\n  ): Promise<DBSchema[K]['key']> {\n    return this.executeTransaction(storeName as string, 'readwrite', async (transaction) => {\n      const store = transaction.objectStore(storeName as string);\n      \n      return new Promise<DBSchema[K]['key']>((resolve, reject) => {\n        const request = IndexedDB.writeRecord(store, 'put', data);\n        \n        request.onsuccess = () => {\n          resolve(request.result as DBSchema[K]['key']);\n        };\n        \n        request.onerror = () => {\n          reject(new IndexedDBError(\n            'Failed to put record',\n            'PUT_ERROR',\n            request.error || undefined\n          ));\n        };\n      });\n    });\n  }\n\n  async get<K extends keyof DBSchema>(\n    storeName: K,\n    key: DBSchema[K]['key']\n  ): Promise<DBSchema[K]['value'] | undefined> {\n    return this.executeTransaction(storeName as string, 'readonly', async (transaction) => {\n      const store = transaction.objectStore(storeName as string);\n      \n      return new Promise<DBSchema[K]['value'] | undefined>((resolve, reject) => {\n        const request = store.get(key);\n        \n        request.onsuccess = () => {\n          resolve(IndexedDB.readRecord(store, request.result));\n        };\n        \n        request.onerror = () => {\n          reject(new IndexedDBError(\n            'Failed to get record',\n            'GET_ERROR',\n            request.error || undefined\n          ));\n        };\n      });\n    });\n  }\n\n  async delete<K extends keyof DBSchema>(\n    storeName: K,\n    key: DBSchema[K]['key']\n  ): Promise<void> {\n    return this.executeTransaction(storeName as string, 'readwrite', async (transaction) => {\n      const store = transaction.objectStore(storeName as string);\n      \n      return new Promise<void>((resolve, reject) => {\n        const request = store.delete(key);\n        \n        request.onsuccess = () => {\n          resolve();\n        };\n        \n        request.onerror = () => {\n          reject(new IndexedDBError(\n            'Failed to delete record',\n            'DELETE_ERROR',\n            request.error || undefined\n          ));\n        };\n      });\n    });\n  }\n\n  async clear<K extends keyof DBSchema>(storeName: K): Promise<void> {\n    return this.executeTransaction(storeName as string, 'readwrite', async (transaction) => {\n      const store = transaction.objectStore(storeName as string);\n      \n      return new Promise<void>((resolve, reject) => {\n        const request = store.clear();\n        \n        request.onsuccess = () => {\n          resolve();\n        };\n        \n        request.onerror = () => {\n          reject(new IndexedDBError(\n            'Failed to clear store',\n            'CLEAR_ERROR',\n            request.error || undefined\n          ));\n        };\n      });\n    });\n  }\n\n  async count<K extends keyof DBSchema>(\n    storeName: K,\n    query?: IDBValidKey | IDBKeyRange\n  ): Promise<number> {\n    return this.executeTransaction(storeName as string, 'readonly', async (transaction) => {\n      const store = transaction.objectStore(storeName as string);\n      \n      return new Promise<number>((resolve, reject) => {\n        const request = store.count(query);\n        \n        request.onsuccess = () => {\n          resolve(request.result);\n        };\n        \n        request.onerror = () => {\n          reject(new IndexedDBError(\n            'Failed to count records',\n            'COUNT_ERROR',\n            request.error || undefined\n          ));\n        };\n      });\n    });\n  }\n\n  // 关闭数据库连接\n  close(): void {\n    if (this.db) {\n      this.db.close();\n      this.db = null;\n      this.dbPromise = null;\n    }\n  }\n\n  // 删除数据库（实例）\n  async deleteDatabase(): Promise<void> {\n    this.close();\n    return IndexedDB.deleteDatabase();\n  }\n\n  // 删除数据库（静态）\n  static async deleteDatabase(): Promise<void> {\n    return new Promise((resolve, reject) => {\n      const request = indexedDB.deleteDatabase(DB_CONFIG.name);\n      \n      request.onsuccess = () => resolve();\n      request.onerror = () => reject(request.error);\n      request.onblocked = () => {\n        console.warn('Database deletion blocked');\n        // 可以选择强制关闭连接或等待\n        setTimeout(() => resolve(), 1000);\n      };\n    });\n  }\n\n  async getAllData<K extends keyof DBSchema>(\n    storeName: K,\n    query?: IDBValidKey | IDBKeyRange\n  ): Promise<DBSchema[K]['value'][]> {\n    return this.executeTransaction(storeName as string, 'readonly', async (transaction) => {\n      const store = transaction.objectStore(storeName as string);\n      \n      return new Promise<DBSchema[K]['value'][]>((resolve, reject) => {\n        const request = store.getAll(query);\n        \n        request.onsuccess = () => {\n          resolve(request.result.map(value => IndexedDB.readRecord(store, value)));\n        };\n        \n        request.onerror = () => {\n          reject(new IndexedDBError(\n            'Failed to get all records',\n            'GET_ALL_ERROR',\n            request.error || undefined\n          ));\n        };\n      });\n    });\n  }\n\n  async deleteData<K extends keyof DBSchema>(\n    storeName: K,\n    key: DBSchema[K]['key']\n  ): Promise<void> {\n    return this.executeTransaction(storeName as string, 'readwrite', async (transaction) => {\n      const store = transaction.objectStore(storeName as string);\n      \n      return new Promise<void>((resolve, reject) => {\n        const request = store.delete(key);\n        \n        request.onsuccess = () => {\n          resolve();\n        };\n        \n        request.onerror = () => {\n          reject(new IndexedDBError(\n            'Failed to delete record',\n            'DELETE_ERROR',\n            request.error || undefined\n          ));\n        };\n      });\n    });\n  }\n}\n\n// 提供一个可用的管理器门面，按需初始化并代理所有方法\n// 由于构造函数是私有的，这里通过静态 create 保证实例化和初始化\nlet instance: IndexedDB | null = null;\nlet instancePromise: Promise<IndexedDB> | null = null;\n\nasync function getInstance(): Promise<IndexedDB> {\n  if (instance) return instance;\n  if (!instancePromise) {\n    instancePromise = IndexedDB.create(DB_CONFIG.name, DB_CONFIG.version).then((inst) => {\n      instance = inst;\n      return inst;\n    }).catch(error => {\n      instancePromise = null;\n      throw error;\n    });\n  }\n  return instancePromise;\n}\n\nexport const indexedDBManager = {\n  isInitialized(): boolean {\n    return !!instance && instance.isInitialized();\n  },\n\n  async init(): Promise<void> {\n    const inst = await getInstance();\n    await inst.init();\n  },\n\n  async executeTransaction<T>(\n    storeNames: string | string[],\n    mode: TransactionMode,\n    operation: (transaction: IDBTransaction) => Promise<T>\n  ): Promise<T> {\n    const inst = await getInstance();\n    return inst.executeTransaction(storeNames, mode, operation);\n  },\n\n  async add<K extends keyof DBSchema>(\n    storeName: K,\n    data: DBSchema[K]['value']\n  ): Promise<DBSchema[K]['key']> {\n    const inst = await getInstance();\n    return inst.add(storeName, data);\n  },\n\n  async put<K extends keyof DBSchema>(\n    storeName: K,\n    data: DBSchema[K]['value']\n  ): Promise<DBSchema[K]['key']> {\n    const inst = await getInstance();\n    return inst.put(storeName, data);\n  },\n\n  async get<K extends keyof DBSchema>(\n    storeName: K,\n    key: DBSchema[K]['key']\n  ): Promise<DBSchema[K]['value'] | undefined> {\n    const inst = await getInstance();\n    return inst.get(storeName, key);\n  },\n\n  async delete<K extends keyof DBSchema>(\n    storeName: K,\n    key: DBSchema[K]['key']\n  ): Promise<void> {\n    const inst = await getInstance();\n    return inst.delete(storeName, key);\n  },\n\n  async clear<K extends keyof DBSchema>(storeName: K): Promise<void> {\n    const inst = await getInstance();\n    return inst.clear(storeName);\n  },\n\n  async count<K extends keyof DBSchema>(\n    storeName: K,\n    query?: IDBValidKey | IDBKeyRange\n  ): Promise<number> {\n    const inst = await getInstance();\n    return inst.count(storeName, query);\n  },\n\n  close(): void {\n    if (instance) {\n      instance.close();\n      instance = null;\n      instancePromise = null;\n    }\n  },\n\n  async deleteDatabase(): Promise<void> {\n    const inst = await getInstance();\n    return inst.deleteDatabase();\n  },\n\n  async getAllData<K extends keyof DBSchema>(\n    storeName: K,\n    query?: IDBValidKey | IDBKeyRange\n  ): Promise<DBSchema[K]['value'][]> {\n    const inst = await getInstance();\n    return inst.getAllData(storeName, query);\n  },\n\n  async deleteData<K extends keyof DBSchema>(\n    storeName: K,\n    key: DBSchema[K]['key']\n  ): Promise<void> {\n    const inst = await getInstance();\n    return inst.deleteData(storeName, key);\n  }\n};\n"
+    },
+    "src/background/services/search-service.ts": {
+      "sha256": "dd17fd25951f011d49eb7971113ed237b3c488a98afae58b3cc5415c262b1563",
+      "source": "import type { Clip } from '@/types/clip';\nimport { IndexedDBQuery } from '@/background/indexeddb-query';\n\nexport type SearchType = 'all' | 'title' | 'website' | 'content';\nexport type SortBy = 'createdAt' | 'sourceUrl' | 'textContent' | 'title';\n\nexport interface SearchQuery {\n  type?: SearchType;\n  keyword?: string;\n  page?: number;\n  pageSize?: number;\n  sortBy?: SortBy;\n  sortOrder?: 'asc' | 'desc';\n}\n\nexport interface SearchResult {\n  items: Clip[];\n  total: number;\n  page: number;\n  pageSize: number;\n}\n\n/** 搜索服务：支持无关键字分页与关键字过滤。 */\nexport class SearchService {\n  async search(query: SearchQuery): Promise<SearchResult> {\n    const page = Math.max(1, (query.page ?? 1) | 0);\n    const pageSize = Math.max(1, Math.min(100, (query.pageSize ?? 20) | 0));\n    const keyword = (query.keyword ?? '').trim().toLowerCase();\n    const fields: (keyof Clip)[] =\n      query.type === 'title' ? ['title'] :\n      query.type === 'website' ? ['sourceUrl'] :\n      query.type === 'content' ? ['textContent'] : ['title', 'sourceUrl', 'textContent'];\n\n    if (query.sortBy === 'title') {\n      // 标题索引不包含空标题；从主键分批读取，仍使用本地化标题顺序。\n      return IndexedDBQuery.filterByKeywordPaged('clips', keyword, fields, page, pageSize, {\n        orderBy: 'title', direction: query.sortOrder === 'asc' ? 'next' : 'prev'\n      });\n    }\n\n    const options = {\n      indexName: query.sortBy ?? 'createdAt',\n      direction: query.sortOrder === 'asc' ? 'next' as const : 'prev' as const\n    };\n    if (!keyword) {\n      const { data, total } = await IndexedDBQuery.paginate('clips', page, pageSize, options);\n      return { items: data, total, page, pageSize };\n    }\n    return IndexedDBQuery.filterByKeywordPaged('clips', keyword, fields, page, pageSize, options);\n  }\n}\n\n// 单例\nexport const searchService = new SearchService();\n"
+    },
+    "src/types/indexeddb.ts": {
+      "sha256": "92f180e41a2b0c693f8b0367aea1ca15ec9b7a55c810ca48644815dbdb7035d4",
+      "source": "import type { Clip } from './clip';\nexport const CLIP_URL_KEY = '__clipseyUrlKey';\n\n// IndexedDB 数据库配置\nexport const DB_CONFIG = {\n  name: 'ClipseyDB',\n  version: 5,\n  stores: {\n    clips: 'clips',\n    settings: 'settings',\n    metadata: 'metadata',\n    errorLogs: 'errorLogs'\n  }\n} as const;\n\n// Object Store 配置\nexport interface DBSchema {\n  clips: {\n    key: string;\n    value: Clip;\n    indexes: {\n      sourceUrl: string;\n      createdAt: string;\n      textContent: string;\n      highlightId: string;\n    };\n  };\n  settings: {\n    key: string;\n    value: SettingsRecord;\n  };\n  metadata: {\n    key: string;\n    value: MetadataRecord;\n  };\n  errorLogs: {\n    key: string;\n    value: ErrorLogRecord;\n  };\n}\n\n// 设置记录类型\nexport interface SettingsRecord {\n  key: string;\n  value: any;\n  updatedAt: string;\n}\n\n// 元数据记录类型\nexport interface MetadataRecord {\n  key: string;\n  value: any;\n  createdAt: string;\n  updatedAt: string;\n}\n\n// 错误日志记录类型\nexport interface ErrorLogRecord {\n  id: string;\n  time: string; // ISO 格式时间\n  message: string;\n  context?: string;\n  stack?: string;\n}\n\n// 查询选项\nexport interface QueryOptions {\n  limit?: number;\n  offset?: number;\n  orderBy?: string;\n  direction?: 'next' | 'nextunique' | 'prev' | 'prevunique' | 'asc' | 'desc';\n  indexName?: string;\n  query?: IDBValidKey | IDBKeyRange;\n}\n\n// 批量操作选项\nexport interface BulkOperationOptions {\n  batchSize?: number;\n  onProgress?: (processed: number, total: number) => void;\n  onError?: (error: Error, item: any) => void;\n}\n\n// 事务类型\nexport type TransactionMode = 'readonly' | 'readwrite';\n\n// 索引配置\nexport interface IndexConfig {\n  name: string;\n  keyPath: string | string[];\n  options?: {\n    unique?: boolean;\n    multiEntry?: boolean;\n  };\n}\n\n// Object Store 配置\nexport interface StoreConfig {\n  name: string;\n  keyPath?: string;\n  autoIncrement?: boolean;\n  indexes: IndexConfig[];\n}\n\n// 数据库升级配置\nexport const STORE_CONFIGS: StoreConfig[] = [\n  {\n    name: 'clips',\n    keyPath: 'id',\n    indexes: [\n      { name: 'urlKey', keyPath: CLIP_URL_KEY },\n      {\n        name: 'sourceUrl',\n        keyPath: 'sourceUrl',\n        options: { unique: false }\n      },\n      {\n        name: 'createdAt',\n        keyPath: 'createdAt',\n        options: { unique: false }\n      },\n      {\n        name: 'updatedAt',\n        keyPath: 'updatedAt',\n        options: { unique: false }\n      },\n      {\n        name: 'title',\n        keyPath: 'title',\n        options: { unique: false }\n      },\n      {\n        name: 'textContent',\n        keyPath: 'textContent',\n        options: { unique: false }\n      },\n      {\n        name: 'highlightId',\n        keyPath: 'highlightId',\n        options: { unique: false }\n      },\n      {\n        name: 'sourceUrl_createdAt',\n        keyPath: ['sourceUrl', 'createdAt'],\n        options: { unique: false }\n      },\n      {\n        name: 'createdAt_id',\n        keyPath: ['createdAt', 'id'],\n        options: { unique: false }\n      }\n    ]\n  },\n  {\n    name: 'settings',\n    keyPath: 'key',\n    indexes: [\n      {\n        name: 'updatedAt',\n        keyPath: 'updatedAt',\n        options: { unique: false }\n      }\n    ]\n  },\n  {\n    name: 'metadata',\n    keyPath: 'key',\n    indexes: [\n      {\n        name: 'createdAt',\n        keyPath: 'createdAt',\n        options: { unique: false }\n      },\n      {\n        name: 'updatedAt',\n        keyPath: 'updatedAt',\n        options: { unique: false }\n      }\n    ]\n  },\n  {\n    name: 'errorLogs',\n    keyPath: 'id',\n    indexes: [\n      {\n        name: 'time',\n        keyPath: 'time',\n        options: { unique: false }\n      }\n    ]\n  }\n];\n\n// 错误类型\nexport class IndexedDBError extends Error {\n  constructor(\n    message: string,\n    public code?: string,\n    public originalError?: Error\n  ) {\n    super(message);\n    this.name = 'IndexedDBError';\n  }\n}\n\n// 迁移状态\nexport type MigrationStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'not_started';\n\nexport interface MigrationRecord {\n  status: MigrationStatus;\n  version: number;\n  migratedAt?: string;\n  recordCount?: number;\n  errors?: string[];\n}\n"
+    }
+  },
+  "profile": {
+    "file": "performance-search-projection.cpuprofile",
+    "sampledRun": {
+      "mode": "working-tree",
+      "cpuProfiled": true,
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+      "scenario": "search",
+      "results": [
+        {
+          "records": 100,
+          "scenarios": [
+            {
+              "query": {
+                "type": "content",
+                "keyword": "NEEDLE",
+                "sortBy": "createdAt",
+                "sortOrder": "desc",
+                "page": 1
+              },
+              "total": 50,
+              "largestRead": 100,
+              "medianMs": 0.699999988079071,
+              "samplesMs": [
+                1.1000000089406967,
+                0.5,
+                0.5999999940395355,
+                0.6000000089406967,
+                0.699999988079071,
+                0.7000000029802322,
+                0.7999999970197678
+              ]
+            },
+            {
+              "query": {
+                "type": "website",
+                "keyword": "/article/1",
+                "sortBy": "sourceUrl",
+                "sortOrder": "asc",
+                "page": 1
+              },
+              "total": 11,
+              "largestRead": 100,
+              "medianMs": 0.6000000089406967,
+              "samplesMs": [
+                0.7999999970197678,
+                1.1000000089406967,
+                0.7999999970197678,
+                0.5,
+                0.5999999940395355,
+                0.5,
+                0.6000000089406967
+              ]
+            },
+            {
+              "query": {
+                "type": "all",
+                "keyword": "测试",
+                "sortBy": "textContent",
+                "sortOrder": "asc",
+                "page": 2
+              },
+              "total": 50,
+              "largestRead": 100,
+              "medianMs": 0.7000000029802322,
+              "samplesMs": [
+                0.8999999910593033,
+                0.7999999970197678,
+                1.1000000089406967,
+                0.7000000029802322,
+                0.699999988079071,
+                0.6000000089406967,
+                0.5999999940395355
+              ]
+            },
+            {
+              "query": {
+                "type": "content",
+                "keyword": "absent",
+                "sortBy": "createdAt",
+                "sortOrder": "asc",
+                "page": 1
+              },
+              "total": 0,
+              "largestRead": 100,
+              "medianMs": 0.7999999970197678,
+              "samplesMs": [
+                0.5,
+                0.4000000059604645,
+                0.7999999970197678,
+                0.7999999970197678,
+                0.5,
+                0.7999999970197678,
+                1.2000000029802322
+              ]
+            },
+            {
+              "query": {
+                "type": "all",
+                "keyword": "needle",
+                "sortBy": "title",
+                "sortOrder": "asc",
+                "page": 2
+              },
+              "total": 50,
+              "largestRead": 100,
+              "medianMs": 0.6000000089406967,
+              "samplesMs": [
+                0.7000000029802322,
+                0.5999999940395355,
+                1.0999999940395355,
+                0.6000000089406967,
+                0.5999999940395355,
+                0.7000000029802322,
+                0.5
+              ]
+            },
+            {
+              "query": {
+                "type": "all",
+                "keyword": "",
+                "sortBy": "title",
+                "sortOrder": "desc",
+                "page": 1
+              },
+              "total": 100,
+              "largestRead": 100,
+              "medianMs": 0.7000000029802322,
+              "samplesMs": [
+                0.6000000089406967,
+                0.5999999940395355,
+                1.4000000059604645,
+                1.199999988079071,
+                0.800000011920929,
+                0.5999999940395355,
+                0.7000000029802322
+              ]
+            }
+          ]
+        },
+        {
+          "records": 10000,
+          "scenarios": [
+            {
+              "query": {
+                "type": "content",
+                "keyword": "NEEDLE",
+                "sortBy": "createdAt",
+                "sortOrder": "desc",
+                "page": 100
+              },
+              "total": 5000,
+              "largestRead": 256,
+              "medianMs": 52.79999999701977,
+              "samplesMs": [
+                62.400000005960464,
+                54.8999999910593,
+                50.80000001192093,
+                52.79999999701977,
+                61,
+                50.29999999701977,
+                47.900000005960464
+              ]
+            },
+            {
+              "query": {
+                "type": "website",
+                "keyword": "/article/1",
+                "sortBy": "sourceUrl",
+                "sortOrder": "asc",
+                "page": 1
+              },
+              "total": 1100,
+              "largestRead": 256,
+              "medianMs": 48,
+              "samplesMs": [
+                50.900000005960464,
+                42.20000000298023,
+                41.8999999910593,
+                41.80000001192093,
+                49.599999994039536,
+                48,
+                53.20000000298023
+              ]
+            },
+            {
+              "query": {
+                "type": "all",
+                "keyword": "测试",
+                "sortBy": "textContent",
+                "sortOrder": "asc",
+                "page": 2
+              },
+              "total": 5000,
+              "largestRead": 256,
+              "medianMs": 59.3999999910593,
+              "samplesMs": [
+                52.20000000298023,
+                47.900000005960464,
+                49.5,
+                71,
+                64.5,
+                59.3999999910593,
+                61.5
+              ]
+            },
+            {
+              "query": {
+                "type": "content",
+                "keyword": "absent",
+                "sortBy": "createdAt",
+                "sortOrder": "asc",
+                "page": 1
+              },
+              "total": 0,
+              "largestRead": 256,
+              "medianMs": 52.5,
+              "samplesMs": [
+                47.6000000089407,
+                49.79999999701977,
+                58.29999999701977,
+                52.29999999701977,
+                53.900000005960464,
+                52.5,
+                59.099999994039536
+              ]
+            },
+            {
+              "query": {
+                "type": "all",
+                "keyword": "needle",
+                "sortBy": "title",
+                "sortOrder": "asc",
+                "page": 2
+              },
+              "total": 5000,
+              "largestRead": 256,
+              "medianMs": 55.29999999701977,
+              "samplesMs": [
+                52,
+                55.29999999701977,
+                53.6000000089407,
+                57.3999999910593,
+                53.20000000298023,
+                100.70000000298023,
+                56
+              ]
+            },
+            {
+              "query": {
+                "type": "all",
+                "keyword": "",
+                "sortBy": "title",
+                "sortOrder": "desc",
+                "page": 100
+              },
+              "total": 10000,
+              "largestRead": 256,
+              "medianMs": 50.29999999701977,
+              "samplesMs": [
+                47.70000000298023,
+                53.5,
+                51,
+                49.79999999701977,
+                53.20000000298023,
+                50.29999999701977,
+                47.1000000089407
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "durationSeconds": 3.596371,
+    "samples": 2403,
+    "top": [
+      {
+        "functionName": "(idle)",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1,
+        "selfSeconds": 2.391137
+      },
+      {
+        "functionName": "(program)",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1,
+        "selfSeconds": 0.425282
+      },
+      {
+        "functionName": "",
+        "scriptId": "3",
+        "url": "http://127.0.0.1:63010/tests/performance/search.ts",
+        "lineNumber": 11,
+        "columnNumber": 38,
+        "selfSeconds": 0.219505
+      },
+      {
+        "functionName": "(garbage collector)",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1,
+        "selfSeconds": 0.151695
+      },
+      {
+        "functionName": "",
+        "scriptId": "6",
+        "url": "http://127.0.0.1:63010/src/background/indexeddb-query.ts",
+        "lineNumber": 284,
+        "columnNumber": 74,
+        "selfSeconds": 0.12666
+      },
+      {
+        "functionName": "writeRecord",
+        "scriptId": "4",
+        "url": "http://127.0.0.1:63010/src/background/indexeddb.ts",
+        "lineNumber": 171,
+        "columnNumber": 19,
+        "selfSeconds": 0.088822
+      },
+      {
+        "functionName": "compareString",
+        "scriptId": "6",
+        "url": "http://127.0.0.1:63010/src/background/indexeddb-query.ts",
+        "lineNumber": 273,
+        "columnNumber": 39,
+        "selfSeconds": 0.049782
+      },
+      {
+        "functionName": "",
+        "scriptId": "3",
+        "url": "http://127.0.0.1:63010/tests/performance/search.ts",
+        "lineNumber": 82,
+        "columnNumber": 17,
+        "selfSeconds": 0.025608
+      },
+      {
+        "functionName": "",
+        "scriptId": "3",
+        "url": "http://127.0.0.1:63010/tests/performance/search.ts",
+        "lineNumber": 79,
+        "columnNumber": 55,
+        "selfSeconds": 0.021898
+      },
+      {
+        "functionName": "compare",
+        "scriptId": "6",
+        "url": "http://127.0.0.1:63010/src/background/indexeddb-query.ts",
+        "lineNumber": 276,
+        "columnNumber": 20,
+        "selfSeconds": 0.018558
+      },
+      {
+        "functionName": "",
+        "scriptId": "6",
+        "url": "http://127.0.0.1:63010/src/background/indexeddb-query.ts",
+        "lineNumber": 250,
+        "columnNumber": 68,
+        "selfSeconds": 0.010512
+      },
+      {
+        "functionName": "createIndexKeys",
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63010/src/background/storage/utils/url-normalizer.ts",
+        "lineNumber": 33,
+        "columnNumber": 31,
+        "selfSeconds": 0.010263
+      }
+    ],
+    "scope": "Full original search fixture, including preparation and expected-result sorts; profiled timings excluded from formal comparisons"
+  },
+  "validation": {
+    "appTypecheck": true,
+    "fixtureTypecheck": true,
+    "fixtureTypecheckConfig": {
+      "extends": "/Users/sheny/Developer/code/Clipsey/tsconfig.app.json",
+      "include": [
+        "/Users/sheny/Developer/code/Clipsey/tests/performance/search-projection.ts",
+        "/Users/sheny/Developer/code/Clipsey/.wxt/wxt.d.ts"
+      ]
+    },
+    "runnerSyntax": true,
+    "baselineGuard": true,
+    "productionChanged": false,
+    "unitTestsRerun": false,
+    "buildsRerun": false,
+    "nativeExtensionRerun": false,
+    "remoteCI": false
+  },
+  "harnessRepairs": [
+    "Replaced nonexistent IndexedDBQuery.put with indexedDBManager.put before successful runs",
+    "Extended IndexedDB.prototype.executeTransaction rather than only the manager facade so single-record operations include the experimental store"
+  ]
+}
