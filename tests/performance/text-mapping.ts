@@ -32,14 +32,15 @@ try {
     });
   }
   const results = [];
-  const layouts = ['latin1', 'chinese', 'unicode', 'sparse-whitespace'] as const;
+  const layouts = ['latin1', 'chinese', 'unicode', 'sparse-whitespace', 'diverse-cjk'] as const;
   for (const paragraphs of reverse ? [10000, 100] : [100, 10000]) for (const layout of reverse ? [...layouts].reverse() : layouts) {
     const fixture = document.createElement('article');
     const quotes: string[] = [], texts: Text[] = [];
     for (let i = 0; i < paragraphs; i++) {
       const p = document.createElement('p');
-      const latin1 = layout === 'latin1' || layout === 'sparse-whitespace';
-      const prefix = latin1 ? `Paragraph ${i} Café naïve Über prefix `
+      const latin1 = layout === 'latin1' || layout === 'sparse-whitespace' || layout === 'diverse-cjk';
+      const prefix = layout === 'diverse-cjk' ? String.fromCharCode(0x4e00 + i * 2, 0x4e01 + i * 2) + ` Paragraph ${i} Café naïve Über prefix `
+        : latin1 ? `Paragraph ${i} Café naïve Über prefix `
         : layout === 'chinese' ? `这是第 ${i} 段，中文背景与英文 English 混排。 `
         : `İΣΟΣ𐐀🙂 第 ${i} 段\u00a0\u3000prefix\t\n `;
       const quote = latin1 ? `QUOTE-${i}!` : layout === 'chinese' ? `摘录-${i} 中文🙂` : `İSTANBUL\u2003\u3000${i}!🙂`;
@@ -57,16 +58,6 @@ try {
       if (index < 0) assert(range === null, 'Unexpected missing match');
       else assert(range?.toString() === quotes[index] && range.startContainer === texts[index] && range.startOffset === 0 && range.endContainer === texts[index] && range.endOffset === texts[index]!.length, 'Wrong range or Unicode boundary');
     }
-    const searches = [];
-    for (const index of [10, Math.floor(paragraphs / 2), paragraphs - 10, -1]) {
-      search(index); const samplesMs = [];
-      for (let i = 0; i < 7; i++) { const start = performance.now(); search(index); samplesMs.push(performance.now() - start); }
-      searches.push({ index, medianMs: median(samplesMs), samplesMs });
-    }
-    if (query.has('allocations')) {
-      const index = paragraphs - 10;
-      addAllocationCase(paragraphs, layout, fixture.outerHTML, index, quotes[index]!);
-    }
     const positions = Array.from({ length: 20 }, (_, i) => Math.floor(paragraphs * (0.05 + i * 0.045)));
     if (reverse) positions.reverse();
     const highlights = positions.map(i => ({ highlightId: `fixture-${i}`, textContent: quotes[i] }));
@@ -82,10 +73,23 @@ try {
       engine.clear(); assert(document.body.textContent === original && !document.querySelector('[data-clipsey-id]'), 'Clear changed text');
       return { wallMs, durationMs: engine.getLastPerfStats()!.durationMs };
     }
-    await activate(); const samples = [];
+    const firstActivation = await activate();
+    document.body.replaceChildren(fixture);
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    const searches = [];
+    for (const index of [10, Math.floor(paragraphs / 2), paragraphs - 10, -1]) {
+      search(index); const samplesMs = [];
+      for (let i = 0; i < 7; i++) { const start = performance.now(); search(index); samplesMs.push(performance.now() - start); }
+      searches.push({ index, medianMs: median(samplesMs), samplesMs });
+    }
+    if (query.has('allocations')) {
+      const index = paragraphs - 10;
+      addAllocationCase(paragraphs, layout, fixture.outerHTML, index, quotes[index]!);
+    }
+    const samples = [];
     for (let i = 0; i < 7; i++) samples.push(await activate());
-    results.push({ paragraphs, layout, searches, fallbackActivation: { wallMedianMs: median(samples.map(s => s.wallMs)), durationMedianMs: median(samples.map(s => s.durationMs)), samples } });
+    results.push({ paragraphs, layout, firstActivation, searches, fallbackActivation: { wallMedianMs: median(samples.map(s => s.wallMs)), durationMedianMs: median(samples.map(s => s.durationMs)), samples } });
   }
   (window as any).__highlightAllocationCases = allocations;
-  (window as any).__performanceResult = { userAgent: navigator.userAgent, scenario: 'text-mapping', reverse, fixtureSettledFrames: 2, latin1CodeUnitsVerified: 256, results };
+  (window as any).__performanceResult = { userAgent: navigator.userAgent, scenario: 'text-mapping', reverse, fixtureSettledFrames: 2, firstActivationBeforeSearches: true, latin1CodeUnitsVerified: 256, results };
 } catch (error) { (window as any).__performanceResult = { error: String(error) }; }
