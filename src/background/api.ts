@@ -34,7 +34,7 @@ export async function deleteClipById(id: string): Promise<void> {
   
   // 如果删除的是有高亮的 Clip，通知对应页面移除高亮
   if (deletedClip?.highlightId && deletedClip?.sourceUrl) {
-    void highlightSyncService.refreshPageHighlights(deletedClip.sourceUrl);
+    await highlightSyncService.removePageHighlight(deletedClip.sourceUrl, deletedClip.highlightId);
   }
 }
 

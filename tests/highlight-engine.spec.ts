@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { LocationStrategy } from '@/content/highlight/locators';
 import { HighlightEngine } from '@/content/highlight-engine';
 import { ensureHighlightColorsReady, HIGHLIGHT_INLINE_CLASS } from '@/content/color-manager';
 
@@ -18,6 +19,57 @@ describe('HighlightEngine 基本功能', () => {
     `;
     engine = new HighlightEngine();
     await ensureHighlightColorsReady();
+  });
+
+  afterEach(() => {
+    engine.abort();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('同步时移除已删除的高亮，保留其余高亮', async () => {
+    const first = { textContent: 'Vitest', highlightId: 'first' };
+    const second = { textContent: '另一个文本节点', highlightId: 'second' };
+    await engine.activateHighlights([first, second]);
+    await engine.activateHighlights([second]);
+    expect(document.querySelector('[data-clipsey-id="first"]')).toBeNull();
+    expect(document.querySelector('[data-clipsey-id="second"]')).not.toBeNull();
+    expect(await engine.activateHighlights([])).toBe(true);
+    expect(document.querySelector('[data-clipsey-id]')).toBeNull();
+  });
+
+  it('删除未注册到引擎缓存的选区高亮时保留原文', () => {
+    document.body.innerHTML = '<p><span data-clipsey="true" data-clipsey-id="selection">摘录</span></p>';
+    expect(engine.undo('selection')).toBe(true);
+    expect(document.querySelector('[data-clipsey-id]')).toBeNull();
+    expect(document.body.textContent).toBe('摘录');
+  });
+
+  it('重复激活覆盖层不会重复创建，空列表会清除覆盖层', async () => {
+    const highlights = [{ textContent: 'Vitest', highlightId: 'overlay', highlightStyle: 'overlay' as const }];
+    await engine.activateHighlights(highlights);
+    const count = document.querySelectorAll('[data-clipsey-id="overlay"]').length;
+    expect(count).toBeGreaterThan(0);
+    await engine.activateHighlights(highlights);
+    expect(document.querySelectorAll('[data-clipsey-id="overlay"]')).toHaveLength(count);
+    await engine.activateHighlights([]);
+    expect(document.querySelector('[data-clipsey-id="overlay"]')).toBeNull();
+  });
+
+  it('批量高亮在各项之间让出主线程并响应取消', async () => {
+    vi.useFakeTimers();
+    const locate = vi.spyOn(LocationStrategy, 'locate');
+    const pending = engine.activateHighlights([
+      { textContent: 'Vitest', highlightId: 'first' },
+      { textContent: '另一个文本节点', highlightId: 'second' }
+    ]);
+    await vi.advanceTimersByTimeAsync(51);
+    expect(locate).toHaveBeenCalledTimes(1);
+    engine.abort();
+    await vi.runAllTimersAsync();
+    expect(await pending).toBe(false);
+    expect(locate).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[data-clipsey-id="second"]')).toBeNull();
   });
 
   it('activateHighlights: 能为匹配文本应用内联高亮', async () => {

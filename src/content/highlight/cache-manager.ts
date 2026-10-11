@@ -1,11 +1,6 @@
 /** 高亮缓存：管理内存引用、去重与清理。 */
 export class HighlightCache {
   private activeSpans: Map<string, HTMLElement[]> = new Map();
-  private readonly maxHighlights: number;
-
-  constructor(maxHighlights: number = 200) {
-    this.maxHighlights = maxHighlights;
-  }
 
   /** 添加高亮元素到缓存。 */
   add(id: string, spans: HTMLElement[]): void {
@@ -42,8 +37,8 @@ export class HighlightCache {
 
   /** 移除指定高亮。 */
   remove(id: string): boolean {
-    const spans = this.activeSpans.get(id);
-    if (!spans) return false;
+    if (!this.has(id)) return false;
+    const spans = this.activeSpans.get(id)!;
     
     for (const span of spans) {
       this.removeSpanFromDOM(span);
@@ -52,34 +47,20 @@ export class HighlightCache {
     return true;
   }
 
-  /** 清空所有高亮。 */
+  /** 同步完整高亮列表，也移除选区采集创建但尚未缓存的高亮。 */
+  retain(ids: Set<string>): void {
+    const spans = document.querySelectorAll<HTMLElement>('[data-clipsey="true"][data-clipsey-id]');
+    for (const span of spans) {
+      if (!ids.has(span.dataset.clipseyId!)) this.removeSpanFromDOM(span);
+    }
+    for (const id of this.activeSpans.keys()) {
+      if (!ids.has(id)) this.remove(id);
+    }
+  }
+
   clear(): void {
-    for (const spans of this.activeSpans.values()) {
-      for (const span of spans) {
-        this.removeSpanFromDOM(span);
-      }
-    }
+    this.retain(new Set());
     this.activeSpans.clear();
-  }
-
-  /** 是否需要清理旧高亮。 */
-  shouldCleanup(): boolean {
-    return this.activeSpans.size >= this.maxHighlights;
-  }
-
-  /** 清理最旧高亮：按 FIFO 删除指定数量。 */
-  cleanupOldest(count: number): void {
-    const keys = Array.from(this.activeSpans.keys());
-    const toRemove = keys.slice(0, count);
-    
-    for (const key of toRemove) {
-      this.remove(key);
-    }
-  }
-
-  /** 获取当前高亮数量。 */
-  size(): number {
-    return this.activeSpans.size;
   }
 
   /** 从 DOM 中移除高亮元素。 */

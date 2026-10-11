@@ -77,6 +77,16 @@ export function initSelectionContentScript(): () => void {
             sendResponse({ success: false, error: msg } satisfies MessageResponse);
           });
         return true;
+      case 'REMOVE_HIGHLIGHT': {
+        const id = message?.payload?.highlightId;
+        if (typeof id !== 'string' || !id.trim()) {
+          sendResponse({ success: false, error: 'Invalid highlight ID' } satisfies MessageResponse);
+          return true;
+        }
+        __engine.undo(id);
+        sendResponse({ success: true } satisfies MessageResponse);
+        return true;
+      }
       case 'ACTIVATE_HIGHLIGHTS': {
         const remoteHighlights = normalizeIncomingHighlights(message?.payload);
         void __engine
@@ -106,6 +116,7 @@ export function initSelectionContentScript(): () => void {
   browser.runtime.onMessage.addListener(runtimeMessageListener);
 
   return () => {
+    __engine.abort();
     browser.runtime.onMessage.removeListener(runtimeMessageListener);
     window.__PAGE_CLIPPER_CONTENT_INITIALIZED__ = false;
   };

@@ -18,14 +18,10 @@ type RemoteHighlight = {
 
 /** 高亮引擎：编排定位/渲染/缓存，批量激活或管理高亮，并支持滚动定位。 */
 export class HighlightEngine {
-  private cache: HighlightCache;
+  private cache = new HighlightCache();
   private throttled = 8;
   private abortController: AbortController | null = null;
   private lastPerf: { durationMs: number; appliedCount: number } | null = null;
-
-  constructor(maxHighlights: number = 200) {
-    this.cache = new HighlightCache(maxHighlights);
-  }
 
   setThrottle(ms: number): void {
     this.throttled = Math.max(0, ms | 0);
@@ -37,10 +33,12 @@ export class HighlightEngine {
   }
 
   clear(): void {
+    this.abort();
     this.cache.clear();
   }
 
   undo(highlightId: string): boolean {
+    this.abort();
     return this.cache.remove(highlightId);
   }
 
@@ -81,7 +79,7 @@ export class HighlightEngine {
       const highlightRange = locatedRange.cloneRange();
       const spans =
         highlightStyle === 'overlay'
-          ? applyOverlay(highlightRange)
+          ? applyOverlay(highlightRange, highlightId)
           : applyInline(highlightRange, highlightId);
       if (spans.length) {
         this.cache.add(highlightId, spans);
@@ -92,37 +90,31 @@ export class HighlightEngine {
   }
 
   async activateHighlights(highlights: RemoteHighlight[]): Promise<boolean> {
-    if (!Array.isArray(highlights) || highlights.length === 0) return false;
-    
-    // 等待 DOM 就绪
-    await this.waitForDOMReady();
-    
-    // 防止内存泄漏：如果超过最大数量，清理旧的
-    if (this.cache.shouldCleanup()) {
-      this.cache.cleanupOldest(Math.floor(100));
-    }
-    
-    // 确保高亮颜色已准备好
-    await ensureHighlightColorsReady().catch(() => {});
-    
-    this.abort();
-    this.abortController = new AbortController();
-    const signal = this.abortController.signal;
-    const start = this.now();
+    if (!Array.isArray(highlights)) return false;
 
-    const tasks = highlights.map(async (h) => {
+    this.abort();
+    const controller = new AbortController();
+    this.abortController = controller;
+    const { signal } = controller;
+    await this.waitForDOMReady();
+    await ensureHighlightColorsReady().catch(() => {});
+    if (signal.aborted) return false;
+
+    const validHighlights = highlights.filter(h => h.textContent?.trim());
+    const ids = new Set(validHighlights.map(h => h.highlightId ?? h.id ?? h.textContent!.trim()));
+    this.cache.retain(ids);
+    const start = this.now();
+    let appliedCount = 0;
+
+    for (const h of validHighlights) {
       if (signal.aborted) return false;
-      const text = h.textContent?.trim();
-      if (!text) return false;
-      
+      const text = h.textContent!.trim();
       const id = h.highlightId ?? h.id ?? text;
-      
-      // 检查是否已存在
-      if (id && this.cache.has(id)) {
-        return true;
+      if (this.cache.has(id)) {
+        appliedCount += 1;
+        continue;
       }
-      
-      // 使用定位策略链
+
       const range = LocationStrategy.locate({
         text,
         textOffset: h.textOffset,
@@ -130,29 +122,23 @@ export class HighlightEngine {
         contextBefore: h.contextBefore,
         contextAfter: h.contextAfter
       });
-      
-      if (!range) return false;
-      
-      // 根据样式选择渲染器
-      const spans = (h.highlightStyle === 'overlay') 
-        ? applyOverlay(range) 
-        : applyInline(range, id);
-      
-      if (spans.length > 0) {
-        this.cache.add(id, spans);
+      if (range) {
+        const spans = h.highlightStyle === 'overlay'
+          ? applyOverlay(range, id)
+          : applyInline(range, id);
+        if (spans.length) {
+          this.cache.add(id, spans);
+          appliedCount += 1;
+        }
       }
-      
-      await this.sleep(this.throttled);
-      return spans.length > 0;
-    });
 
-    const results = await Promise.all(tasks);
-    const end = this.now();
-    this.lastPerf = { 
-      durationMs: Math.max(0, end - start), 
-      appliedCount: results.filter(Boolean).length 
-    };
-    return results.some(Boolean);
+      // 每次定位/绘制后让出主线程，下一项开始前重新检查取消信号。
+      await this.sleep(this.throttled);
+    }
+
+    if (signal.aborted) return false;
+    this.lastPerf = { durationMs: Math.max(0, this.now() - start), appliedCount };
+    return validHighlights.length === 0 || appliedCount > 0;
   }
 
   getLastPerfStats(): { durationMs: number; appliedCount: number } | null {

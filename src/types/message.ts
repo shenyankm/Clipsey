@@ -52,6 +52,11 @@ export interface FocusClipMessage extends RuntimeMessage {
   payload: FocusClipPayload;
 }
 
+export interface RemoveHighlightMessage extends RuntimeMessage {
+  type: 'REMOVE_HIGHLIGHT';
+  payload: { highlightId: string };
+}
+
 export interface ActivateHighlightsMessage extends RuntimeMessage {
   type: 'ACTIVATE_HIGHLIGHTS';
   payload: { highlights: HighlightPayload[] };
@@ -134,6 +139,7 @@ export type AppMessage =
   | RequestSelectionMessage
   | FocusClipMessage
   | ActivateHighlightsMessage
+  | RemoveHighlightMessage
   | LogErrorMessage
   | ExportDataMessage
   | ImportDataMessage

@@ -44,10 +44,7 @@ describe('HighlightEngine 富文本支持', () => {
   });
 
   it('跨段落高亮：跨越多个 <p> 元素', async () => {
-    document.body.innerHTML = `
-      <p>第一段 Hello</p>
-      <p>World 第二段</p>
-    `;
+    document.body.innerHTML = '<p>第一段 Hello</p><p>World 第二段</p>';
     const ok = await engine.activateHighlights([
       { textContent: 'HelloWorld', highlightStyle: 'inline', highlightId: 'para-1' }
     ]);

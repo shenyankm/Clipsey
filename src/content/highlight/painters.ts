@@ -102,7 +102,7 @@ export function applyInline(range: Range, id?: string): HTMLElement[] {
   return created;
 }
 
-export function applyOverlay(range: Range): HTMLElement[] {
+export function applyOverlay(range: Range, id?: string): HTMLElement[] {
   let rects = Array.from(typeof range.getClientRects === 'function' ? range.getClientRects() : []);
   if (!rects.length) {
     const fallback = range.getBoundingClientRect?.();
@@ -115,6 +115,10 @@ export function applyOverlay(range: Range): HTMLElement[] {
   for (const rect of rects) {
     const div = document.createElement('div');
     div.className = OVERLAY_CLASS;
+    if (id) {
+      div.dataset.clipseyId = id;
+      div.dataset.clipsey = 'true';
+    }
     div.style.position = 'absolute';
     div.style.left = `${rect.left + window.scrollX}px`;
     div.style.top = `${rect.top + window.scrollY}px`;
