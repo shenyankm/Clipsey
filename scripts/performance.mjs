@@ -10,12 +10,13 @@ const writes = process.argv.includes('--writes');
 const search = process.argv.includes('--search');
 const highlights = process.argv.includes('--highlights');
 const cache = process.argv.includes('--cache');
+const index = process.argv.includes('--index');
 const allocations = process.argv.includes('--allocations');
-if (allocations && !cache) throw new Error('--allocations requires --cache');
+if (allocations && !cache && !index) throw new Error('--allocations requires --cache or --index');
 const baselineRef = baseline
   ? execFileSync('git', ['rev-parse', process.env.BASELINE_REF ?? 'HEAD'], { encoding: 'utf8' }).trim()
   : undefined;
-const legacyUrlLookup = baseline && !writes && !search && !highlights && !cache && !/async getByUrl\(/.test(
+const legacyUrlLookup = baseline && !writes && !search && !highlights && !cache && !index && !/async getByUrl\(/.test(
   execFileSync('git', ['show', `${baselineRef}:src/background/storage/cache-manager.ts`], { encoding: 'utf8' })
 );
 const profile = await mkdtemp(join(tmpdir(), 'clipsey-perf-'));
@@ -31,10 +32,11 @@ const server = await createServer({
       const path = id.split('?')[0];
       const files = writes
         ? ['src/background/storage.ts', 'src/background/storage/sync-manager.ts']
-        : cache ? ['src/background/storage.ts', 'src/background/storage/cache-manager.ts']
+        : index ? ['src/background/storage/clip-index.ts']
+        : cache ? ['src/background/storage.ts', 'src/background/storage/cache-manager.ts', 'src/background/storage/clip-index.ts']
         : search ? ['src/background/services/search-service.ts', 'src/background/indexeddb-query.ts']
         : highlights ? ['src/content/highlight/dom-utils.ts', 'src/content/highlight/metadata.ts', 'src/content/highlight/locators/offset-locator.ts', 'src/content/highlight-engine.ts']
-        : ['src/background/storage/cache-manager.ts', 'src/background/indexeddb-query.ts'];
+        : ['src/background/storage/cache-manager.ts', 'src/background/indexeddb-query.ts', 'src/background/storage/clip-index.ts'];
       if (files.some(file => path === resolve(file))) {
         return execFileSync('git', ['show', `${baselineRef}:${path.slice(resolve('.').length + 1)}`], { encoding: 'utf8' });
       }
@@ -49,7 +51,7 @@ const server = await createServer({
       server.middlewares.use((req, res, next) => {
         if (req.url !== '/') return next();
         res.setHeader('Content-Type', 'text/html');
-        res.end(`<!doctype html><script type="module" src="/tests/performance/${writes ? 'writes' : cache ? 'cache' : search ? 'search' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
+        res.end(`<!doctype html><script type="module" src="/tests/performance/${writes ? 'writes' : index ? 'index' : cache ? 'cache' : search ? 'search' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
       });
     }
   }]

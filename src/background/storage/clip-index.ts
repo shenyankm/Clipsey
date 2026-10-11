@@ -6,13 +6,19 @@ export type ClipIndex = Map<string, Clip[]>;
 /** 构建剪辑索引：基于 URL 的多级键提升查询效率。 */
 export function buildClipIndex(clips: Clip[]): ClipIndex {
   const index: ClipIndex = new Map();
+  const sourceKeys = new Map<string, string[]>();
 
   for (const clip of clips) {
-    if (!clip?.sourceUrl) {
+    const sourceUrl = clip?.sourceUrl;
+    if (!sourceUrl) {
       continue;
     }
 
-    const keys = createIndexKeys(clip.sourceUrl);
+    let keys = sourceKeys.get(sourceUrl);
+    if (!keys) {
+      keys = createIndexKeys(sourceUrl);
+      sourceKeys.set(sourceUrl, keys);
+    }
     if (!keys.length) {
       continue;
     }

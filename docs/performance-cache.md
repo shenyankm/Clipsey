@@ -57,6 +57,6 @@ BASELINE_REF=40b5998 node scripts/performance.mjs --cache --allocations --baseli
 node scripts/performance.mjs --cache --allocations
 ```
 
-`--allocations` 仅用于 `--cache`，默认 Chrome 路径可由 `CHROME_PATH` 替代。基线从 Git 读取两个实现文件，不改工作树。
+`--allocations` 可用于 `--cache` 和 `--index`，默认 Chrome 路径可由 `CHROME_PATH` 替代。缓存基线从 Git 读取 storage、cache-manager 和 clip-index 实现，不改工作树。本页原始样本对应 `d41771c` 阶段；当前工作树包含后续索引优化，复跑优化端将得到最新叠加效果。
 
-连续峰值、低端硬件、真实 URL 分布、Edge/Firefox 运行时和远端 CI 尚未验证；URL 索引构建仍逐条解析来源。整个优化目标仍在进行。
+连续峰值、低端硬件、真实 URL 分布、Edge/Firefox 运行时和远端 CI 尚未验证；后续[URL 索引优化](./performance-url-index.md)在单次构建中复用相同来源的解析结果。整个优化目标仍在进行。
