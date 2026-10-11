@@ -46,4 +46,4 @@ node scripts/performance.mjs --search
 
 先读取全部索引主键的候选方案更慢，已撤掉；256/1024/4096 的批量比较没有证明大批次稳定更快，保留较小的 256。逐次插入有序数组的候选会随深页增加搬移成本，最终使用最大堆。
 
-尚未测量峰值堆内存、低端硬件与真实用户数据分布，也未验证 Edge/Firefox 的运行时或远端 CI。范围/unique 的性能未优化。长页高亮已在[后续优化](./performance-highlights.md)中测量并改进；popup 启动仍需测量；现有大 chunk 与 Firefox 发布配置警告保留。
+尚未测量峰值堆内存、低端硬件与真实用户数据分布，也未验证 Edge/Firefox 的运行时或远端 CI。范围/unique 的性能未优化。长页高亮已在[后续优化](./performance-highlights.md)中测量并改进；popup 启动与分进程内存已完成[后续采样](./performance-popup.md)；现有大 chunk 与 Firefox 发布配置警告保留。

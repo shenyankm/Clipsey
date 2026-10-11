@@ -21,7 +21,7 @@
           </div>
         </template>
         <a-empty 
-          v-else 
+          v-else-if="!loading"
           :description="t('popupNoClips')"
           :image="emptyImage"
         >
@@ -52,7 +52,7 @@ const clips = ref<Clip[]>([]);
 const currentPage = ref(1);
 const pageSize = 20;
 const total = ref(0);
-const loading = ref(false);
+const loading = ref(true);
 const currentUrl = ref<string>('');
 const chromeEnv = isChromeExtensionEnv();
 const emptyImage = Empty.PRESENTED_IMAGE_SIMPLE;
