@@ -4,18 +4,20 @@ export function normalizeWhitespace(text: string): string {
 }
 
 // 把规范化后的字符位置映射回原文，包含大小写转换增加字符的情况。
-function mapNormalizedIndexToOriginal(original: string, normalizedIndex: number): number {
+function mapNormalizedRangeToOriginal(original: string, normalizedStart: number, normalizedEnd: number): [number, number] {
   let count = 0;
   let inWhitespace = false;
+  let start: number | undefined;
   for (let i = 0; i < original.length; i += 1) {
     const char = original.charAt(i);
     const whitespace = /\s/.test(char);
     const length = whitespace ? (inWhitespace ? 0 : 1) : char.toLowerCase().length;
-    if (count + length > normalizedIndex) return i;
+    if (start === undefined && count + length > normalizedStart) start = i;
+    if (count + length > normalizedEnd) return [start ?? i, i + 1];
     count += length;
     inWhitespace = whitespace;
   }
-  return original.length;
+  return [start ?? original.length, original.length];
 }
 
 function isRangeHighlighted(nodes: Text[], start: number, end: number): boolean {
@@ -63,8 +65,7 @@ export function findTextRangeInNode(root: Node, text: string, skipHighlighted = 
   const normalized = original.replace(/\s+/g, ' ').toLowerCase();
   let index = normalized.indexOf(query);
   while (index !== -1) {
-    const start = mapNormalizedIndexToOriginal(original, index);
-    const end = mapNormalizedIndexToOriginal(original, index + query.length - 1) + 1;
+    const [start, end] = mapNormalizedRangeToOriginal(original, index, index + query.length - 1);
     if (!skipHighlighted || !isRangeHighlighted(nodes, start, end)) {
       const range = document.createRange();
       let offset = 0;

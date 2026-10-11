@@ -1,6 +1,7 @@
 import { captureHighlightMetadata } from '../../src/content/highlight/metadata';
 import { LocationStrategy } from '../../src/content/highlight/locators';
 import * as offsetLocator from '../../src/content/highlight/locators/offset-locator';
+import { findTextRangeInNode } from '../../src/content/highlight/text-search';
 
 function assert(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -34,7 +35,8 @@ try {
   };
   const { HighlightEngine } = await import('../../src/content/highlight-engine');
   const results = [];
-  for (const paragraphs of [100, 10000]) for (const fragmented of [false, true]) {
+  const reverse = new URLSearchParams(location.search).has('reverse');
+  for (const paragraphs of reverse ? [10000, 100] : [100, 10000]) for (const fragmented of reverse ? [true, false] : [false, true]) {
     const fixture = document.createElement('article');
     const texts = [];
     const offsets = [];
@@ -72,6 +74,13 @@ try {
       }) });
     }
     const positions = Array.from({ length: 20 }, (_, i) => Math.floor(paragraphs * (0.05 + i * 0.045)));
+    if (reverse) positions.reverse();
+    const textSearch = [10, Math.floor(paragraphs / 2), paragraphs - 10, -1].map(index => ({
+      index, ...measure(() => {
+        const range = findTextRangeInNode(document.body, index < 0 ? 'missing-quote' : `quote-${index}`);
+        assert(index < 0 ? range === null : range?.toString() === `quote-${index}` && range.startContainer === texts[index], 'Wrong fallback text match');
+      })
+    }));
     const restore = measure(() => {
       const ranges = 'locateByOffsets' in offsetLocator
         ? offsetLocator.locateByOffsets(positions.map(index => ({ offset: offsets[index]!, length: `quote-${index}`.length })))
@@ -83,12 +92,12 @@ try {
       }
     });
     const highlights = positions.map(index => ({ highlightId: `fixture-${index}`, textContent: `quote-${index}`, textOffset: offsets[index] }));
-    async function activate() {
+    async function activate(useOffsets = true) {
       document.body.replaceChildren(fixture.cloneNode(true));
       const engine = new HighlightEngine();
       styleReads = 0;
       const start = performance.now();
-      assert(await engine.activateHighlights(highlights), 'Activation failed');
+      assert(await engine.activateHighlights(useOffsets ? highlights : highlights.map(({ textOffset: _offset, ...highlight }) => highlight)), 'Activation failed');
       const wallMs = performance.now() - start;
       assert(engine.getLastPerfStats()?.appliedCount === highlights.length, 'Activation lost highlights');
       assert(document.querySelectorAll('[data-clipsey-id]').length === highlights.length, 'Wrong rendered highlight count');
@@ -106,10 +115,18 @@ try {
       durationMedianMs: samples.map(sample => sample.durationMs).toSorted((a, b) => a - b)[3],
       samples
     };
-    results.push({ paragraphs: texts.length, fragmented, captures, restore, activation });
+    await activate(false);
+    const fallbackSamples = [];
+    for (let i = 0; i < 7; i++) fallbackSamples.push(await activate(false));
+    const fallbackActivation = {
+      wallMedianMs: fallbackSamples.map(sample => sample.wallMs).toSorted((a, b) => a - b)[3],
+      durationMedianMs: fallbackSamples.map(sample => sample.durationMs).toSorted((a, b) => a - b)[3],
+      samples: fallbackSamples
+    };
+    results.push({ paragraphs: texts.length, fragmented, captures, restore, textSearch, activation, fallbackActivation });
   }
   window.getComputedStyle = readStyle;
-  (window as any).__performanceResult = { userAgent: navigator.userAgent, scenario: 'highlights', results };
+  (window as any).__performanceResult = { userAgent: navigator.userAgent, scenario: 'highlights', reverse, results };
 } catch (error) {
   (window as any).__performanceResult = { error: String(error) };
 }

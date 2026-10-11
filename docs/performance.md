@@ -1,6 +1,6 @@
 # 性能审查与验收
 
-本文件保存首轮审查与验收；最新优化见[Firefox 备份消息传输优化](./performance-firefox-backup.md)，此前补充见[Firefox 真实扩展运行验收](./performance-firefox.md)与[备份生成与消息传输验收](./performance-backup.md)，更早补充见[后台自然休眠与唤醒验收](./performance-worker-idle.md)与[UI 启动与动态样式验收](./performance-ui-validation.md)，缓存优化见[缓存读取与字段处理验收](./performance-cache-snapshot.md)，单库索引接入及其代价见[批量写入与单库 URL 索引验收](./performance-write-index.md)，上一候选见[按网址读取的生产候选与验收](./performance-indexed-url-cache.md)。
+本文件保存首轮审查与验收；最新优化见[文本匹配边界映射与跨浏览器高亮验收](./performance-text-range-mapping.md)，此前见[Firefox 备份消息传输优化](./performance-firefox-backup.md)、[Firefox 真实扩展运行验收](./performance-firefox.md)与[备份生成与消息传输验收](./performance-backup.md)，更早补充见[后台自然休眠与唤醒验收](./performance-worker-idle.md)与[UI 启动与动态样式验收](./performance-ui-validation.md)，缓存优化见[缓存读取与字段处理验收](./performance-cache-snapshot.md)，单库索引接入及其代价见[批量写入与单库 URL 索引验收](./performance-write-index.md)，上一候选见[按网址读取的生产候选与验收](./performance-indexed-url-cache.md)。
 
 ## 结论
 

@@ -38,4 +38,23 @@ describe('text range search', () => {
     expect(findTextRangeInNode(document.body, ' ')).toBeNull();
     expect(findTextRangeInNode(document.body, 'missing')).toBeNull();
   });
+
+  it('maps late matches across whitespace and case-expansion boundaries', () => {
+    document.body.innerHTML = '<p>prefix \t\n <span>İ</span><b>STANBUL</b> \r\n <i>🙂</i>  suffix</p>';
+    const range = findTextRangeInNode(document.body, 'i\u0307stanbul 🙂');
+    expect(normalizeWhitespace(range!.toString()).toLowerCase()).toBe('i\u0307stanbul 🙂');
+    expect(range?.startContainer).toBe(document.querySelector('span')?.firstChild);
+    expect(range?.startOffset).toBe(0);
+    expect(range?.endContainer).toBe(document.querySelector('i')?.firstChild);
+    expect(range?.endOffset).toBe(2);
+  });
+
+  it('maps a later overlapping match after skipping an already highlighted one', () => {
+    document.body.innerHTML = '<span data-clipsey-id="first">aab</span><b> a</b><i>ab</i>';
+    const range = findTextRangeInNode(document.body, 'ab');
+    expect(range?.toString()).toBe('ab');
+    expect(range?.startContainer).toBe(document.querySelector('i')?.firstChild);
+    expect(range?.startOffset).toBe(0);
+    expect(range?.endOffset).toBe(2);
+  });
 });

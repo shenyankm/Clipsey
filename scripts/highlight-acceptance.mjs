@@ -43,7 +43,7 @@ try{
  record('actual selection captures the same offset and 64-character contexts before wrapping on a long page');
  await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[],autoLocate:false}});
  await page.evaluate(html=>{document.body.innerHTML=html;},html);
- const highs=await page.evaluate(()=>{
+ let highs=await page.evaluate(()=>{
   const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);let offset=0,node;const targets=[];
   while(node=walker.nextNode()){
    const parent=node.parentElement;if(parent?.id?.startsWith('q-')){const i=Number(parent.id.slice(2));if(i>=500&&i<=9050&&(i-500)%450===0)targets.push({highlightId:`restored-${i}`,textContent:`quote-${i}`,textOffset:offset+1});}
@@ -52,6 +52,14 @@ try{
   return targets.reverse();
  });
  assert.equal(highs.length,20);
+ const clips=Array.from({length:10000},(_,i)=>({id:`stored-${i}`,textContent:i<20?highs[i].textContent:`Unrelated ${i}`,sourceUrl:i<20?'https://example.com/highlights':`https://example.com/other/${i}`,highlightId:i<20?highs[i].highlightId:undefined,textOffset:i<20?highs[i].textOffset:undefined,createdAt:new Date(1700000000000+i*1000).toISOString(),updatedAt:'2025-02-01T00:00:00.000Z'}));
+ assert.equal((await options.evaluate(clips=>chrome.runtime.sendMessage({type:'IMPORT_DATA',payload:{clips}}),clips)).success,true);
+ const stored=await options.evaluate(()=>chrome.runtime.sendMessage({type:'REQUEST_CLIPS_PAGED',payload:{url:'https://example.com/highlights',page:1,pageSize:20,sortOrder:'asc'}}));
+ assert.equal(stored.success,true);assert.equal(stored.data.total,20);
+ assert.deepEqual(stored.data.items.map(c=>c.textContent),highs.map(h=>h.textContent));
+ assert.equal((await options.evaluate(()=>chrome.runtime.sendMessage({type:'REQUEST_CLIPS'}))).data.length,10000);
+ highs=stored.data.items;
+ record('actual 10000-record library supplies the 20 matching page highlights');
  assert.equal((await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:highs,autoLocate:false}})).success,true);
  for(const h of highs)assert.equal(await page.locator(`[data-clipsey-id="${h.highlightId}"]`).textContent(),h.textContent);
  assert.equal(await page.evaluate(()=>document.body.textContent),source.text);
@@ -63,6 +71,12 @@ try{
  assert.equal(await page.locator('[data-clipsey-id]').count(),0);
  assert.equal(await page.evaluate(()=>document.body.textContent),source.text);
  record('clearing a batch preserves original text');
+ const fallbackHighs=highs.map(({textOffset:_offset,...highlight})=>highlight);
+ assert.equal((await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:fallbackHighs,autoLocate:false}})).success,true);
+ for(const h of highs)assert.equal(await page.locator(`[data-clipsey-id="${h.highlightId}"]`).textContent(),h.textContent);
+ assert.equal(await page.evaluate(()=>document.body.textContent),source.text);
+ record('actual full-text fallback restores all 20 quotes without saved offsets');
+ await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:[],autoLocate:false}});
  await page.evaluate(()=>{document.body.innerHTML='<p>one two three</p>';});
  const adjacent=[{textContent:'three',textOffset:8,highlightId:'three'},{textContent:'one',textOffset:0,highlightId:'one'},{textContent:'two',textOffset:4,highlightId:'two'}];
  assert.equal((await send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:adjacent,autoLocate:false}})).success,true);
@@ -119,6 +133,7 @@ try{
     }});observer.observe(document.body,{subtree:true,childList:true});
    }
   },mode);
+  assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('#before')).display),'block');
   const dynamicHighlights=await page.evaluate(()=>window.__dynamicHighlights);
   const activation=send({type:'ACTIVATE_HIGHLIGHTS',payload:{highlights:dynamicHighlights,autoLocate:false}});
   // 等待首项期间也处理消息拒绝；下面仍 await 原 promise 并报告失败。

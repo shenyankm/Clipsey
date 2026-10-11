@@ -44,7 +44,7 @@ const server = await createServer({
         : index ? ['src/background/storage/clip-index.ts']
         : cache ? [...cacheFiles, ...databaseFiles]
         : search ? ['src/background/services/search-service.ts', 'src/background/indexeddb-query.ts']
-        : highlights ? ['src/content/highlight/dom-utils.ts', 'src/content/highlight/metadata.ts', 'src/content/highlight/locators/offset-locator.ts', 'src/content/highlight-engine.ts']
+        : highlights ? ['src/content/highlight/dom-utils.ts', 'src/content/highlight/metadata.ts', 'src/content/highlight/locators/offset-locator.ts', 'src/content/highlight/text-search.ts', 'src/content/highlight-engine.ts']
         : ['src/background/storage/cache-manager.ts', 'src/background/indexeddb-query.ts', 'src/background/storage/clip-index.ts', 'src/background/storage/utils/clip-normalizer.ts'];
       if (files.some(file => path === resolve(file))) {
         return execFileSync('git', ['show', `${baselineRef}:${path.slice(resolve('.').length + 1)}`], { encoding: 'utf8' });
@@ -114,7 +114,7 @@ try {
   });
   await send('Runtime.enable');
   const query = new URLSearchParams();
-  if ((urlRead || pageCache || writeLayout || keyLayout) && process.argv.includes('--reverse')) query.set('reverse', '1');
+  if ((urlRead || pageCache || writeLayout || keyLayout || highlights) && process.argv.includes('--reverse')) query.set('reverse', '1');
   if (pageCache && process.argv.includes('--legacy-v4')) query.set('legacy-v4', '1');
   await send('Page.navigate', { url: server.resolvedUrls.local[0] + (query.size ? `?${query}` : '') });
   let result;
