@@ -1,7 +1,7 @@
 import { locateByOffset } from './offset-locator';
 import { locateBySelector } from './selector-locator';
 import { locateByContext } from './context-locator';
-import { findTextRangeInNode } from '../text-search';
+import { findTextRangeInNode, normalizeWhitespace } from '../text-search';
 
 /** 定位策略配置：描述定位所需参数。 */
 export interface LocateOptions {
@@ -19,9 +19,9 @@ export class LocationStrategy {
     const { text, textOffset, anchorSelector, contextBefore, contextAfter } = options;
     
     // 策略 1: 优先使用 textOffset（最精确）
-    if (textOffset != null && typeof textOffset === 'number') {
+    if (typeof textOffset === 'number' && Number.isSafeInteger(textOffset) && textOffset >= 0) {
       const range = locateByOffset(textOffset, text.length);
-      if (range) return range;
+      if (range && normalizeWhitespace(range.toString()) === normalizeWhitespace(text)) return range;
     }
     
     // 策略 2: 尝试使用 anchorSelector 缩小搜索范围

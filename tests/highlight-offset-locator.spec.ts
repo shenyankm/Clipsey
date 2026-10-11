@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { locateByOffset } from '@/content/highlight/locators/offset-locator';
 import { computeDocumentTextData } from '@/content/highlight/metadata';
+import { LocationStrategy } from '@/content/highlight/locators';
 
 describe('locateByOffset', () => {
   beforeEach(() => {
@@ -10,6 +11,21 @@ describe('locateByOffset', () => {
         <p><strong>目标段落</strong>与<span>跨节点</span>内容。</p>
       </article>
     `;
+  });
+
+  it('falls back to matching text when a saved offset points to changed content', () => {
+    document.body.innerHTML = '<p>NEW prefix target suffix</p>';
+    expect(LocationStrategy.locate({ text: 'target', textOffset: 7, anchorSelector: 'p' })?.toString()).toBe('target');
+  });
+
+  it('does not highlight unrelated text when the quote has disappeared', () => {
+    document.body.innerHTML = '<p>prefix different suffix</p>';
+    expect(LocationStrategy.locate({ text: 'target', textOffset: 7 })).toBeNull();
+  });
+
+  it.each([-1, NaN, Infinity, 1.5])('ignores an invalid offset %s and searches for the quote', textOffset => {
+    document.body.innerHTML = '<p>prefix target suffix</p>';
+    expect(LocationStrategy.locate({ text: 'target', textOffset })?.toString()).toBe('target');
   });
 
   it('偏移位于单个节点内部时，应返回非折叠 Range', () => {

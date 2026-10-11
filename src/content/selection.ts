@@ -2,12 +2,11 @@ import { browser } from 'wxt/browser';
 import type { Clip } from '@/types/clip';
 import { HighlightEngine } from '@/content/highlight-engine';
 import { applyInline } from '@/content/highlight/painters';
-import { ensureHighlightColorsReady, HIGHLIGHT_INLINE_CLASS, HIGHLIGHT_OVERLAY_CLASS } from '@/content/color-manager';
-import { captureHighlightMetadata } from '@/content/highlight/metadata';
+import { ensureHighlightColorsReady, HIGHLIGHT_INLINE_CLASS } from '@/content/color-manager';
+import { buildCssPath, captureHighlightMetadata } from '@/content/highlight/metadata';
 import type { MessageResponse } from '@/types/message';
 import { ErrorHandler } from '@/utils/error-handler';
 import type { SettingsOptions } from '@/utils/settings-local';
-import { ScrollManager } from '@/content/highlight/scroll-manager';
 import { isSupportedHttpUrl } from '@/utils/helpers';
 import { sendMessage } from '@/utils/chrome';
 
@@ -49,6 +48,7 @@ export function initSelectionContentScript(): () => void {
   }
 
   window.__PAGE_CLIPPER_CONTENT_INITIALIZED__ = true;
+  __autoLocatePerformed = false;
   // 初始化时确保颜色等资源可用
   void ensureHighlightColorsReady();
 
@@ -95,7 +95,7 @@ export function initSelectionContentScript(): () => void {
             sendResponse({ success } satisfies MessageResponse);
             try {
               if (message?.payload?.autoLocate !== false) {
-                await tryAutoLocateLatestSummaryIfEnabled(success);
+                await tryAutoLocateLatestSummaryIfEnabled(success, remoteHighlights);
               }
             } catch {
               // 忽略自动定位失败，避免影响用户操作
@@ -173,8 +173,8 @@ async function handleRequestSelection(
   }
 
   const htmlContent = extractSelectionHtml(selection);
-  const metadataRange = activeRange.cloneRange();
   const highlightId = generateHighlightId();
+  const metadata = captureHighlightMetadata(activeRange, null, highlightId);
   const highlightSpan = wrapRangeInHighlight(activeRange, highlightId);
 
   if (!highlightSpan) {
@@ -186,8 +186,6 @@ async function handleRequestSelection(
 
   selection.removeAllRanges();
 
-  const metadata = captureHighlightMetadata(metadataRange, highlightSpan, highlightId);
-
   const payload: Partial<Clip> = {
     textContent,
     htmlContent,
@@ -196,7 +194,7 @@ async function handleRequestSelection(
     highlightId,
     contextBefore: metadata?.contextBefore,
     contextAfter: metadata?.contextAfter,
-    anchorSelector: metadata?.anchorSelector,
+    anchorSelector: buildCssPath(highlightSpan.parentElement ?? undefined),
     textOffset: metadata?.textOffset,
     highlightStyle: 'inline'
   };
@@ -210,10 +208,12 @@ async function handleRequestSelection(
     }
 
     const msg = response?.error ?? '保存失败';
+    __engine.undo(highlightId);
     void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'SAVE_CLIP from content script' } });
     sendResponse({ success: false, error: msg });
     return false;
   } catch (error) {
+    __engine.undo(highlightId);
     const msg = ErrorHandler.getErrorMessage(error);
     void sendMessage({ type: 'LOG_ERROR', payload: { message: msg, context: 'SAVE_CLIP from content script' } });
     sendResponse({ success: false, error: msg });
@@ -229,130 +229,19 @@ function generateHighlightId(): string {
   return 'highlight-' + Math.random().toString(36).slice(2, 11);
 }
 
-/** 自动定位：高亮激活后根据设置跳转到最后一个摘要位置。 */
-async function tryAutoLocateLatestSummaryIfEnabled(success: boolean): Promise<void> {
+/** 输入高亮按创建时间倒序排列，定位最近一条能找到的摘录。 */
+async function tryAutoLocateLatestSummaryIfEnabled(success: boolean, highlights: RemoteHighlight[]): Promise<void> {
   if (!success || __autoLocatePerformed) return;
 
-  let settingsResponse: MessageResponse<SettingsOptions> | undefined;
-  try {
-    settingsResponse = await sendMessage<MessageResponse<SettingsOptions>>({ type: 'REQUEST_SETTINGS' });
-  } catch {
-    return;
-  }
+  const response = await sendMessage<MessageResponse<SettingsOptions>>({ type: 'REQUEST_SETTINGS' });
+  if (!response?.success || !response.data?.autoLocateFirstSummary) return;
 
-  const settings = settingsResponse?.success ? settingsResponse.data : undefined;
-  if (!settings?.autoLocateFirstSummary) return;
-
-  const anchor = findLatestHighlightAnchor();
-  if (!anchor) return;
-
-  try {
-    const range = document.createRange();
-    if (anchor.element.childNodes.length > 0) {
-      range.selectNodeContents(anchor.element);
-    } else {
-      range.selectNode(anchor.element);
-    }
-    ScrollManager.scrollIntoView(range);
-    __autoLocatePerformed = true;
-  } catch {
-    // 忽略滚动错误
-  }
-}
-
-type HighlightAnchor = {
-  element: HTMLElement;
-  rect: DOMRectReadOnly;
-  priority: number;
-};
-
-function findLatestHighlightAnchor(): HighlightAnchor | null {
-  const anchors = collectHighlightAnchors();
-  if (!anchors.length) return null;
-
-  const inlineAnchors = anchors.filter(anchor => anchor.priority === 0);
-  const pool = inlineAnchors.length ? inlineAnchors : anchors;
-
-  return pool.reduce<HighlightAnchor | null>((latest, candidate) => {
-    if (!latest) return candidate;
-    if (candidate.rect.bottom === latest.rect.bottom) {
-      return candidate.rect.left >= latest.rect.left ? candidate : latest;
-    }
-    return candidate.rect.bottom > latest.rect.bottom ? candidate : latest;
-  }, null);
-}
-
-function collectHighlightAnchors(): HighlightAnchor[] {
-  const anchors: HighlightAnchor[] = [];
-
-  const inlineNodes = Array.from(
-    document.querySelectorAll<HTMLElement>(`.${HIGHLIGHT_INLINE_CLASS}`)
-  ).filter(isElementVisible);
-
-  const grouped = new Map<string, HTMLElement[]>();
-  let anonymousIndex = 0;
-
-  for (const node of inlineNodes) {
-    const key = node.dataset.clipseyId || `anonymous-${anonymousIndex++}`;
-    const bucket = grouped.get(key);
-    if (bucket) {
-      bucket.push(node);
-    } else {
-      grouped.set(key, [node]);
+  for (const highlight of highlights) {
+    if (await __engine.focusClip(highlight)) {
+      __autoLocatePerformed = true;
+      return;
     }
   }
-
-  grouped.forEach(nodes => {
-    const anchorElement = pickBottomMostElement(nodes);
-    if (!anchorElement) return;
-    anchors.push({
-      element: anchorElement.element,
-      rect: anchorElement.rect,
-      priority: 0
-    });
-  });
-
-  const overlayNodes = Array.from(
-    document.querySelectorAll<HTMLElement>(`.${HIGHLIGHT_OVERLAY_CLASS}`)
-  ).filter(isElementVisible);
-
-  overlayNodes.forEach(node => {
-    anchors.push({
-      element: node,
-      rect: node.getBoundingClientRect(),
-      priority: 1
-    });
-  });
-
-  return anchors;
-}
-
-function pickBottomMostElement(nodes: HTMLElement[]): { element: HTMLElement; rect: DOMRectReadOnly } | null {
-  let result: { element: HTMLElement; rect: DOMRectReadOnly } | null = null;
-  for (const node of nodes) {
-    const rect = node.getBoundingClientRect();
-    if (!result) {
-      result = { element: node, rect };
-      continue;
-    }
-    if (
-      rect.bottom > result.rect.bottom ||
-      (rect.bottom === result.rect.bottom && rect.left >= result.rect.left)
-    ) {
-      result = { element: node, rect };
-    }
-  }
-  return result;
-}
-
-function isElementVisible(el: HTMLElement): boolean {
-  if (!el.isConnected) return false;
-  const style = window.getComputedStyle(el);
-  if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity || '1') === 0) {
-    return false;
-  }
-  const rect = el.getBoundingClientRect();
-  return rect.width > 0 && rect.height > 0;
 }
 
 /** 创建高亮包裹元素：仅设置类名与数据属性，样式由 color-manager 管理。 */

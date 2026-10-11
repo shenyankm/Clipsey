@@ -13,12 +13,13 @@ const runtime = vi.hoisted(() => {
   };
 });
 const engine = vi.hoisted(() => ({
-  activateHighlights: vi.fn().mockResolvedValue(true), undo: vi.fn(), abort: vi.fn()
+  activateHighlights: vi.fn().mockResolvedValue(true), focusClip: vi.fn().mockResolvedValue(true), undo: vi.fn(), abort: vi.fn()
 }));
 vi.mock('wxt/browser', () => ({ browser: { runtime } }));
 vi.mock('@/content/highlight-engine', () => ({
   HighlightEngine: class {
     activateHighlights = engine.activateHighlights;
+    focusClip = engine.focusClip;
     undo = engine.undo;
     abort = engine.abort;
   }

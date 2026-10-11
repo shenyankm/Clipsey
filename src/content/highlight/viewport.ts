@@ -115,30 +115,6 @@ export function detectTopObstructionHeight(): ObstructionDetection {
   return { offset, detected: rawOffset > 0 };
 }
 
-export function smoothScrollBy(amount: number): void {
-  try {
-    window.scrollBy({ top: amount, behavior: 'smooth' });
-  } catch {
-    window.scrollBy(0, amount);
-  }
-}
-
-export function scheduleFallbackScrolls(targetTop: number): void {
-  try {
-    const current = window.scrollY;
-    const diff = targetTop - current;
-    if (Math.abs(diff) < 2) return;
-    const step = clamp(Math.round(Math.abs(diff) / 3), 8, 128);
-    if (diff < 0) {
-      smoothScrollBy(-step);
-      setTimeout(() => smoothScrollBy(-step), 200);
-    } else {
-      smoothScrollBy(step);
-      setTimeout(() => smoothScrollBy(step), 200);
-    }
-  } catch {}
-}
-
 // 简单缓存结构与失效机制
 const headerCache: { value: number; ts: number } = { value: -1, ts: 0 };
 

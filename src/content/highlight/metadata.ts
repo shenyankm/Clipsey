@@ -20,15 +20,16 @@ export function captureHighlightMetadata(
 
   const documentData = computeDocumentTextData(range);
   const selectionText = range.toString();
+  const leadingWhitespace = selectionText.length - selectionText.trimStart().length;
   let contextBefore: string | undefined;
   let contextAfter: string | undefined;
   let textOffset: number | undefined;
 
   if (documentData) {
-    textOffset = documentData.offset;
-    const beforeStart = Math.max(0, documentData.offset - CONTEXT_RADIUS);
-    const afterStart = documentData.offset + selectionText.length;
-    contextBefore = documentData.text.slice(beforeStart, documentData.offset);
+    textOffset = documentData.offset + leadingWhitespace;
+    const beforeStart = Math.max(0, textOffset - CONTEXT_RADIUS);
+    const afterStart = textOffset + selectionText.trim().length;
+    contextBefore = documentData.text.slice(beforeStart, textOffset);
     contextAfter = documentData.text.slice(afterStart, afterStart + CONTEXT_RADIUS);
   }
 
