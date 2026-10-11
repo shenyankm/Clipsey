@@ -1,5 +1,6 @@
 import type { Clip } from './clip';
 export const CLIP_URL_KEY = '__clipseyUrlKey';
+export const CLIP_REVISION_KEY = '__clipseyClipRevision';
 
 // IndexedDB 数据库配置
 export const DB_CONFIG = {

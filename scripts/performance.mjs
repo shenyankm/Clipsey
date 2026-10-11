@@ -21,7 +21,7 @@ const writeLayout = process.argv.includes('--write-layout');
 const keyLayout = process.argv.includes('--key-layout');
 const allocations = process.argv.includes('--allocations');
 if (process.env.PROFILE && allocations) throw new Error('Run CPU profiling separately from allocation sampling');
-if (allocations && !cache && !index && !normalize && !urlRead && !pageCache && !keyLayout && !highlights) throw new Error('--allocations requires a cache or highlight benchmark');
+if (allocations && !cache && !index && !normalize && !urlRead && !pageCache && !keyLayout && !highlights && (!search || searchProjection)) throw new Error('--allocations requires a cache, search or highlight benchmark');
 if (urlRead && baseline) throw new Error('--url-read compares the current cache path and experimental strategies in one run');
 if (searchProjection && baseline) throw new Error('--search-projection compares the current query path and experimental store in one run');
 const baselineRef = baseline
@@ -48,7 +48,7 @@ const server = await createServer({
         : normalize ? ['src/background/storage/utils/clip-normalizer.ts']
         : index ? ['src/background/storage/clip-index.ts']
         : cache ? [...cacheFiles, ...databaseFiles]
-        : search ? ['src/background/services/search-service.ts', 'src/background/indexeddb-query.ts']
+        : search ? ['src/background/services/search-service.ts', ...databaseFiles]
         : highlights ? ['src/content/highlight/dom-utils.ts', 'src/content/highlight/metadata.ts', 'src/content/highlight/locators/offset-locator.ts', 'src/content/highlight/text-search.ts', 'src/content/highlight-engine.ts']
         : ['src/background/storage/cache-manager.ts', 'src/background/indexeddb-query.ts', 'src/background/storage/clip-index.ts', 'src/background/storage/utils/clip-normalizer.ts'];
       if (files.some(file => path === resolve(file))) {
@@ -123,9 +123,9 @@ try {
     await send('Profiler.start');
   }
   const query = new URLSearchParams();
-  if (allocations && highlights) query.set('allocations', '1');
+  if (allocations && (highlights || search)) query.set('allocations', '1');
   if (highlightScheduling && process.argv.includes('--timer-yield')) query.set('timer-yield', '1');
-  if ((urlRead || pageCache || writeLayout || keyLayout || highlights || searchProjection) && process.argv.includes('--reverse')) query.set('reverse', '1');
+  if ((urlRead || pageCache || writeLayout || keyLayout || highlights || search) && process.argv.includes('--reverse')) query.set('reverse', '1');
   if (pageCache && process.argv.includes('--legacy-v4')) query.set('legacy-v4', '1');
   await send('Page.navigate', { url: server.resolvedUrls.local[0] + (query.size ? `?${query}` : '') });
   let result;
@@ -155,15 +155,21 @@ try {
     result.allocationSamples = [];
     for (const [index, scenario] of cases.entries()) {
       const samplesBytes = [];
+      const heapSamples = [];
       const allocationSites = new Map();
       for (let i = 0; i < 7; i++) {
         await evaluate(`window.${caseList}[${index}].prepare()`);
         await send('HeapProfiler.collectGarbage');
+        const heapBefore = search ? await send('Runtime.getHeapUsage') : undefined;
         await send('HeapProfiler.startSampling', {
           samplingInterval: 16384, includeObjectsCollectedByMajorGC: true, includeObjectsCollectedByMinorGC: true
         });
         await evaluate(`window.${caseList}[${index}].operation()`);
         const { profile } = await send('HeapProfiler.stopSampling');
+        if (search) {
+          await send('HeapProfiler.collectGarbage');
+          heapSamples.push({ before: heapBefore, after: await send('Runtime.getHeapUsage') });
+        }
         function collectSites(node) {
           const frame = node.callFrame;
           const key = JSON.stringify([frame.functionName, frame.url, frame.lineNumber, frame.columnNumber]);
@@ -181,7 +187,7 @@ try {
       const sites = [...allocationSites.values()].map(site => ({ ...site, medianBytes: site.samplesBytes.toSorted((a, b) => a - b)[3] }))
         .sort((a, b) => b.medianBytes - a.medianBytes);
       if (samplesBytes.some((bytes, index) => sites.reduce((sum, site) => sum + site.samplesBytes[index], 0) !== bytes)) throw new Error('Allocation site totals do not match sampled bytes');
-      result.allocationSamples.push({ ...scenario, medianBytes: samplesBytes.toSorted((a, b) => a - b)[3], samplesBytes, sites });
+      result.allocationSamples.push({ ...scenario, medianBytes: samplesBytes.toSorted((a, b) => a - b)[3], samplesBytes, sites, ...(search ? { heapSamples } : {}) });
     }
   }
   await send('Runtime.evaluate', { expression: 'window.__performanceCleanup?.()' });

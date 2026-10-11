@@ -29,7 +29,7 @@ it.each(['createdAt', 'sourceUrl', 'textContent'] as const)(
       const cursor = vi.spyOn(IDBIndex.prototype, 'openCursor');
       const result = await IndexedDBQuery.filterByKeywordPaged('clips', 'NEEDLE', ['textContent'], 12, 20, { indexName, direction });
       expect(result).toEqual({ items: expected.slice(220, 240), total: expected.length, page: 12, pageSize: 20 });
-      expect(batch).toHaveBeenCalledTimes(5);
+      expect(batch).toHaveBeenCalledTimes(direction === 'next' ? 5 : 0);
       expect(batch.mock.calls.every(([, count]) => count === 256)).toBe(true);
       expect(cursor).not.toHaveBeenCalled();
       vi.restoreAllMocks();

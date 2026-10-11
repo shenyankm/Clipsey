@@ -1,15 +1,18 @@
 import {
   DB_CONFIG,
   CLIP_URL_KEY,
+  CLIP_REVISION_KEY,
   STORE_CONFIGS,
   IndexedDBError,
   type DBSchema,
   type QueryOptions,
   type BulkOperationOptions,
   type TransactionMode,
-  type StoreConfig
+  type StoreConfig,
+  type MetadataRecord
 } from '@/types/indexeddb';
 import type { Clip } from '@/types/clip';
+import { createId } from '@/utils/helpers';
 import { withClipUrlKey } from './storage/utils/clip-url-record';
 import { createIndexKeys } from './storage/utils/url-normalizer';
 
@@ -187,7 +190,9 @@ export class IndexedDB {
     mode: TransactionMode,
     operation: (transaction: IDBTransaction) => Promise<T>
   ): Promise<T> {
-    const transaction = await this.createTransaction(storeNames, mode);
+    const names = typeof storeNames === 'string' ? [storeNames] : storeNames;
+    const clipWrite = mode === 'readwrite' && names.includes('clips');
+    const transaction = await this.createTransaction(clipWrite ? [...new Set([...names, 'metadata'])] : storeNames, mode);
     const completed = new Promise<void>((resolve, reject) => {
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error ?? new Error('Transaction failed'));
@@ -196,7 +201,21 @@ export class IndexedDB {
 
     try {
       const [result] = await Promise.all([
-        Promise.resolve().then(() => operation(transaction)),
+        Promise.resolve().then(() => {
+          // 与正文一起提交或回滚；随机标记避免元数据清空后的版本碰撞。
+          if (clipWrite) {
+            const time = new Date().toISOString();
+            const metadata = transaction.objectStore('metadata');
+            const marker = metadata.put({ key: CLIP_REVISION_KEY, value: createId(), createdAt: time, updatedAt: time } satisfies MetadataRecord);
+            marker.onerror = event => {
+              if (marker.error?.name !== 'QuotaExceededError') return;
+              // 配额不足不能妨碍删除正文；无标记时搜索回退扫描，不复用旧快照。
+              event.preventDefault(); event.stopPropagation();
+              metadata.delete(CLIP_REVISION_KEY);
+            };
+          }
+          return operation(transaction);
+        }),
         completed
       ]);
       return result;

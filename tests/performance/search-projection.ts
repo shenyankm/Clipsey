@@ -1,7 +1,7 @@
 import { IndexedDB, indexedDBManager } from '../../src/background/indexeddb';
 import { IndexedDBQuery } from '../../src/background/indexeddb-query';
 import { searchService, type SearchQuery } from '../../src/background/services/search-service';
-import { STORE_CONFIGS, type TransactionMode } from '../../src/types/indexeddb';
+import { CLIP_REVISION_KEY, STORE_CONFIGS, type TransactionMode } from '../../src/types/indexeddb';
 import type { Clip } from '../../src/types/clip';
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -17,6 +17,7 @@ const clear = IDBObjectStore.prototype.clear;
 const execute = IndexedDB.prototype.executeTransaction;
 let projection = false;
 let largestRead = 0;
+let scanReads = 0;
 
 try {
   // 仅为隔离夹具加 store；生产配置文件和迁移代码不变。
@@ -26,6 +27,7 @@ try {
     return execute.call(this, projection && stores.includes('clips') ? [...new Set([...stores, projectionStore])] : stores, mode, operation);
   }) as typeof execute;
   IDBObjectStore.prototype.getAll = function(...args) {
+    if (this.name === 'clips') scanReads += 1;
     const source = projection && this.name === 'clips' ? this.transaction.objectStore(projectionStore) : this;
     const request = getAll.apply(source, args);
     request.addEventListener('success', () => { largestRead = Math.max(largestRead, request.result.length); });
@@ -81,6 +83,8 @@ try {
     ];
     projection = true;
     await reset(); await IndexedDBQuery.bulkPut('clips', clips, { batchSize: 1000 }); await verifyProjection();
+    // 禁用新快照，只测完整记录与持久化投影的实际扫描；只影响临时夹具数据库。
+    await indexedDBManager.delete('metadata', CLIP_REVISION_KEY);
     for (const mode of reverse ? ['projection', 'full'] : ['full', 'projection']) {
       projection = mode === 'projection';
       const scenarios = [];
@@ -97,10 +101,11 @@ try {
           assert(result.total === expected.length, 'Wrong count');
           assert(JSON.stringify(result.items) === JSON.stringify(page), 'Wrong order, fields or HTML hydration');
         };
-        largestRead = 0; await run(); const samplesMs = [];
+        largestRead = 0; scanReads = 0; await run(); const samplesMs = [];
         for (let i = 0; i < 7; i++) { const start = performance.now(); await run(); samplesMs.push(performance.now() - start); }
         assert(largestRead <= 256, 'Unbounded scan');
-        scenarios.push({ query, total: expected.length, largestRead, medianMs: median(samplesMs), samplesMs });
+        assert(scanReads === 8 * (Math.floor(records / 256) + 1), 'Memory snapshot bypassed the projection scan');
+        scenarios.push({ query, total: expected.length, largestRead, scanReads, medianMs: median(samplesMs), samplesMs });
       }
       results.push({ records, mode, scenarios });
     }

@@ -1,11 +1,16 @@
 import { IndexedDB, indexedDBManager } from './indexeddb';
 import {
   IndexedDBError,
+  CLIP_REVISION_KEY,
   type DBSchema,
   type QueryOptions,
   type BulkOperationOptions,
   type TransactionMode
 } from '@/types/indexeddb';
+
+type SearchRecord = Pick<DBSchema['clips']['value'], 'id' | 'title' | 'textContent' | 'sourceUrl' | 'createdAt'>;
+const searchFields = ['id', 'title', 'textContent', 'sourceUrl', 'createdAt'] as const;
+const searchSnapshots = new WeakMap<IDBDatabase, { revision: string; records: SearchRecord[] }>();
 
 // IndexedDB 查询与批量操作封装
 export class IndexedDBQuery {
@@ -365,7 +370,8 @@ export class IndexedDBQuery {
     const offset = Math.max(0, (page - 1) * pageSize);
     const limit = Math.max(1, pageSize);
 
-    return indexedDBManager.executeTransaction(storeName as string, 'readonly', async (transaction) => {
+    let snapshot: { database: IDBDatabase; revision: string; records: SearchRecord[] } | undefined;
+    const result = await indexedDBManager.executeTransaction(storeName === 'clips' ? ['clips', 'metadata'] : storeName as string, 'readonly', async (transaction) => {
       const store = transaction.objectStore(storeName as string);
       const source = options.indexName ? store.index(options.indexName) : store;
       let direction: IDBCursorDirection = 'next';
@@ -396,11 +402,33 @@ export class IndexedDBQuery {
         const compare = (a: typeof matches[number], b: typeof matches[number]) =>
           order * (compareString(a.key, b.key) || compareString(a.id, b.id)) || (a.id === b.id ? 0 : a.id < b.id ? -1 : 1);
         const windowSize = offset + limit;
+        const canCache = fields.every(field => searchFields.includes(field as typeof searchFields[number]));
+        const revision = canCache ? (await read(transaction.objectStore('metadata').get(CLIP_REVISION_KEY)))?.value : undefined;
+        let saved = searchSnapshots.get(transaction.db);
+        if (canCache && (typeof revision !== 'string' || saved?.revision !== revision)) {
+          searchSnapshots.delete(transaction.db);
+          saved = undefined;
+        }
+        const cached = canCache ? saved?.records : undefined;
+        // shortcut: 搜索快照最多 10000 条、16 MiB 字段权重；更大正文仍分批扫描，重新实测后再调边界。
+        let collected: SearchRecord[] | null = !cached && typeof revision === 'string' ? [] : null;
+        let weight = 0;
+        let position = 0;
         let total = 0;
         let range: IDBKeyRange | undefined;
         while (true) {
-          const batch = await read(store.getAll(range, 256)) as DBSchema['clips']['value'][];
+          const batch = cached ? cached.slice(position, position += 256) : await read(store.getAll(range, 256)) as DBSchema['clips']['value'][];
           for (const record of batch) {
+            if (collected) {
+              weight += 128;
+              for (const field of searchFields) {
+                const value = record[field];
+                if (typeof value === 'string') weight += value.length * 2;
+                else if (value != null) { collected = null; break; }
+              }
+              if (weight > 16 * 1024 * 1024 || collected?.length === 10000) collected = null;
+              collected?.push({ id: record.id, title: record.title, textContent: record.textContent, sourceUrl: record.sourceUrl, createdAt: record.createdAt });
+            }
             const key = localeSort ? record.title ?? '' : record[sortField];
             if (typeof key === 'string' && ((localeSort && !lower) || fields.some(field => {
               const value = record[field as keyof typeof record];
@@ -439,6 +467,7 @@ export class IndexedDBQuery {
         matches.sort(compare);
         const items = (await Promise.all(matches.slice(offset, offset + limit).map(({ id }) => read(store.get(id)))))
           .map(value => IndexedDB.readRecord(store, value)) as DBSchema[K]['value'][];
+        if (collected) snapshot = { database: transaction.db, revision, records: collected };
         return { items, total, page, pageSize };
       }
 
@@ -484,5 +513,7 @@ export class IndexedDBQuery {
         };
       });
     });
+    if (snapshot) searchSnapshots.set(snapshot.database, { revision: snapshot.revision, records: snapshot.records });
+    return result;
   }
 }
