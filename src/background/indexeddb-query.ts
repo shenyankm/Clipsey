@@ -11,7 +11,8 @@ import {
 type SearchRecord = Pick<DBSchema['clips']['value'], 'id' | 'title' | 'textContent' | 'sourceUrl' | 'createdAt'>;
 const searchFields = ['id', 'title', 'textContent', 'sourceUrl', 'createdAt'] as const;
 const searchSnapshots = new WeakMap<IDBDatabase, { revision: string; records: SearchRecord[] }>();
-const clipCounts = new WeakMap<IDBDatabase, { revision: string; counts: Map<string | undefined, number> }>();
+type ClipCounts = { revision: string; counts: Map<string | undefined, number>; pages: Map<string, { keys: string[]; weight: number }>; weight: number };
+const clipCounts = new WeakMap<IDBDatabase, ClipCounts>();
 
 // IndexedDB 查询与批量操作封装
 export class IndexedDBQuery {
@@ -25,7 +26,8 @@ export class IndexedDBQuery {
   private static async readAll<K extends keyof DBSchema>(
     transaction: IDBTransaction,
     storeName: K,
-    options: QueryOptions
+    options: QueryOptions,
+    onKeys?: (keys: IDBValidKey[]) => void
   ): Promise<DBSchema[K]['value'][]> {
     const { limit, offset = 0, indexName, query } = options;
     let direction: IDBCursorDirection = 'next';
@@ -64,11 +66,7 @@ export class IndexedDBQuery {
         Number.isSafeInteger(limit) && limit! > 0 && limit! <= 100 && (direction === 'next' || direction === 'prev');
       const finish = () => {
         if (!keyOnly) { resolve(results); return; }
-        Promise.all(keys.map(key => new Promise<DBSchema[K]['value']>((resolveRow, rejectRow) => {
-          const request = store.get(key);
-          request.onsuccess = () => resolveRow(IndexedDB.readRecord(store, request.result));
-          request.onerror = () => rejectRow(new IndexedDBError('Failed to query records', 'QUERY_ERROR', request.error || undefined));
-        }))).then(resolve, reject);
+        this.readKeys<K>(store, keys).then(rows => { onKeys?.(keys); resolve(rows); }, reject);
       };
       let count = 0;
       let skipped = 0;
@@ -118,6 +116,14 @@ export class IndexedDBQuery {
     });
   }
 
+  private static readKeys<K extends keyof DBSchema>(store: IDBObjectStore, keys: readonly IDBValidKey[]): Promise<DBSchema[K]['value'][]> {
+    return Promise.all(keys.map(key => new Promise<DBSchema[K]['value']>((resolve, reject) => {
+      const request = store.get(key);
+      request.onsuccess = () => resolve(IndexedDB.readRecord(store, request.result));
+      request.onerror = () => reject(new IndexedDBError('Failed to query records', 'QUERY_ERROR', request.error || undefined));
+    })));
+  }
+
   static async getByIndex<K extends keyof DBSchema>(
     storeName: K,
     indexName: string,
@@ -147,13 +153,45 @@ export class IndexedDBQuery {
     
     const [total, data] = await indexedDBManager.executeTransaction(
       storeName === 'clips' && options.query === undefined ? ['clips', 'metadata'] : storeName as string, 'readonly', transaction => {
-        const hintedTotal = storeName === 'clips' && options.query === undefined ? clipCounts.get(transaction.db)?.counts.get(options.indexName) : undefined;
-        const counting = this.readCount(transaction, storeName, options.indexName, options.query);
+        const saved = storeName === 'clips' && options.query === undefined ? clipCounts.get(transaction.db) : undefined;
+        const hintedTotal = saved?.counts.get(options.indexName);
+        let revision: unknown, selectedKeys: IDBValidKey[] | undefined;
+        const counting = this.readCount(transaction, storeName, options.indexName, options.query, value => { revision = value; });
+        const direction = options.direction === 'prev' || options.direction === 'desc' ? 'prev' : options.direction === 'next' || options.direction === 'asc' || options.direction === undefined ? 'next' : undefined;
+        const tag = storeName === 'clips' && options.query === undefined && (options.indexName === undefined || typeof options.indexName === 'string') && direction && Number.isSafeInteger(offset) && offset >= 256 && offset <= 0xffffffff &&
+          Number.isSafeInteger(pageSize) && pageSize > 0 && pageSize <= 100 ? JSON.stringify([options.indexName ?? '', direction, offset, pageSize]) : undefined;
+        const cachedPage = tag ? saved?.pages.get(tag) : undefined;
         const mightBeEmpty = hintedTotal !== undefined && Number.isSafeInteger(offset) && offset >= hintedTotal && Number.isSafeInteger(pageSize) && pageSize > 0 &&
           ['next', 'prev', 'nextunique', 'prevunique', 'asc', 'desc'].includes(options.direction ?? 'next');
-        const readPage = () => this.readAll(transaction, storeName, { ...options, limit: pageSize, offset });
+        const readPage = () => this.readAll(transaction, storeName, { ...options, limit: pageSize, offset }, keys => { selectedKeys = keys; });
         // 旧总数只决定是否等待；空页必须由当前事务的精确总数确认。
-        return Promise.all([counting, mightBeEmpty ? counting.then(total => offset >= total ? [] : readPage()) : readPage()]);
+        const reading = cachedPage || mightBeEmpty ? counting.then(total => {
+          if (mightBeEmpty && offset >= total) return [];
+          if (cachedPage && revision === saved?.revision) {
+            return this.readKeys<K>(transaction.objectStore(storeName), cachedPage.keys).then(rows => { selectedKeys = cachedPage.keys; return rows; });
+          }
+          return readPage();
+        }) : readPage();
+        return Promise.all([counting, reading]).then(result => {
+          if (tag && typeof revision === 'string' && selectedKeys?.every(key => typeof key === 'string')) {
+            const keys = selectedKeys as string[], weight = 128 + keys.reduce((sum, key) => sum + key.length * 2 + 32, 0);
+            if (weight <= 256 * 1024) {
+              const committedRevision = revision, complete = transaction.oncomplete;
+              transaction.oncomplete = function(event) {
+                complete?.call(this, event);
+                const current = clipCounts.get(this.db);
+                if (current?.revision !== committedRevision) return;
+                const old = current.pages.get(tag); if (old) current.weight -= old.weight;
+                current.pages.delete(tag); current.pages.set(tag, { keys, weight }); current.weight += weight;
+                // shortcut: 仅深整数页/字符串主键，最多 16 页与 256 KiB 字段权重；更大或其他键需另行实测。
+                while (current.pages.size > 16 || current.weight > 256 * 1024) {
+                  const first = current.pages.keys().next().value!; current.weight -= current.pages.get(first)!.weight; current.pages.delete(first);
+                }
+              };
+            }
+          }
+          return result;
+        });
       }
     );
 
@@ -181,7 +219,8 @@ export class IndexedDBQuery {
     transaction: IDBTransaction,
     storeName: K,
     indexName?: string,
-    query?: IDBValidKey | IDBKeyRange
+    query?: IDBValidKey | IDBKeyRange,
+    onRevision?: (revision: unknown) => void
   ): Promise<number> {
     const store = transaction.objectStore(storeName as string);
     const source = indexName ? store.index(indexName) : store;
@@ -192,6 +231,7 @@ export class IndexedDBQuery {
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error ?? new Error('Revision read failed'));
       }))?.value;
+      onRevision?.(revision);
       const cached = clipCounts.get(transaction.db);
       if (typeof revision === 'string' && cached?.revision === revision) {
         const total = cached.counts.get(indexName);
@@ -210,9 +250,9 @@ export class IndexedDBQuery {
       transaction.oncomplete = function(event) {
         try {
           const cached = clipCounts.get(transaction.db);
-          const counts = cached?.revision === committedRevision ? cached.counts : new Map<string | undefined, number>();
-          counts.set(indexName, total);
-          clipCounts.set(transaction.db, { revision: committedRevision, counts });
+          const next: ClipCounts = cached?.revision === committedRevision ? cached : { revision: committedRevision, counts: new Map(), pages: new Map(), weight: 0 };
+          next.counts.set(indexName, total);
+          clipCounts.set(transaction.db, next);
         } finally { complete?.call(this, event); }
       };
     }

@@ -125,6 +125,17 @@ try {
       record('10000: deep ordinary page retains rich content in the actual detail dialog');
       await evaluate(() => document.querySelector('.ant-pagination-item-1').click());
       await waitFor(ids => JSON.stringify([...document.querySelectorAll('tbody tr[data-row-key]')].map(row => row.dataset.rowKey)) === JSON.stringify(ids), clips.toReversed().slice(0, 20).map(clip => clip.id));
+      await evaluate(() => {
+        Object.assign(window.__searchProbe, { scans: 0, revisions: 0, keyCursors: 0, valueCursors: 0, lookups: 0, counts: 0 });
+        document.querySelector('.ant-pagination-item-500').click();
+      });
+      await waitFor(ids => window.__searchProbe.revisions > 0 && !document.querySelector('.ant-spin-spinning') &&
+        JSON.stringify([...document.querySelectorAll('tbody tr[data-row-key]')].map(row => row.dataset.rowKey)) === JSON.stringify(ids), last);
+      const revisit = await evaluate(() => window.__searchProbe);
+      assert.equal(revisit.keyCursors, 0); assert.equal(revisit.valueCursors, 0); assert.equal(revisit.lookups, 20); assert.equal(revisit.counts, 0); assert.equal(revisit.scans, 0);
+      record('10000: revisiting ordinary page 500 validates revision and fetches 20 bodies without an index cursor');
+      await evaluate(() => document.querySelector('.ant-pagination-item-1').click());
+      await waitFor(ids => JSON.stringify([...document.querySelectorAll('tbody tr[data-row-key]')].map(row => row.dataset.rowKey)) === JSON.stringify(ids), clips.toReversed().slice(0, 20).map(clip => clip.id));
     }
     const matches = clips.filter(clip => clip.textContent.includes('needle'));
     const ids = matches.toReversed().slice(0, 20).map(clip => clip.id);
