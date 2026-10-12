@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import 'fake-indexeddb/auto';
 import { afterAll, beforeEach, expect, it, vi } from 'vitest';
 import { indexedDBManager } from '@/background/indexeddb';

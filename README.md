@@ -63,7 +63,7 @@ pnpm build:all       # Production builds for all three browsers
 pnpm zip:all         # Package all three browser builds
 ```
 
-Unit tests use jsdom and fake-indexeddb. Native browser behavior, including page scrolling and highlight restoration, also needs browser testing. Performance acceptance uses 10,000 clips as the main dataset, with 100 clips as a smaller comparison; this is a test scale, not a storage limit or a guarantee for every website. See the [performance notes](docs/performance.md) for measurements, limitations, and benchmark scripts.
+Storage-only IndexedDB tests run in Node with fake-indexeddb; DOM and Vue tests use jsdom. Native browser behavior, including page scrolling and highlight restoration, also needs browser testing. Performance acceptance uses 10,000 clips as the main dataset, with 100 clips as a smaller comparison; this is a test scale, not a storage limit or a guarantee for every website. See the [performance notes](docs/performance.md) for measurements, limitations, and benchmark scripts.
 
 ## License and feedback
 

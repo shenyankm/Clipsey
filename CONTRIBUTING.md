@@ -38,7 +38,7 @@ pnpm zip:all
 git diff --check
 ```
 
-`zip:all` builds and packages Chrome MV3, Edge MV3, and Firefox MV2; a separate `build:all` is unnecessary when running it. Unit tests use jsdom and fake-indexeddb, with V8 coverage over the configured source scope. They do not establish real-browser scrolling, highlight restoration, extension permissions, or store readiness.
+`zip:all` builds and packages Chrome MV3, Edge MV3, and Firefox MV2; a separate `build:all` is unnecessary when running it. Storage-only IndexedDB tests use `// @vitest-environment node` and fake-indexeddb; DOM and Vue tests retain the default jsdom environment. Shared extension API setup runs in both environments, while DOM setup loads only in jsdom. V8 coverage uses the same configured source scope. They do not establish real-browser scrolling, highlight restoration, extension permissions, or store readiness.
 
 For relevant browser changes, load the generated build and check capture, saved highlight restoration, passage navigation, popup clips, Clip Manager search/sort/timeline, and JSON backup export/restore with synthetic data. Restoring a backup replaces existing clips, so use an isolated browser profile. Record which browsers and scenarios you actually tested. The native acceptance scripts require external browser tooling; prerequisites are in the [page-endpoint report](docs/performance-page-endpoints.md#validation-and-reproduction).
 

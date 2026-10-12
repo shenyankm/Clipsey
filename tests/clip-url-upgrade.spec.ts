@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
