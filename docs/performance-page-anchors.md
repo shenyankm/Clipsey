@@ -1,5 +1,7 @@
 # 未访问深页的有界游标边界验收
 
+后续[冷深页的近末端读取验收](./performance-pagination-tail.md)改善没有可用缓存边界时的定位；本报告保留此前阶段结果。
+
 2026-10-12；基线 `5136257`，承接[深页复访缓存](./performance-page-keys.md)及[未采用的一次主键扫描实验](./performance-one-pass.md)。以 10,000 条为主、100 条为辅，另检验 20,000 条重复索引值。完整样本、源码/构建 SHA-256、原型和界面结果见[原始数据](./performance-page-anchors-results.json)。
 
 ## 结果与实现

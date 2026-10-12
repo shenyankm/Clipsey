@@ -12,7 +12,7 @@ type SearchRecord = Pick<DBSchema['clips']['value'], 'id' | 'title' | 'textConte
 const searchFields = ['id', 'title', 'textContent', 'sourceUrl', 'createdAt'] as const;
 const searchSnapshots = new WeakMap<IDBDatabase, { revision: string; records: SearchRecord[] }>();
 type PagePoint = { offset: number; key: string | string[]; primaryKey: string };
-type PageStart = { point: PagePoint; backwards: boolean; distance: number; end: number };
+type PageStart = { point?: PagePoint; backwards: boolean; distance: number; end: number };
 type ClipCounts = { revision: string; counts: Map<string | undefined, number>; pages: Map<string, { keys: string[]; weight: number; points?: PagePoint[] }>; weight: number };
 const clipCounts = new WeakMap<IDBDatabase, ClipCounts>();
 
@@ -77,10 +77,10 @@ export class IndexedDBQuery {
         this.readKeys<K>(store, keys).then(rows => { onKeys?.(keys, points); resolve(rows); }, reject);
       };
       let count = 0;
-      let skipped = start ? offset : 0, aligned = !start;
+      let skipped = start ? offset : 0, aligned = !start?.point, distance = start?.distance ?? 0;
 
       const scanDirection = backwards ? direction === 'next' ? 'prev' : 'next' : direction;
-      const range = start ? scanDirection === 'next' ? IDBKeyRange.lowerBound(start.point.key) : IDBKeyRange.upperBound(start.point.key) : query;
+      const range = start?.point ? scanDirection === 'next' ? IDBKeyRange.lowerBound(start.point.key) : IDBKeyRange.upperBound(start.point.key) : query;
       const request = keyOnly ? source.openKeyCursor(range, scanDirection) : source.openCursor(query, direction);
 
       request.onsuccess = () => {
@@ -91,13 +91,15 @@ export class IndexedDBQuery {
           return;
         }
 
-        if (!aligned) {
+        if (!aligned || distance) {
           try {
-            if (indexedDB.cmp(cursor.key, start!.point.key) || indexedDB.cmp(cursor.primaryKey, start!.point.primaryKey)) {
-              cursor.continuePrimaryKey(start!.point.key, start!.point.primaryKey); return;
+            if (!aligned) {
+              if (indexedDB.cmp(cursor.key, start!.point!.key) || indexedDB.cmp(cursor.primaryKey, start!.point!.primaryKey)) {
+                cursor.continuePrimaryKey(start!.point!.key, start!.point!.primaryKey); return;
+              }
+              aligned = true;
             }
-            aligned = true;
-            if (start!.distance) { cursor.advance(start!.distance); return; }
+            if (distance) { const skip = distance; distance = 0; cursor.advance(skip); return; }
           } catch (error) { reject(error); return; }
         }
 
@@ -186,8 +188,8 @@ export class IndexedDBQuery {
         let revision: unknown, selectedKeys: IDBValidKey[] | undefined, selectedPoints: PagePoint[] | undefined;
         const counting = this.readCount(transaction, storeName, options.indexName, options.query, value => { revision = value; });
         const direction = options.direction === 'prev' || options.direction === 'desc' ? 'prev' : options.direction === 'next' || options.direction === 'asc' || options.direction === undefined ? 'next' : undefined;
-        const tag = storeName === 'clips' && options.query === undefined && (options.indexName === undefined || typeof options.indexName === 'string') && direction && Number.isSafeInteger(offset) && offset >= 256 && offset <= 0xffffffff &&
-          Number.isSafeInteger(pageSize) && pageSize > 0 && pageSize <= 100 ? JSON.stringify([options.indexName ?? '', direction, offset, pageSize]) : undefined;
+        const seekable = direction && Number.isSafeInteger(offset) && offset >= 256 && offset <= 0xffffffff && Number.isSafeInteger(pageSize) && pageSize > 0 && pageSize <= 100;
+        const tag = storeName === 'clips' && options.query === undefined && (options.indexName === undefined || typeof options.indexName === 'string') && seekable ? JSON.stringify([options.indexName ?? '', direction, offset, pageSize]) : undefined;
         const cachedPage = tag ? saved?.pages.get(tag) : undefined;
         const candidates: PagePoint[] = [];
         if (tag && !cachedPage) {
@@ -198,8 +200,8 @@ export class IndexedDBQuery {
           ['next', 'prev', 'nextunique', 'prevunique', 'asc', 'desc'].includes(options.direction ?? 'next');
         const readPage = (start?: PageStart) => this.readAll(transaction, storeName, { ...options, limit: pageSize, offset }, tag ? (keys, points) => { selectedKeys = keys; selectedPoints = points; } : undefined, start);
         // 旧总数只决定是否等待；空页必须由当前事务的精确总数确认。
-        const reading = cachedPage || mightBeEmpty || candidates.length ? counting.then(total => {
-          if (mightBeEmpty && offset >= total) return [];
+        const reading = seekable || cachedPage || mightBeEmpty || candidates.length ? counting.then(total => {
+          if ((seekable || mightBeEmpty) && offset >= total) return [];
           if (cachedPage && revision === saved?.revision) {
             return this.readKeys<K>(transaction.objectStore(storeName), cachedPage.keys).then(rows => { selectedKeys = cachedPage.keys; selectedPoints = cachedPage.points; return rows; });
           }
@@ -217,6 +219,9 @@ export class IndexedDBQuery {
               if (skip >= 0 && skip < distance) { distance = skip; start = { point, backwards, distance, end }; }
             }
           }
+          // 无合适边界时，从精确总数确定的较近末端读取，再恢复请求顺序。
+          const end = Math.min(offset + pageSize, total) - 1;
+          if (!start && seekable && total - 1 - end < offset) start = { backwards: true, distance: total - 1 - end, end };
           return readPage(start);
         }) : readPage();
         return Promise.all([counting, reading]).then(result => {

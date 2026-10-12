@@ -60,10 +60,10 @@ it('rejects stale anchors after an index write and after removing the version ma
   const expected = await IndexedDBQuery.getAll('clips', { indexName: 'createdAt' });
   const advance = vi.spyOn(IDBCursor.prototype, 'advance');
   expect((await IndexedDBQuery.paginate('clips', 17, 20, { indexName: 'createdAt' })).data).toEqual(expected.slice(320, 340));
-  expect(advance).toHaveBeenCalledWith(320);
+  expect(advance).toHaveBeenCalledWith(260);
   await indexedDBManager.clear('metadata'); advance.mockClear();
   expect((await IndexedDBQuery.paginate('clips', 18, 20, { indexName: 'createdAt' })).data).toEqual(expected.slice(340, 360));
-  expect(advance).toHaveBeenCalledWith(340);
+  expect(advance).toHaveBeenCalledWith(240);
 });
 
 it('does not use anchors from another index, direction or a bounded range', async () => {
@@ -72,7 +72,7 @@ it('does not use anchors from another index, direction or a bounded range', asyn
   await IndexedDBQuery.paginate('clips', 17, 20, { indexName: 'sourceUrl' });
   await IndexedDBQuery.paginate('clips', 17, 20, { indexName: 'createdAt', direction: 'prev' });
   await IndexedDBQuery.paginate('clips', 17, 20, { indexName: 'createdAt', query: IDBKeyRange.lowerBound(clips[0]!.createdAt) });
-  expect(advance.mock.calls.map(args => args[0])).toEqual([320,320,320]);
+  expect(advance.mock.calls.map(args => args[0])).toEqual([260,260,260]);
 });
 
 it('propagates a primary-key seek failure and allows a fresh retry', async () => {
@@ -91,12 +91,12 @@ it('drops oversized index boundaries while retaining the primary-key page cache'
   expect((await IndexedDBQuery.paginate('clips', 31, 20, { indexName: 'textContent' })).data).toEqual([large]); expect(cursor).not.toHaveBeenCalled();
 });
 
-it('keeps numeric index keys on the original path for new pages', async () => {
+it('uses the nearer end without caching numeric index boundaries', async () => {
   const rows = clips.map((clip, i) => ({ ...clip, createdAt: i })) as unknown as Clip[];
   await IndexedDBQuery.bulkPut('clips', rows); await IndexedDBQuery.paginate('clips', 16, 20, { indexName: 'createdAt' });
   const advance = vi.spyOn(IDBCursor.prototype, 'advance');
   expect((await IndexedDBQuery.paginate('clips', 17, 20, { indexName: 'createdAt' })).data).toEqual(rows.slice(320, 340));
-  expect(advance).toHaveBeenCalledWith(320);
+  expect(advance).toHaveBeenCalledWith(260);
 });
 
 it('keeps array index boundaries independent of mutated returned fields', async () => {

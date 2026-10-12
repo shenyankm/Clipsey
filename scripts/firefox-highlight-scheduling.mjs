@@ -16,7 +16,8 @@ const countTransition = process.argv.includes('--count-transition');
 const pageKeys = process.argv.includes('--page-keys');
 const paginationOnePass = process.argv.includes('--pagination-one-pass');
 const pageAnchors = process.argv.includes('--page-anchors');
-const pagination = paginationKeys || paginationCount || countTransition || pageKeys || paginationOnePass || pageAnchors;
+const paginationTail = process.argv.includes('--pagination-tail');
+const pagination = paginationTail || paginationKeys || paginationCount || countTransition || pageKeys || paginationOnePass || pageAnchors;
 const baselineRef = baseline ? execFileSync('git', ['rev-parse', process.env.BASELINE_REF ?? 'HEAD'], { encoding: 'utf8' }).trim() : undefined;
 const files = pagination
   ? ['src/background/indexeddb.ts', 'src/background/indexeddb-query.ts', 'src/types/indexeddb.ts', 'src/background/storage/utils/clip-url-record.ts']
@@ -34,7 +35,7 @@ const server = await createServer({
       server.middlewares.use((req, res, next) => {
         if (req.url?.split('?')[0] !== '/') return next();
         res.setHeader('Content-Type', 'text/html');
-        res.end(`<!doctype html><script type="module" src="/tests/performance/${pageAnchors ? 'page-anchors' : paginationOnePass ? 'pagination-one-pass' : pageKeys ? 'page-keys' : countTransition ? 'count-transition' : paginationCount ? 'pagination-count' : paginationKeys ? 'pagination-keys' : 'highlight-scheduling'}.ts"></script>`);
+        res.end(`<!doctype html><script type="module" src="/tests/performance/${paginationTail ? 'pagination-tail' : pageAnchors ? 'page-anchors' : paginationOnePass ? 'pagination-one-pass' : pageKeys ? 'page-keys' : countTransition ? 'count-transition' : paginationCount ? 'pagination-count' : paginationKeys ? 'pagination-keys' : 'highlight-scheduling'}.ts"></script>`);
       });
     }
   }]
@@ -79,7 +80,7 @@ try {
     result = await command('/execute/sync', { script: 'return window.__performanceResult || null', args: [] });
   }
   assert(!result.error, result.error);
-  if (pagination) assert.equal(result.scenario, pageAnchors ? 'page-anchors' : paginationOnePass ? 'pagination-one-pass' : pageKeys ? 'page-keys' : countTransition ? 'count-transition' : paginationCount ? 'pagination-count' : 'pagination-keys');
+  if (pagination) assert.equal(result.scenario, paginationTail ? 'pagination-tail' : pageAnchors ? 'page-anchors' : paginationOnePass ? 'pagination-one-pass' : pageKeys ? 'page-keys' : countTransition ? 'count-transition' : paginationCount ? 'pagination-count' : 'pagination-keys');
   else assert.equal(result.cancellation.passed, true, 'Cancellation failed');
   console.log(JSON.stringify({ mode: baseline ? 'baseline' : 'working-tree', baselineRef, capabilities: started.capabilities, ...result }, null, 2));
 } finally {
