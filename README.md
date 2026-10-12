@@ -1,41 +1,70 @@
 # Clipsey
 
-Clipsey 是一款专注于网页摘录的浏览器扩展。无需注册，数据本地存储，支持一键高亮与回溯原文。
+Save useful passages from the web, keep their source links, and return to them later. Clipsey is a browser extension for Chrome, Edge, and Firefox that stores your clips locally without requiring an account.
 
-## ✨ 核心功能
+## Features
 
-*   **✂️ 一键摘录**：选中网页文本，右键即存，自动高亮。
-*   **⚡ 快速回溯**：点击摘录，支持的浏览器使用原生 Text Fragments 链接滚动并高亮；不支持时使用扩展定位。原文变动、重复文本或网站禁用文本片段可能影响定位。
-*   **🔒 隐私安全**：所有数据存储在浏览器本地（IndexedDB），无服务器上传。
-*   **📚 历史保留**：不会因超过 200 条而自动删除旧摘录；实际容量受浏览器存储配额限制。恢复备份会替换现有摘录，请先导出当前数据。
-*   **🎨 富文本摘录**：保存加粗、列表、链接等基础富文本结构，展示时净化不安全内容；不完整保留网页样式。
+- **Save selected text:** use the page context menu to capture an excerpt, its source URL, page title, and creation time.
+- **Highlight and revisit:** restore saved highlights when you return to a page and locate passages with native Text Fragments in supported browsers or extension-assisted text location in others.
+- **Manage your collection:** view clips for the current page in the popup, or search, sort, and browse a timeline in the Clip Manager. Search by title, website, or content.
+- **Keep basic formatting:** preserve supported rich content such as emphasis, lists, and links. Saved HTML is sanitized before display; full page styling is not preserved.
+- **Back up your clips:** export and restore JSON backups, including backups created with the older, formatted JSON export.
+- **Customize highlighting:** choose amber, green, or blue and control automatic highlight restoration and navigation to the first saved passage.
 
-## 🚀 快速开始
+## Install from source
 
-1.  **安装**：从 [Releases](https://github.com/Shenean/Clipsey/releases) 下载安装。
-2.  **使用**：选中网页文本 -> 右键 "保存当前选中内容"。
-3.  **管理**：点击浏览器右上角 Clipsey 图标查看当前网页摘录；进入设置中的“摘要管理”搜索、排序和查看时间线。
-4.  **备份**：在“摘要管理”中导出紧凑 JSON 备份；也能恢复旧的缩进 JSON 备份，恢复前会校验记录并显示覆盖确认。备份包含摘录及最多 1,000 条错误日志，不包含偏好设置。
-
-## 🛠️ 开发
-
-基于 [WXT](https://wxt.dev/) + Vue 3 + TypeScript 构建。
-
-开发环境需要 Node.js 22.22.2+（22.x）、24.15.0+（24.x）或 26+；使用项目固定的 pnpm 版本：
+Requirements: Node.js 22.22.2+ on the 22.x line, 24.15.0+ on the 24.x line, or 26+, and pnpm 10.28.2.
 
 ```sh
-corepack enable
+git clone https://github.com/shenyankm/Clipsey.git
+cd Clipsey
 pnpm install --frozen-lockfile
-pnpm dev
-pnpm typecheck
-pnpm test
 pnpm build:all
 ```
 
-依赖采用最新稳定兼容版本。TypeScript 暂使用 6.0.3：当前 vue-tsc 3.3.13 无法调用 TypeScript 7 的编译器入口，待上游兼容后再升级。测试使用 jsdom 与 fake-indexeddb，覆盖存储事务、迁移、缓存同步、高亮和原文链接；真实网页的原生滚动效果仍需浏览器验收。
+Load the build for your browser:
 
-性能审查、真实 Chrome/Firefox 对照数据与复跑方式见 [性能验收记录](docs/performance.md)。
+| Browser | Build directory | Local installation |
+| --- | --- | --- |
+| Chrome | `.output/chrome-mv3/` | Open `chrome://extensions`, enable Developer mode, and select **Load unpacked**. |
+| Edge | `.output/edge-mv3/` | Open `edge://extensions`, enable Developer mode, and select **Load unpacked**. |
+| Firefox | `.output/firefox-mv2/` | Open `about:debugging`, select **This Firefox**, then **Load Temporary Add-on** and choose the build's `manifest.json`. |
 
----
+Select the corresponding directory when loading Chrome or Edge. Firefox's temporary installation lasts until the browser restarts. See the official installation guides for [Chrome](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-an-unpacked-extension), [Edge](https://learn.microsoft.com/en-us/microsoft-edge/extensions/getting-started/extension-sideloading), and [Firefox](https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/).
 
-[提交反馈](https://github.com/Shenean/Clipsey/issues) | [GitHub](https://github.com/Shenean/Clipsey)
+## Use Clipsey
+
+The interface defaults to Simplified Chinese. You can switch to English in Settings; some context-menu labels and notifications are still in Chinese.
+
+1. Select text on a regular HTTP or HTTPS page, then choose Clipsey's selection-saving entry in the context menu. Allow access to that website when prompted.
+2. Click the Clipsey toolbar icon to see clips saved for the current page.
+3. Open **Settings > Clip Manager** to search, sort, view details, use the timeline, or revisit a clip's source.
+4. Use **Export Backup** before restoring a backup or clearing your collection.
+
+## Data and permissions
+
+Clips and diagnostic error logs are stored locally in IndexedDB. Preferences use the browser's local extension storage. Clipsey does not upload your clips to a server. Old clips are not automatically deleted when the collection grows; capacity depends on browser storage quotas.
+
+Website access is requested when needed to capture content and restore highlights. Clipsey works on regular HTTP(S) pages, not browser settings pages or other restricted pages. Changes to the original page, repeated text, browser support, or a website's Text Fragment policy can affect passage location.
+
+**Restoring a backup replaces your existing clips.** Clipsey validates the backup and asks for confirmation before restoring it. Export your current collection first. Backups include clips and up to 1,000 diagnostic error logs; they do not include preferences.
+
+## Development
+
+Built with WXT, Vue 3, TypeScript, Ant Design Vue, and DOMPurify.
+
+```sh
+pnpm dev:chrome       # Development build for Chrome
+pnpm dev:edge         # Development build for Edge
+pnpm dev:firefox      # Development build for Firefox
+pnpm typecheck       # Application type check
+pnpm test            # Unit tests with coverage
+pnpm build:all       # Production builds for all three browsers
+pnpm zip:all         # Package all three browser builds
+```
+
+Unit tests use jsdom and fake-indexeddb. Native browser behavior, including page scrolling and highlight restoration, also needs browser testing. Performance acceptance uses 10,000 clips as the main dataset, with 100 clips as a smaller comparison; this is a test scale, not a storage limit or a guarantee for every website. See the [performance notes](docs/performance.md) for measurements, limitations, and benchmark scripts. These detailed notes are currently in Chinese.
+
+## License and feedback
+
+[Apache License 2.0](LICENSE). Report bugs or request features through [GitHub Issues](https://github.com/shenyankm/Clipsey/issues).
