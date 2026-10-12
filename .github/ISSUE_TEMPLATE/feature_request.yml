@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest an improvement to clipping, highlighting, or clip management.
+title: 'Feature: '
+body:
+  - type: markdown
+    attributes:
+      value: Search existing issues first. Describe the user problem and a concrete example.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What are you trying to do, and what gets in the way?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest useful change and the browsers it should support.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and tradeoffs
+      description: Optional. Mention workarounds and any effects on local storage, permissions, backups, or performance.

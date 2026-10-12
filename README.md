@@ -68,3 +68,5 @@ Unit tests use jsdom and fake-indexeddb. Native browser behavior, including page
 ## License and feedback
 
 [Apache License 2.0](LICENSE). Report bugs or request features through [GitHub Issues](https://github.com/shenyankm/Clipsey/issues).
+
+See the [contribution guidelines](CONTRIBUTING.md) for development and PR requirements, and the [release guidelines](docs/releases.md) for versioning, packages, and publication.

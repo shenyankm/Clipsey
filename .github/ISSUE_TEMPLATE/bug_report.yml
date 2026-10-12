@@ -1,0 +1,55 @@
+name: Bug report
+description: Report a reproducible problem with Clipsey.
+title: 'Bug: '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. Share a minimal example and remove private clips, personal URLs, and sensitive information from logs or backups.
+  - type: input
+    id: version
+    attributes:
+      label: Clipsey version or commit
+      description: Include whether you installed a release package or built from source.
+    validations:
+      required: true
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Affected browsers
+      multiple: true
+      options:
+        - Chrome
+        - Edge
+        - Firefox
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser version and operating system
+      placeholder: Chrome 155, macOS 27
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include a public example URL or minimal HTML when page content matters. For performance problems, include clip count and approximate content size.
+      placeholder: |
+        1. Open...
+        2. Select...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or sanitized logs
+      description: Optional. Avoid uploading your full backup; it can contain clip content and diagnostic logs.
