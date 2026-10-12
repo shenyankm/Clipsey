@@ -26,6 +26,9 @@ it.each([undefined, 'createdAt', 'sourceUrl', 'textContent', 'createdAt_id'].fla
 
 it.each(['next', 'prev'] as const)('avoids reversing from the far end of an unbounded duplicate group / %s', async direction => {
   const rows = clips.map(clip => ({ ...clip, createdAt: clips[0]!.createdAt }));
+  // Keep one existing ID to test updates without quadratic fixture overwrites.
+  await indexedDBManager.clear('clips');
+  await IndexedDBQuery.bulkPut('clips', [clips[clips.length - 1]!]);
   await IndexedDBQuery.bulkPut('clips', rows);
   const options = { indexName: 'createdAt', direction }, expected = direction === 'next' ? rows : [...rows].reverse();
   await IndexedDBQuery.paginate('clips', 16, 20, options);
@@ -93,6 +96,8 @@ it('drops oversized index boundaries while retaining the primary-key page cache'
 
 it('uses the nearer end without caching numeric index boundaries', async () => {
   const rows = clips.map((clip, i) => ({ ...clip, createdAt: i })) as unknown as Clip[];
+  await indexedDBManager.clear('clips');
+  await IndexedDBQuery.bulkPut('clips', [clips[clips.length - 1]!]);
   await IndexedDBQuery.bulkPut('clips', rows); await IndexedDBQuery.paginate('clips', 16, 20, { indexName: 'createdAt' });
   const advance = vi.spyOn(IDBCursor.prototype, 'advance');
   expect((await IndexedDBQuery.paginate('clips', 17, 20, { indexName: 'createdAt' })).data).toEqual(rows.slice(320, 340));
@@ -101,6 +106,8 @@ it('uses the nearer end without caching numeric index boundaries', async () => {
 
 it('keeps array index boundaries independent of mutated returned fields', async () => {
   const rows = clips.map((clip, i) => ({ ...clip, createdAt: [String(Math.floor(i / 5))] })) as unknown as Clip[];
+  await indexedDBManager.clear('clips');
+  await IndexedDBQuery.bulkPut('clips', [clips[clips.length - 1]!]);
   await IndexedDBQuery.bulkPut('clips', rows);
   const options = { indexName: 'createdAt' }, expected = await IndexedDBQuery.getAll('clips', options);
   const seed = await IndexedDBQuery.paginate('clips', 16, 20, options);
