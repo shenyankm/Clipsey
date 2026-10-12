@@ -48,8 +48,6 @@ lerna-debug.log*
 .env.production
 .env.development
 .env.test
-# 保留示例配置文件
-!.env.example
 
 # ========== IDE 编辑器配置 ==========
 # Qoder IDE
