@@ -32,7 +32,7 @@ it.each(['next', 'prev'] as const)('avoids reversing from the far end of an unbo
   const advance = vi.spyOn(IDBCursor.prototype, 'advance'), seek = vi.spyOn(IDBCursor.prototype, 'continuePrimaryKey');
   expect((await IndexedDBQuery.paginate('clips', 15, 20, options)).data).toEqual(expected.slice(280, 300));
   expect(advance).toHaveBeenCalledWith(280); expect(seek).not.toHaveBeenCalled();
-}, 10_000);
+});
 
 it.each(['next', 'prev'] as const)('uses a later distinct key to bound an early reverse seek / %s', async direction => {
   const options = { indexName: 'textContent', direction }, expected = await IndexedDBQuery.getAll('clips', options);
@@ -97,7 +97,7 @@ it('uses the nearer end without caching numeric index boundaries', async () => {
   const advance = vi.spyOn(IDBCursor.prototype, 'advance');
   expect((await IndexedDBQuery.paginate('clips', 17, 20, { indexName: 'createdAt' })).data).toEqual(rows.slice(320, 340));
   expect(advance).toHaveBeenCalledWith(260);
-}, 10_000);
+});
 
 it('keeps array index boundaries independent of mutated returned fields', async () => {
   const rows = clips.map((clip, i) => ({ ...clip, createdAt: [String(Math.floor(i / 5))] })) as unknown as Clip[];
@@ -108,7 +108,7 @@ it('keeps array index boundaries independent of mutated returned fields', async 
   const advance = vi.spyOn(IDBCursor.prototype, 'advance');
   expect((await IndexedDBQuery.paginate('clips', 17, 20, options)).data).toEqual(expected.slice(320, 340));
   expect(advance).toHaveBeenCalledWith(1);
-}, 10_000);
+});
 
 it('seeks within the current snapshot and invalidates boundaries after a queued delete', async () => {
   await IndexedDBQuery.paginate('clips', 16, 20);

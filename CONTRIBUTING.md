@@ -42,7 +42,7 @@ git diff --check
 
 For relevant browser changes, load the generated build and check capture, saved highlight restoration, passage navigation, popup clips, Clip Manager search/sort/timeline, and JSON backup export/restore with synthetic data. Restoring a backup replaces existing clips, so use an isolated browser profile. Record which browsers and scenarios you actually tested. The native acceptance scripts require external browser tooling; prerequisites are in the [page-endpoint report](docs/performance-page-endpoints.md#validation-and-reproduction).
 
-CI runs frozen-lockfile installation, application type checking, unit tests with coverage, and all three browser packages on Ubuntu. It runs for PRs targeting `main`, pushes to `main`, `v*` tag pushes, and manual dispatches. It uploads browser ZIPs and SHA-256 checksums for 14 days. CI does not run native browser acceptance, performance measurements, or store publishing.
+CI runs frozen-lockfile installation, application type checking, unit tests with coverage, and all three browser packages on Ubuntu. CI uses `--testTimeout=15000` to allow runner headroom for IndexedDB fixtures; local tests retain Vitest's default timeout. It runs for PRs targeting `main`, pushes to `main`, `v*` tag pushes, and manual dispatches. It uploads browser ZIPs and SHA-256 checksums for 14 days. CI does not run native browser acceptance, performance measurements, or store publishing.
 
 ## Submit a pull request
 

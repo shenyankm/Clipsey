@@ -55,7 +55,7 @@ jobs:
         run: pnpm typecheck
 
       - name: Unit tests with coverage
-        run: pnpm test --maxWorkers=2
+        run: pnpm test --maxWorkers=2 --testTimeout=15000
 
       - name: Build and package Chrome, Edge, and Firefox
         run: pnpm zip:all
