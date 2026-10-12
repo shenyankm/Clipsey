@@ -1,5 +1,7 @@
 # 性能审查与验收
 
+后续实验[冷深页的一次主键扫描](./performance-one-pass.md)因 Firefox 与超窗口回退未接入生产，保留完整取舍数据。
+
 本文件保存首轮审查与验收；最新优化见[深页复访的有界主键缓存验收](./performance-page-keys.md)，此前见[越界分页与计数发布时机验收](./performance-empty-page.md)，此前见[精确计数复用与单事务分页验收](./performance-count-cache.md)，此前见[普通深分页的主键游标验收](./performance-key-cursor.md)，此前见[高亮恢复的消息任务兼容路径](./performance-message-yield.md)，此前见[受限搜索快照与事务版本验收](./performance-search-cache.md)，此前实验见[搜索小记录扫描的读写取舍（暂不接入持久化表）](./performance-search-projection.md)，此前[接受文本时跳过屏障读取（未采用）](./performance-barrier-read.md)，已交付优化见[可见父元素的排除检查优化](./performance-visible-parent.md)，此前见[已高亮重叠检查提前结束](./performance-highlight-overlap.md)，缓存实验见[Unicode 分类缓存评估（未采用）](./performance-unicode-classification.md)，已交付优化见[空白规范化的分配优化](./performance-whitespace.md)，此前见[Latin-1 文本边界映射的分配优化](./performance-latin1-mapping.md)、[高亮恢复调度与响应性验收](./performance-highlight-scheduling.md)、[文本遍历游标与分配采样](./performance-text-cursor.md)、[隐藏祖先的文本定位修复与性能验收](./performance-hidden-text.md)、[文本匹配边界映射与跨浏览器高亮验收](./performance-text-range-mapping.md)、[Firefox 备份消息传输优化](./performance-firefox-backup.md)、[Firefox 真实扩展运行验收](./performance-firefox.md)与[备份生成与消息传输验收](./performance-backup.md)，更早补充见[后台自然休眠与唤醒验收](./performance-worker-idle.md)与[UI 启动与动态样式验收](./performance-ui-validation.md)，缓存优化见[缓存读取与字段处理验收](./performance-cache-snapshot.md)，单库索引接入及其代价见[批量写入与单库 URL 索引验收](./performance-write-index.md)，上一候选见[按网址读取的生产候选与验收](./performance-indexed-url-cache.md)。
 
 ## 结论
