@@ -10,8 +10,11 @@ import assert from 'node:assert/strict';
 assert(process.env.FIREFOX_PATH, 'Set FIREFOX_PATH to a Firefox executable');
 assert(process.env.GECKODRIVER_PATH, 'Set GECKODRIVER_PATH to a geckodriver executable');
 const baseline = process.argv.includes('--baseline');
+const paginationKeys = process.argv.includes('--pagination-keys');
 const baselineRef = baseline ? execFileSync('git', ['rev-parse', process.env.BASELINE_REF ?? 'HEAD'], { encoding: 'utf8' }).trim() : undefined;
-const files = ['src/content/highlight/dom-utils.ts', 'src/content/highlight/metadata.ts', 'src/content/highlight/locators/offset-locator.ts', 'src/content/highlight/text-search.ts', 'src/content/highlight-engine.ts'];
+const files = paginationKeys
+  ? ['src/background/indexeddb.ts', 'src/background/indexeddb-query.ts', 'src/types/indexeddb.ts', 'src/background/storage/utils/clip-url-record.ts']
+  : ['src/content/highlight/dom-utils.ts', 'src/content/highlight/metadata.ts', 'src/content/highlight/locators/offset-locator.ts', 'src/content/highlight/text-search.ts', 'src/content/highlight-engine.ts'];
 const server = await createServer({
   configFile: false, logLevel: 'silent', resolve: { alias: { '@': resolve('src') } },
   server: { host: '127.0.0.1', port: 0 },
@@ -25,7 +28,7 @@ const server = await createServer({
       server.middlewares.use((req, res, next) => {
         if (req.url?.split('?')[0] !== '/') return next();
         res.setHeader('Content-Type', 'text/html');
-        res.end('<!doctype html><script type="module" src="/tests/performance/highlight-scheduling.ts"></script>');
+        res.end(`<!doctype html><script type="module" src="/tests/performance/${paginationKeys ? 'pagination-keys' : 'highlight-scheduling'}.ts"></script>`);
       });
     }
   }]
@@ -70,7 +73,8 @@ try {
     result = await command('/execute/sync', { script: 'return window.__performanceResult || null', args: [] });
   }
   assert(!result.error, result.error);
-  assert.equal(result.cancellation.passed, true, 'Cancellation failed');
+  if (paginationKeys) assert.equal(result.scenario, 'pagination-keys');
+  else assert.equal(result.cancellation.passed, true, 'Cancellation failed');
   console.log(JSON.stringify({ mode: baseline ? 'baseline' : 'working-tree', baselineRef, capabilities: started.capabilities, ...result }, null, 2));
 } finally {
   if (session) try { await command('', undefined, 'DELETE'); } catch (error) { console.error('CLEANUP', error.message); }

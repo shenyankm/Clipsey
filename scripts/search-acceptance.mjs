@@ -97,11 +97,28 @@ try {
     await reload(); await waitFor(ready);
     await waitFor(records => document.querySelector('.clip-toolbar__stat-value')?.textContent.trim() === String(records), records);
     await evaluate(() => {
-      window.__searchProbe = { scans: 0, revisions: 0 };
-      const getAll = IDBObjectStore.prototype.getAll, get = IDBObjectStore.prototype.get;
+      window.__searchProbe = { scans: 0, revisions: 0, keyCursors: 0, lookups: 0 };
+      const getAll = IDBObjectStore.prototype.getAll, get = IDBObjectStore.prototype.get, keyCursor = IDBIndex.prototype.openKeyCursor;
       IDBObjectStore.prototype.getAll = function(...args) { if (this.name === 'clips') window.__searchProbe.scans++; return getAll.apply(this, args); };
-      IDBObjectStore.prototype.get = function(key) { if (this.name === 'metadata' && key === '__clipseyClipRevision') window.__searchProbe.revisions++; return get.call(this, key); };
+      IDBObjectStore.prototype.get = function(key) { if (this.name === 'clips') window.__searchProbe.lookups++; if (this.name === 'metadata' && key === '__clipseyClipRevision') window.__searchProbe.revisions++; return get.call(this, key); };
+      IDBIndex.prototype.openKeyCursor = function(...args) { if (this.objectStore.name === 'clips') window.__searchProbe.keyCursors++; return keyCursor.apply(this, args); };
     });
+    if (records === 10000) {
+      const last = clips.slice(0, 20).toReversed().map(clip => clip.id);
+      await evaluate(() => document.querySelector('.ant-pagination-item-500').click());
+      await waitFor(ids => !document.querySelector('.ant-spin-spinning') &&
+        JSON.stringify([...document.querySelectorAll('tbody tr[data-row-key]')].map(row => row.dataset.rowKey)) === JSON.stringify(ids), last);
+      const probe = await evaluate(() => window.__searchProbe);
+      assert.equal(probe.keyCursors, 1); assert.equal(probe.lookups, 20); assert.equal(probe.scans, 0);
+      assert.equal(await evaluate(() => document.querySelector('.clip-toolbar__stat-value').textContent.trim()), '10000');
+      record('10000: actual ordinary page 500 uses a key cursor and hydrates only its 20 rows');
+      await evaluate(() => document.querySelector('tbody tr[data-row-key] button').click());
+      await waitFor(() => document.querySelector('.ant-modal-body b')?.textContent === 'rich 19');
+      await evaluate(() => document.querySelector('.ant-modal-close').click());
+      record('10000: deep ordinary page retains rich content in the actual detail dialog');
+      await evaluate(() => document.querySelector('.ant-pagination-item-1').click());
+      await waitFor(ids => JSON.stringify([...document.querySelectorAll('tbody tr[data-row-key]')].map(row => row.dataset.rowKey)) === JSON.stringify(ids), clips.toReversed().slice(0, 20).map(clip => clip.id));
+    }
     const matches = clips.filter(clip => clip.textContent.includes('needle'));
     const ids = matches.toReversed().slice(0, 20).map(clip => clip.id);
     assert.equal((await check('@content cache needle', matches.length, ids)).scans, Math.ceil(records / 256));

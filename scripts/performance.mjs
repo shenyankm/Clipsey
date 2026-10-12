@@ -19,6 +19,7 @@ const urlRead = process.argv.includes('--url-read');
 const pageCache = process.argv.includes('--page-cache');
 const writeLayout = process.argv.includes('--write-layout');
 const keyLayout = process.argv.includes('--key-layout');
+const paginationKeys = process.argv.includes('--pagination-keys');
 const allocations = process.argv.includes('--allocations');
 if (process.env.PROFILE && allocations) throw new Error('Run CPU profiling separately from allocation sampling');
 if (allocations && !cache && !index && !normalize && !urlRead && !pageCache && !keyLayout && !highlights && (!search || searchProjection)) throw new Error('--allocations requires a cache, search or highlight benchmark');
@@ -43,7 +44,7 @@ const server = await createServer({
       const path = id.split('?')[0];
       const databaseFiles = ['src/background/indexeddb.ts', 'src/background/indexeddb-query.ts', 'src/types/indexeddb.ts', 'src/background/storage/utils/clip-url-record.ts'];
       const cacheFiles = ['src/background/storage.ts', 'src/background/storage/cache-manager.ts', 'src/background/storage/clip-index.ts', 'src/background/storage/utils/clip-normalizer.ts'];
-      const files = pageCache || writeLayout || keyLayout ? [...cacheFiles, ...databaseFiles] : writes
+      const files = paginationKeys ? databaseFiles : pageCache || writeLayout || keyLayout ? [...cacheFiles, ...databaseFiles] : writes
         ? ['src/background/storage.ts', 'src/background/storage/sync-manager.ts', 'src/background/storage/utils/clip-normalizer.ts', ...databaseFiles]
         : normalize ? ['src/background/storage/utils/clip-normalizer.ts']
         : index ? ['src/background/storage/clip-index.ts']
@@ -65,7 +66,7 @@ const server = await createServer({
       server.middlewares.use((req, res, next) => {
         if (req.url?.split('?')[0] !== '/') return next();
         res.setHeader('Content-Type', 'text/html');
-        res.end(`<!doctype html><script type="module" src="/tests/performance/${keyLayout ? 'key-layout' : writeLayout ? 'write-layout' : pageCache ? 'page-cache' : writes ? 'writes' : urlRead ? 'url-read' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : searchProjection ? 'search-projection' : search ? 'search' : textMapping ? 'text-mapping' : highlightScheduling ? 'highlight-scheduling' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
+        res.end(`<!doctype html><script type="module" src="/tests/performance/${paginationKeys ? 'pagination-keys' : keyLayout ? 'key-layout' : writeLayout ? 'write-layout' : pageCache ? 'page-cache' : writes ? 'writes' : urlRead ? 'url-read' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : searchProjection ? 'search-projection' : search ? 'search' : textMapping ? 'text-mapping' : highlightScheduling ? 'highlight-scheduling' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
       });
     }
   }]
@@ -80,7 +81,7 @@ try {
   ], { stdio: 'ignore' });
   let launchError;
   chrome.on('error', error => { launchError = error; });
-  const deadline = Date.now() + 120000;
+  const deadline = Date.now() + (paginationKeys ? 180000 : 120000);
   let port;
   while (!port) {
     if (launchError) throw launchError;
@@ -125,7 +126,7 @@ try {
   const query = new URLSearchParams();
   if (allocations && (highlights || search)) query.set('allocations', '1');
   if (highlightScheduling && process.argv.includes('--timer-yield')) query.set('timer-yield', '1');
-  if ((urlRead || pageCache || writeLayout || keyLayout || highlights || search) && process.argv.includes('--reverse')) query.set('reverse', '1');
+  if ((paginationKeys || urlRead || pageCache || writeLayout || keyLayout || highlights || search) && process.argv.includes('--reverse')) query.set('reverse', '1');
   if (pageCache && process.argv.includes('--legacy-v4')) query.set('legacy-v4', '1');
   await send('Page.navigate', { url: server.resolvedUrls.local[0] + (query.size ? `?${query}` : '') });
   let result;

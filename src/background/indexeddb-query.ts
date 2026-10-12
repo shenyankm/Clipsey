@@ -53,16 +53,28 @@ export class IndexedDBQuery {
 
         return new Promise<DBSchema[K]['value'][]>((resolve, reject) => {
           const results: DBSchema[K]['value'][] = [];
+          const keys: IDBValidKey[] = [];
+          // shortcut: 主键游标只用于 offset >= 256、最多 100 条的整数页；更小偏移或更大页量需重新实测。
+          const keyOnly = Number.isSafeInteger(offset) && offset >= 256 && offset <= 0xffffffff &&
+            Number.isSafeInteger(limit) && limit! > 0 && limit! <= 100 && (direction === 'next' || direction === 'prev');
+          const finish = () => {
+            if (!keyOnly) { resolve(results); return; }
+            Promise.all(keys.map(key => new Promise<DBSchema[K]['value']>((resolveRow, rejectRow) => {
+              const request = store.get(key);
+              request.onsuccess = () => resolveRow(IndexedDB.readRecord(store, request.result));
+              request.onerror = () => rejectRow(new IndexedDBError('Failed to query records', 'QUERY_ERROR', request.error || undefined));
+            }))).then(resolve, reject);
+          };
           let count = 0;
           let skipped = 0;
 
-          const request = source.openCursor(query, direction);
+          const request = keyOnly ? source.openKeyCursor(query, direction) : source.openCursor(query, direction);
 
           request.onsuccess = () => {
             const cursor = request.result;
 
             if (!cursor) {
-              resolve(results);
+              finish();
               return;
             }
 
@@ -80,12 +92,14 @@ export class IndexedDBQuery {
 
             // 到达 limit 限制时结束
             if (limit && count >= limit) {
-              resolve(results);
+              finish();
               return;
             }
 
-            results.push(IndexedDB.readRecord(store, cursor.value));
+            if (keyOnly) keys.push(cursor.primaryKey);
+            else results.push(IndexedDB.readRecord(store, (cursor as IDBCursorWithValue).value));
             count++;
+            if (keyOnly && count === limit) { finish(); return; }
             cursor.continue();
           };
 
