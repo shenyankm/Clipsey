@@ -30,7 +30,7 @@ it.each(sources)('keeps complete rows and duplicate-key order for $indexName / $
   expect(result.data).toEqual(expected.slice(300, 320));
   expect(keyCursor).toHaveBeenCalledOnce();
   expect(valueCursor).not.toHaveBeenCalled();
-  expect(get).toHaveBeenCalledTimes(20);
+  expect(get.mock.contexts.filter(store => store.name === 'clips')).toHaveLength(20);
   expect(result.data.every(row => !('__clipseyUrlKey' in row) && !('updatedAt' in row))).toBe(true);
 });
 

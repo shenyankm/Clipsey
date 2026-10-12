@@ -97,11 +97,14 @@ try {
     await reload(); await waitFor(ready);
     await waitFor(records => document.querySelector('.clip-toolbar__stat-value')?.textContent.trim() === String(records), records);
     await evaluate(() => {
-      window.__searchProbe = { scans: 0, revisions: 0, keyCursors: 0, lookups: 0 };
+      window.__searchProbe = { scans: 0, revisions: 0, keyCursors: 0, lookups: 0, counts: 0 };
       const getAll = IDBObjectStore.prototype.getAll, get = IDBObjectStore.prototype.get, keyCursor = IDBIndex.prototype.openKeyCursor;
       IDBObjectStore.prototype.getAll = function(...args) { if (this.name === 'clips') window.__searchProbe.scans++; return getAll.apply(this, args); };
       IDBObjectStore.prototype.get = function(key) { if (this.name === 'clips') window.__searchProbe.lookups++; if (this.name === 'metadata' && key === '__clipseyClipRevision') window.__searchProbe.revisions++; return get.call(this, key); };
       IDBIndex.prototype.openKeyCursor = function(...args) { if (this.objectStore.name === 'clips') window.__searchProbe.keyCursors++; return keyCursor.apply(this, args); };
+      const count = IDBIndex.prototype.count, storeCount = IDBObjectStore.prototype.count;
+      IDBIndex.prototype.count = function(...args) { if (this.objectStore.name === 'clips') window.__searchProbe.counts++; return count.apply(this, args); };
+      IDBObjectStore.prototype.count = function(...args) { if (this.name === 'clips') window.__searchProbe.counts++; return storeCount.apply(this, args); };
     });
     if (records === 10000) {
       const last = clips.slice(0, 20).toReversed().map(clip => clip.id);
@@ -110,8 +113,10 @@ try {
         JSON.stringify([...document.querySelectorAll('tbody tr[data-row-key]')].map(row => row.dataset.rowKey)) === JSON.stringify(ids), last);
       const probe = await evaluate(() => window.__searchProbe);
       assert.equal(probe.keyCursors, 1); assert.equal(probe.lookups, 20); assert.equal(probe.scans, 0);
+      assert.equal(probe.counts, 0); assert.equal(probe.revisions, 1);
       assert.equal(await evaluate(() => document.querySelector('.clip-toolbar__stat-value').textContent.trim()), '10000');
       record('10000: actual ordinary page 500 uses a key cursor and hydrates only its 20 rows');
+      record('10000: actual ordinary pagination validates the revision and reuses its exact index count');
       await evaluate(() => document.querySelector('tbody tr[data-row-key] button').click());
       await waitFor(() => document.querySelector('.ant-modal-body b')?.textContent === 'rich 19');
       await evaluate(() => document.querySelector('.ant-modal-close').click());

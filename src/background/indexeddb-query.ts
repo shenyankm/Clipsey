@@ -11,12 +11,21 @@ import {
 type SearchRecord = Pick<DBSchema['clips']['value'], 'id' | 'title' | 'textContent' | 'sourceUrl' | 'createdAt'>;
 const searchFields = ['id', 'title', 'textContent', 'sourceUrl', 'createdAt'] as const;
 const searchSnapshots = new WeakMap<IDBDatabase, { revision: string; records: SearchRecord[] }>();
+const clipCounts = new WeakMap<IDBDatabase, { revision: string; counts: Map<string | undefined, number> }>();
 
 // IndexedDB 查询与批量操作封装
 export class IndexedDBQuery {
   static async getAll<K extends keyof DBSchema>(
     storeName: K,
     options: QueryOptions = {}
+  ): Promise<DBSchema[K]['value'][]> {
+    return indexedDBManager.executeTransaction(storeName as string, 'readonly', transaction => this.readAll(transaction, storeName, options));
+  }
+
+  private static async readAll<K extends keyof DBSchema>(
+    transaction: IDBTransaction,
+    storeName: K,
+    options: QueryOptions
   ): Promise<DBSchema[K]['value'][]> {
     const { limit, offset = 0, indexName, query } = options;
     let direction: IDBCursorDirection = 'next';
@@ -30,89 +39,83 @@ export class IndexedDBQuery {
       direction = options.direction as IDBCursorDirection;
     }
 
-    return indexedDBManager.executeTransaction(
-      storeName as string,
-      'readonly',
-      async (transaction) => {
-        const store = transaction.objectStore(storeName as string);
-        const source = indexName ? store.index(indexName) : store;
+    const store = transaction.objectStore(storeName as string);
+    const source = indexName ? store.index(indexName) : store;
 
-        // 无分页、非 unique 查询可以一次读取，避免每条记录一次游标回调。
-        if (!limit && !(offset > 0) && (direction === 'next' || direction === 'prev')) {
-          return new Promise<DBSchema[K]['value'][]>((resolve, reject) => {
-            const request = source.getAll(query);
-            request.onsuccess = () => {
-              const rows = request.result.map(value => IndexedDB.readRecord(store, value));
-              resolve(direction === 'prev' ? rows.reverse() : rows);
-            };
-            request.onerror = () => reject(new IndexedDBError(
-              'Failed to query records', 'QUERY_ERROR', request.error || undefined
-            ));
-          });
+    // 无分页、非 unique 查询可以一次读取，避免每条记录一次游标回调。
+    if (!limit && !(offset > 0) && (direction === 'next' || direction === 'prev')) {
+      return new Promise<DBSchema[K]['value'][]>((resolve, reject) => {
+        const request = source.getAll(query);
+        request.onsuccess = () => {
+          const rows = request.result.map(value => IndexedDB.readRecord(store, value));
+          resolve(direction === 'prev' ? rows.reverse() : rows);
+        };
+        request.onerror = () => reject(new IndexedDBError(
+          'Failed to query records', 'QUERY_ERROR', request.error || undefined
+        ));
+      });
+    }
+
+    return new Promise<DBSchema[K]['value'][]>((resolve, reject) => {
+      const results: DBSchema[K]['value'][] = [];
+      const keys: IDBValidKey[] = [];
+      // shortcut: 主键游标只用于 offset >= 256、最多 100 条的整数页；更小偏移或更大页量需重新实测。
+      const keyOnly = Number.isSafeInteger(offset) && offset >= 256 && offset <= 0xffffffff &&
+        Number.isSafeInteger(limit) && limit! > 0 && limit! <= 100 && (direction === 'next' || direction === 'prev');
+      const finish = () => {
+        if (!keyOnly) { resolve(results); return; }
+        Promise.all(keys.map(key => new Promise<DBSchema[K]['value']>((resolveRow, rejectRow) => {
+          const request = store.get(key);
+          request.onsuccess = () => resolveRow(IndexedDB.readRecord(store, request.result));
+          request.onerror = () => rejectRow(new IndexedDBError('Failed to query records', 'QUERY_ERROR', request.error || undefined));
+        }))).then(resolve, reject);
+      };
+      let count = 0;
+      let skipped = 0;
+
+      const request = keyOnly ? source.openKeyCursor(query, direction) : source.openCursor(query, direction);
+
+      request.onsuccess = () => {
+        const cursor = request.result;
+
+        if (!cursor) {
+          finish();
+          return;
         }
 
-        return new Promise<DBSchema[K]['value'][]>((resolve, reject) => {
-          const results: DBSchema[K]['value'][] = [];
-          const keys: IDBValidKey[] = [];
-          // shortcut: 主键游标只用于 offset >= 256、最多 100 条的整数页；更小偏移或更大页量需重新实测。
-          const keyOnly = Number.isSafeInteger(offset) && offset >= 256 && offset <= 0xffffffff &&
-            Number.isSafeInteger(limit) && limit! > 0 && limit! <= 100 && (direction === 'next' || direction === 'prev');
-          const finish = () => {
-            if (!keyOnly) { resolve(results); return; }
-            Promise.all(keys.map(key => new Promise<DBSchema[K]['value']>((resolveRow, rejectRow) => {
-              const request = store.get(key);
-              request.onsuccess = () => resolveRow(IndexedDB.readRecord(store, request.result));
-              request.onerror = () => rejectRow(new IndexedDBError('Failed to query records', 'QUERY_ERROR', request.error || undefined));
-            }))).then(resolve, reject);
-          };
-          let count = 0;
-          let skipped = 0;
-
-          const request = keyOnly ? source.openKeyCursor(query, direction) : source.openCursor(query, direction);
-
-          request.onsuccess = () => {
-            const cursor = request.result;
-
-            if (!cursor) {
-              finish();
-              return;
-            }
-
-            // 跳过 offset 指定数量的记录
-            if (skipped < offset) {
-              if (Number.isSafeInteger(offset) && offset <= 0xffffffff) {
-                skipped = offset;
-                cursor.advance(offset);
-              } else {
-                skipped++;
-                cursor.continue();
-              }
-              return;
-            }
-
-            // 到达 limit 限制时结束
-            if (limit && count >= limit) {
-              finish();
-              return;
-            }
-
-            if (keyOnly) keys.push(cursor.primaryKey);
-            else results.push(IndexedDB.readRecord(store, (cursor as IDBCursorWithValue).value));
-            count++;
-            if (keyOnly && count === limit) { finish(); return; }
+        // 跳过 offset 指定数量的记录
+        if (skipped < offset) {
+          if (Number.isSafeInteger(offset) && offset <= 0xffffffff) {
+            skipped = offset;
+            cursor.advance(offset);
+          } else {
+            skipped++;
             cursor.continue();
-          };
+          }
+          return;
+        }
 
-          request.onerror = () => {
-            reject(new IndexedDBError(
-              'Failed to query records',
-              'QUERY_ERROR',
-              request.error || undefined
-            ));
-          };
-        });
-      }
-    );
+        // 到达 limit 限制时结束
+        if (limit && count >= limit) {
+          finish();
+          return;
+        }
+
+        if (keyOnly) keys.push(cursor.primaryKey);
+        else results.push(IndexedDB.readRecord(store, (cursor as IDBCursorWithValue).value));
+        count++;
+        if (keyOnly && count === limit) { finish(); return; }
+        cursor.continue();
+      };
+
+      request.onerror = () => {
+        reject(new IndexedDBError(
+          'Failed to query records',
+          'QUERY_ERROR',
+          request.error || undefined
+        ));
+      };
+    });
   }
 
   static async getByIndex<K extends keyof DBSchema>(
@@ -142,13 +145,12 @@ export class IndexedDBQuery {
   }> {
     const offset = (page - 1) * pageSize;
     
-    const total = await this.count(storeName, options.indexName, options.query);
-    
-    const data = await this.getAll(storeName, {
-      ...options,
-      limit: pageSize,
-      offset
-    });
+    const [total, data] = await indexedDBManager.executeTransaction(
+      storeName === 'clips' && options.query === undefined ? ['clips', 'metadata'] : storeName as string, 'readonly', transaction => Promise.all([
+        this.readCount(transaction, storeName, options.indexName, options.query),
+        this.readAll(transaction, storeName, { ...options, limit: pageSize, offset })
+      ])
+    );
 
     return {
       data,
@@ -164,22 +166,49 @@ export class IndexedDBQuery {
     indexName?: string,
     query?: IDBValidKey | IDBKeyRange
   ): Promise<number> {
-    return indexedDBManager.executeTransaction(storeName as string, 'readonly', async (transaction) => {
-      const store = transaction.objectStore(storeName as string);
-      if (indexName) {
-        const index = store.index(indexName);
-        return await new Promise<number>((resolve, reject) => {
-          const req = index.count(query);
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => reject(req.error ?? new Error('Index count failed'));
-        });
-      }
-      return await new Promise<number>((resolve, reject) => {
-        const req = store.count(query);
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error ?? new Error('Store count failed'));
-      });
+    return indexedDBManager.executeTransaction(
+      storeName === 'clips' && query === undefined ? ['clips', 'metadata'] : storeName as string,
+      'readonly', transaction => this.readCount(transaction, storeName, indexName, query)
+    );
+  }
+
+  private static async readCount<K extends keyof DBSchema>(
+    transaction: IDBTransaction,
+    storeName: K,
+    indexName?: string,
+    query?: IDBValidKey | IDBKeyRange
+  ): Promise<number> {
+    const store = transaction.objectStore(storeName as string);
+    const source = indexName ? store.index(indexName) : store;
+    let revision: unknown;
+    if (storeName === 'clips' && query === undefined) {
+      revision = (await new Promise<DBSchema['metadata']['value'] | undefined>((resolve, reject) => {
+        const request = transaction.objectStore('metadata').get(CLIP_REVISION_KEY);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error ?? new Error('Revision read failed'));
+      }))?.value;
+      const cached = clipCounts.get(transaction.db);
+      if (typeof revision === 'string' && cached?.revision === revision) {
+        const total = cached.counts.get(indexName);
+        if (total !== undefined) return total;
+      } else clipCounts.delete(transaction.db);
+    }
+    const total = await new Promise<number>((resolve, reject) => {
+      const req = source.count(query);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error ?? new Error(indexName ? 'Index count failed' : 'Store count failed'));
     });
+    if (typeof revision === 'string') {
+      const committedRevision = revision;
+      // 只保存当前 schema 的无范围计数，且必须随整次读取事务成功后发布。
+      transaction.addEventListener('complete', () => {
+        const cached = clipCounts.get(transaction.db);
+        const counts = cached?.revision === committedRevision ? cached.counts : new Map<string | undefined, number>();
+        counts.set(indexName, total);
+        clipCounts.set(transaction.db, { revision: committedRevision, counts });
+      }, { once: true });
+    }
+    return total;
   }
 
   static async keysetPaginate<K extends keyof DBSchema>(

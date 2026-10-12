@@ -11,8 +11,10 @@ assert(process.env.FIREFOX_PATH, 'Set FIREFOX_PATH to a Firefox executable');
 assert(process.env.GECKODRIVER_PATH, 'Set GECKODRIVER_PATH to a geckodriver executable');
 const baseline = process.argv.includes('--baseline');
 const paginationKeys = process.argv.includes('--pagination-keys');
+const paginationCount = process.argv.includes('--pagination-count');
+const pagination = paginationKeys || paginationCount;
 const baselineRef = baseline ? execFileSync('git', ['rev-parse', process.env.BASELINE_REF ?? 'HEAD'], { encoding: 'utf8' }).trim() : undefined;
-const files = paginationKeys
+const files = pagination
   ? ['src/background/indexeddb.ts', 'src/background/indexeddb-query.ts', 'src/types/indexeddb.ts', 'src/background/storage/utils/clip-url-record.ts']
   : ['src/content/highlight/dom-utils.ts', 'src/content/highlight/metadata.ts', 'src/content/highlight/locators/offset-locator.ts', 'src/content/highlight/text-search.ts', 'src/content/highlight-engine.ts'];
 const server = await createServer({
@@ -28,7 +30,7 @@ const server = await createServer({
       server.middlewares.use((req, res, next) => {
         if (req.url?.split('?')[0] !== '/') return next();
         res.setHeader('Content-Type', 'text/html');
-        res.end(`<!doctype html><script type="module" src="/tests/performance/${paginationKeys ? 'pagination-keys' : 'highlight-scheduling'}.ts"></script>`);
+        res.end(`<!doctype html><script type="module" src="/tests/performance/${paginationCount ? 'pagination-count' : paginationKeys ? 'pagination-keys' : 'highlight-scheduling'}.ts"></script>`);
       });
     }
   }]
@@ -73,7 +75,7 @@ try {
     result = await command('/execute/sync', { script: 'return window.__performanceResult || null', args: [] });
   }
   assert(!result.error, result.error);
-  if (paginationKeys) assert.equal(result.scenario, 'pagination-keys');
+  if (pagination) assert.equal(result.scenario, paginationCount ? 'pagination-count' : 'pagination-keys');
   else assert.equal(result.cancellation.passed, true, 'Cancellation failed');
   console.log(JSON.stringify({ mode: baseline ? 'baseline' : 'working-tree', baselineRef, capabilities: started.capabilities, ...result }, null, 2));
 } finally {
