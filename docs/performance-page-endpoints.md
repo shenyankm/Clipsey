@@ -1,6 +1,6 @@
 # 分页端点的临时分配验收
 
-2026-10-12；基线 `08326ed`，承接[冷深页近末端读取](./performance-pagination-tail.md)。以 10,000 条为主、100 条为辅。全部 28 轮主测量及八轮诊断复测、原生 getter 计数、Chrome V8 分配采样与 GC 后 JS 堆快照、红测试、源码/构建 SHA-256、界面检查见[原始数据](./performance-page-endpoints-results.json)。
+2026-10-12；基线 `08326ed`。以 10,000 条为主、100 条为辅。全部 28 轮主测量及八轮诊断复测、原生 getter 计数、Chrome V8 分配采样与 GC 后 JS 堆快照、红测试、源码/构建 SHA-256、界面检查见[原始数据](./performance-page-endpoints-results.json)。此前阶段的过程记录可从 Git 历史恢复。
 
 ## 实现与测量边界
 
@@ -135,4 +135,4 @@ node scripts/performance.mjs --page-endpoints --allocations
 
 分配采样同样运行 --reverse 两组；Firefox 普通测量用 `scripts/firefox-highlight-scheduling.mjs` 相同参数，需要 FIREFOX_PATH、GECKODRIVER_PATH。原有夹具用 --pagination-count 和 --page-anchors。真实界面使用 `scripts/search-acceptance.mjs` 及 --firefox，需 PLAYWRIGHT_MODULE 与对应路径。
 
-未测 Firefox 分配采样、正式版 Firefox、Chrome 155 扩展界面、Edge 运行时、低端设备、实际用户访问分布、长期堆占用、峰值/RSS 或远程 CI；未推送。原生计数与部分重复键定位仍有成本，性能目标继续进行。
+未测 Firefox 分配采样、正式版 Firefox、Chrome 155 扩展界面、Edge 运行时、低端设备、实际用户访问分布、长期堆占用、峰值/RSS 或远程 CI；未推送。原生计数与部分重复键定位仍有成本，未证明整体性能已达最优。本报告保留当次验收结果；目录清理没有重跑测量，构建产物已移除，可按现有命令重新生成。
