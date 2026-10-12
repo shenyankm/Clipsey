@@ -1,5 +1,7 @@
 # 深页复访的有界主键缓存验收
 
+后续[有界游标边界验收](./performance-page-anchors.md)记录新深页定位优化；本文件保留此前阶段的结果。
+
 后续实验[冷深页的一次主键扫描](./performance-one-pass.md)因 Firefox 与超窗口回退未接入生产，保留完整取舍数据。
 
 2026-10-12；基线 `53346f4`，承接[越界分页与计数发布时机验收](./performance-empty-page.md)。以 10,000 条为主、100 条为辅。原始样本、源码与构建 SHA-256、检查日志路径和实际界面结果见[完整数据](./performance-page-keys-results.json)。

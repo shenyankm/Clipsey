@@ -24,7 +24,8 @@ const paginationCount = process.argv.includes('--pagination-count');
 const countTransition = process.argv.includes('--count-transition');
 const pageKeys = process.argv.includes('--page-keys');
 const paginationOnePass = process.argv.includes('--pagination-one-pass');
-const pagination = paginationKeys || paginationCount || countTransition || pageKeys || paginationOnePass;
+const pageAnchors = process.argv.includes('--page-anchors');
+const pagination = paginationKeys || paginationCount || countTransition || pageKeys || paginationOnePass || pageAnchors;
 const allocations = process.argv.includes('--allocations');
 if (process.env.PROFILE && allocations) throw new Error('Run CPU profiling separately from allocation sampling');
 if (allocations && !cache && !index && !normalize && !urlRead && !pageCache && !keyLayout && !highlights && (!search || searchProjection)) throw new Error('--allocations requires a cache, search or highlight benchmark');
@@ -71,7 +72,7 @@ const server = await createServer({
       server.middlewares.use((req, res, next) => {
         if (req.url?.split('?')[0] !== '/') return next();
         res.setHeader('Content-Type', 'text/html');
-        res.end(`<!doctype html><script type="module" src="/tests/performance/${paginationOnePass ? 'pagination-one-pass' : pageKeys ? 'page-keys' : countTransition ? 'count-transition' : paginationCount ? 'pagination-count' : paginationKeys ? 'pagination-keys' : keyLayout ? 'key-layout' : writeLayout ? 'write-layout' : pageCache ? 'page-cache' : writes ? 'writes' : urlRead ? 'url-read' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : searchProjection ? 'search-projection' : search ? 'search' : textMapping ? 'text-mapping' : highlightScheduling ? 'highlight-scheduling' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
+        res.end(`<!doctype html><script type="module" src="/tests/performance/${pageAnchors ? 'page-anchors' : paginationOnePass ? 'pagination-one-pass' : pageKeys ? 'page-keys' : countTransition ? 'count-transition' : paginationCount ? 'pagination-count' : paginationKeys ? 'pagination-keys' : keyLayout ? 'key-layout' : writeLayout ? 'write-layout' : pageCache ? 'page-cache' : writes ? 'writes' : urlRead ? 'url-read' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : searchProjection ? 'search-projection' : search ? 'search' : textMapping ? 'text-mapping' : highlightScheduling ? 'highlight-scheduling' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
       });
     }
   }]

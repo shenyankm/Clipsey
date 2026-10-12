@@ -1,5 +1,7 @@
 # 搜索性能优化
 
+最新优化见[未访问深页的有界游标边界验收](./performance-page-anchors.md)，复用同版本已访问页的位置，减少新深页的推进距离。
+
 后续实验[冷深页的一次主键扫描](./performance-one-pass.md)因 Firefox 与超窗口回退未接入生产，保留完整取舍数据。
 
 后续[深页复访的有界主键缓存验收](./performance-page-keys.md)省掉已访问深页的游标推进；此前[越界分页与计数发布时机验收](./performance-empty-page.md)省掉已确认空页的读取；此前[精确计数复用与单事务分页验收](./performance-count-cache.md)将 total 与 data 合并到同一快照；此前[主键游标验收](./performance-key-cursor.md)改善无关键词深页的数据读取。下面为原阶段测量。

@@ -11,7 +11,9 @@ import {
 type SearchRecord = Pick<DBSchema['clips']['value'], 'id' | 'title' | 'textContent' | 'sourceUrl' | 'createdAt'>;
 const searchFields = ['id', 'title', 'textContent', 'sourceUrl', 'createdAt'] as const;
 const searchSnapshots = new WeakMap<IDBDatabase, { revision: string; records: SearchRecord[] }>();
-type ClipCounts = { revision: string; counts: Map<string | undefined, number>; pages: Map<string, { keys: string[]; weight: number }>; weight: number };
+type PagePoint = { offset: number; key: string | string[]; primaryKey: string };
+type PageStart = { point: PagePoint; backwards: boolean; distance: number; end: number };
+type ClipCounts = { revision: string; counts: Map<string | undefined, number>; pages: Map<string, { keys: string[]; weight: number; points?: PagePoint[] }>; weight: number };
 const clipCounts = new WeakMap<IDBDatabase, ClipCounts>();
 
 // IndexedDB 查询与批量操作封装
@@ -27,7 +29,8 @@ export class IndexedDBQuery {
     transaction: IDBTransaction,
     storeName: K,
     options: QueryOptions,
-    onKeys?: (keys: IDBValidKey[]) => void
+    onKeys?: (keys: IDBValidKey[], points: PagePoint[]) => void,
+    start?: PageStart
   ): Promise<DBSchema[K]['value'][]> {
     const { limit, offset = 0, indexName, query } = options;
     let direction: IDBCursorDirection = 'next';
@@ -64,14 +67,21 @@ export class IndexedDBQuery {
       // shortcut: 主键游标只用于 offset >= 256、最多 100 条的整数页；更小偏移或更大页量需重新实测。
       const keyOnly = Number.isSafeInteger(offset) && offset >= 256 && offset <= 0xffffffff &&
         Number.isSafeInteger(limit) && limit! > 0 && limit! <= 100 && (direction === 'next' || direction === 'prev');
+      const backwards = keyOnly && start?.backwards;
+      const pageLimit = backwards ? start!.end - offset + 1 : limit;
+      let first: PagePoint | undefined, last: PagePoint | undefined;
       const finish = () => {
         if (!keyOnly) { resolve(results); return; }
-        this.readKeys<K>(store, keys).then(rows => { onKeys?.(keys); resolve(rows); }, reject);
+        if (backwards) keys.reverse();
+        const points = (backwards ? [last, first] : [first, last]).filter((point): point is PagePoint => point !== undefined);
+        this.readKeys<K>(store, keys).then(rows => { onKeys?.(keys, points); resolve(rows); }, reject);
       };
       let count = 0;
-      let skipped = 0;
+      let skipped = start ? offset : 0, aligned = !start;
 
-      const request = keyOnly ? source.openKeyCursor(query, direction) : source.openCursor(query, direction);
+      const scanDirection = backwards ? direction === 'next' ? 'prev' : 'next' : direction;
+      const range = start ? scanDirection === 'next' ? IDBKeyRange.lowerBound(start.point.key) : IDBKeyRange.upperBound(start.point.key) : query;
+      const request = keyOnly ? source.openKeyCursor(range, scanDirection) : source.openCursor(query, direction);
 
       request.onsuccess = () => {
         const cursor = request.result;
@@ -79,6 +89,16 @@ export class IndexedDBQuery {
         if (!cursor) {
           finish();
           return;
+        }
+
+        if (!aligned) {
+          try {
+            if (indexedDB.cmp(cursor.key, start!.point.key) || indexedDB.cmp(cursor.primaryKey, start!.point.primaryKey)) {
+              cursor.continuePrimaryKey(start!.point.key, start!.point.primaryKey); return;
+            }
+            aligned = true;
+            if (start!.distance) { cursor.advance(start!.distance); return; }
+          } catch (error) { reject(error); return; }
         }
 
         // 跳过 offset 指定数量的记录
@@ -94,15 +114,23 @@ export class IndexedDBQuery {
         }
 
         // 到达 limit 限制时结束
-        if (limit && count >= limit) {
+        if (pageLimit && count >= pageLimit) {
           finish();
           return;
         }
 
-        if (keyOnly) keys.push(cursor.primaryKey);
+        if (keyOnly) {
+          keys.push(cursor.primaryKey);
+          if (onKeys) {
+            const key = cursor.key, primaryKey = cursor.primaryKey;
+            const point = typeof primaryKey === 'string' && (typeof key === 'string' || Array.isArray(key) && key.every(value => typeof value === 'string'))
+              ? { offset: backwards ? start!.end - count : offset + count, key: key as string | string[], primaryKey } : undefined;
+            if (!count) first = point; last = point;
+          }
+        }
         else results.push(IndexedDB.readRecord(store, (cursor as IDBCursorWithValue).value));
         count++;
-        if (keyOnly && count === limit) { finish(); return; }
+        if (keyOnly && count === pageLimit) { finish(); return; }
         cursor.continue();
       };
 
@@ -155,26 +183,48 @@ export class IndexedDBQuery {
       storeName === 'clips' && options.query === undefined ? ['clips', 'metadata'] : storeName as string, 'readonly', transaction => {
         const saved = storeName === 'clips' && options.query === undefined ? clipCounts.get(transaction.db) : undefined;
         const hintedTotal = saved?.counts.get(options.indexName);
-        let revision: unknown, selectedKeys: IDBValidKey[] | undefined;
+        let revision: unknown, selectedKeys: IDBValidKey[] | undefined, selectedPoints: PagePoint[] | undefined;
         const counting = this.readCount(transaction, storeName, options.indexName, options.query, value => { revision = value; });
         const direction = options.direction === 'prev' || options.direction === 'desc' ? 'prev' : options.direction === 'next' || options.direction === 'asc' || options.direction === undefined ? 'next' : undefined;
         const tag = storeName === 'clips' && options.query === undefined && (options.indexName === undefined || typeof options.indexName === 'string') && direction && Number.isSafeInteger(offset) && offset >= 256 && offset <= 0xffffffff &&
           Number.isSafeInteger(pageSize) && pageSize > 0 && pageSize <= 100 ? JSON.stringify([options.indexName ?? '', direction, offset, pageSize]) : undefined;
         const cachedPage = tag ? saved?.pages.get(tag) : undefined;
+        const candidates: PagePoint[] = [];
+        if (tag && !cachedPage) {
+          const prefix = JSON.stringify([options.indexName ?? '', direction]).slice(0, -1) + ',';
+          for (const [name, page] of saved?.pages ?? []) if (name.startsWith(prefix)) candidates.push(...page.points ?? []);
+        }
         const mightBeEmpty = hintedTotal !== undefined && Number.isSafeInteger(offset) && offset >= hintedTotal && Number.isSafeInteger(pageSize) && pageSize > 0 &&
           ['next', 'prev', 'nextunique', 'prevunique', 'asc', 'desc'].includes(options.direction ?? 'next');
-        const readPage = () => this.readAll(transaction, storeName, { ...options, limit: pageSize, offset }, keys => { selectedKeys = keys; });
+        const readPage = (start?: PageStart) => this.readAll(transaction, storeName, { ...options, limit: pageSize, offset }, tag ? (keys, points) => { selectedKeys = keys; selectedPoints = points; } : undefined, start);
         // 旧总数只决定是否等待；空页必须由当前事务的精确总数确认。
-        const reading = cachedPage || mightBeEmpty ? counting.then(total => {
+        const reading = cachedPage || mightBeEmpty || candidates.length ? counting.then(total => {
           if (mightBeEmpty && offset >= total) return [];
           if (cachedPage && revision === saved?.revision) {
-            return this.readKeys<K>(transaction.objectStore(storeName), cachedPage.keys).then(rows => { selectedKeys = cachedPage.keys; return rows; });
+            return this.readKeys<K>(transaction.objectStore(storeName), cachedPage.keys).then(rows => { selectedKeys = cachedPage.keys; selectedPoints = cachedPage.points; return rows; });
           }
-          return readPage();
+          let start: PageStart | undefined, distance = offset;
+          if (revision === saved?.revision && offset < total) {
+            const end = Math.min(offset + pageSize, total) - 1;
+            for (const point of candidates) {
+              const backwards = point.offset >= end, skip = backwards ? point.offset - end : offset - point.offset;
+              if (backwards && options.indexName) {
+                // 反向范围从重复键组末尾开始；用后续异键边界约束实际扫描量。
+                let groupEnd = total - 1;
+                for (const other of candidates) if (other.offset > point.offset && indexedDB.cmp(other.key, point.key)) groupEnd = Math.min(groupEnd, other.offset - 1);
+                if (groupEnd - end >= offset) continue;
+              }
+              if (skip >= 0 && skip < distance) { distance = skip; start = { point, backwards, distance, end }; }
+            }
+          }
+          return readPage(start);
         }) : readPage();
         return Promise.all([counting, reading]).then(result => {
           if (tag && typeof revision === 'string' && selectedKeys?.every(key => typeof key === 'string')) {
-            const keys = selectedKeys as string[], weight = 128 + keys.reduce((sum, key) => sum + key.length * 2 + 32, 0);
+            const keys = selectedKeys as string[], keyWeight = 128 + keys.reduce((sum, key) => sum + key.length * 2 + 32, 0);
+            let points = selectedPoints, weight = keyWeight + (points?.reduce((sum, point) => sum + 64 + point.primaryKey.length * 2 +
+              (typeof point.key === 'string' ? point.key.length * 2 : point.key.reduce((size, key) => size + 32 + key.length * 2, 32)), 0) ?? 0);
+            if (weight > 256 * 1024) { points = undefined; weight = keyWeight; }
             if (weight <= 256 * 1024) {
               const committedRevision = revision, complete = transaction.oncomplete;
               transaction.oncomplete = function(event) {
@@ -182,8 +232,8 @@ export class IndexedDBQuery {
                 const current = clipCounts.get(this.db);
                 if (current?.revision !== committedRevision) return;
                 const old = current.pages.get(tag); if (old) current.weight -= old.weight;
-                current.pages.delete(tag); current.pages.set(tag, { keys, weight }); current.weight += weight;
-                // shortcut: 仅深整数页/字符串主键，最多 16 页与 256 KiB 字段权重；更大或其他键需另行实测。
+                current.pages.delete(tag); current.pages.set(tag, { keys, weight, points }); current.weight += weight;
+                // shortcut: 仅深整数页/字符串主键，边界限字符串或字符串数组；最多 16 页/256 KiB 字段权重，其他键需另测。
                 while (current.pages.size > 16 || current.weight > 256 * 1024) {
                   const first = current.pages.keys().next().value!; current.weight -= current.pages.get(first)!.weight; current.pages.delete(first);
                 }
