@@ -146,10 +146,15 @@ export class IndexedDBQuery {
     const offset = (page - 1) * pageSize;
     
     const [total, data] = await indexedDBManager.executeTransaction(
-      storeName === 'clips' && options.query === undefined ? ['clips', 'metadata'] : storeName as string, 'readonly', transaction => Promise.all([
-        this.readCount(transaction, storeName, options.indexName, options.query),
-        this.readAll(transaction, storeName, { ...options, limit: pageSize, offset })
-      ])
+      storeName === 'clips' && options.query === undefined ? ['clips', 'metadata'] : storeName as string, 'readonly', transaction => {
+        const hintedTotal = storeName === 'clips' && options.query === undefined ? clipCounts.get(transaction.db)?.counts.get(options.indexName) : undefined;
+        const counting = this.readCount(transaction, storeName, options.indexName, options.query);
+        const mightBeEmpty = hintedTotal !== undefined && Number.isSafeInteger(offset) && offset >= hintedTotal && Number.isSafeInteger(pageSize) && pageSize > 0 &&
+          ['next', 'prev', 'nextunique', 'prevunique', 'asc', 'desc'].includes(options.direction ?? 'next');
+        const readPage = () => this.readAll(transaction, storeName, { ...options, limit: pageSize, offset });
+        // 旧总数只决定是否等待；空页必须由当前事务的精确总数确认。
+        return Promise.all([counting, mightBeEmpty ? counting.then(total => offset >= total ? [] : readPage()) : readPage()]);
+      }
     );
 
     return {
@@ -200,13 +205,16 @@ export class IndexedDBQuery {
     });
     if (typeof revision === 'string') {
       const committedRevision = revision;
-      // 只保存当前 schema 的无范围计数，且必须随整次读取事务成功后发布。
-      transaction.addEventListener('complete', () => {
-        const cached = clipCounts.get(transaction.db);
-        const counts = cached?.revision === committedRevision ? cached.counts : new Map<string | undefined, number>();
-        counts.set(indexName, total);
-        clipCounts.set(transaction.db, { revision: committedRevision, counts });
-      }, { once: true });
+      // 完成后、包装器通知调用方前发布；后置监听器可能晚于紧接的下一次查询。
+      const complete = transaction.oncomplete;
+      transaction.oncomplete = function(event) {
+        try {
+          const cached = clipCounts.get(transaction.db);
+          const counts = cached?.revision === committedRevision ? cached.counts : new Map<string | undefined, number>();
+          counts.set(indexName, total);
+          clipCounts.set(transaction.db, { revision: committedRevision, counts });
+        } finally { complete?.call(this, event); }
+      };
     }
     return total;
   }

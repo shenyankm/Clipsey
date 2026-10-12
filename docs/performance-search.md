@@ -1,6 +1,6 @@
 # 搜索性能优化
 
-后续[精确计数复用与单事务分页验收](./performance-count-cache.md)将 total 与 data 合并到同一快照；此前[主键游标验收](./performance-key-cursor.md)改善无关键词深页的数据读取。下面为原阶段测量。
+后续[越界分页与计数发布时机验收](./performance-empty-page.md)省掉已确认空页的读取；此前[精确计数复用与单事务分页验收](./performance-count-cache.md)将 total 与 data 合并到同一快照；此前[主键游标验收](./performance-key-cursor.md)改善无关键词深页的数据读取。下面为原阶段测量。
 
 日期：2026-10-11；基线：`ad7e267`。延续 [上一轮优化](./performance-optimization.md)，目标仍在进行。
 

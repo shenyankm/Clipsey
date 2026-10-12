@@ -21,7 +21,8 @@ const writeLayout = process.argv.includes('--write-layout');
 const keyLayout = process.argv.includes('--key-layout');
 const paginationKeys = process.argv.includes('--pagination-keys');
 const paginationCount = process.argv.includes('--pagination-count');
-const pagination = paginationKeys || paginationCount;
+const countTransition = process.argv.includes('--count-transition');
+const pagination = paginationKeys || paginationCount || countTransition;
 const allocations = process.argv.includes('--allocations');
 if (process.env.PROFILE && allocations) throw new Error('Run CPU profiling separately from allocation sampling');
 if (allocations && !cache && !index && !normalize && !urlRead && !pageCache && !keyLayout && !highlights && (!search || searchProjection)) throw new Error('--allocations requires a cache, search or highlight benchmark');
@@ -68,7 +69,7 @@ const server = await createServer({
       server.middlewares.use((req, res, next) => {
         if (req.url?.split('?')[0] !== '/') return next();
         res.setHeader('Content-Type', 'text/html');
-        res.end(`<!doctype html><script type="module" src="/tests/performance/${paginationCount ? 'pagination-count' : paginationKeys ? 'pagination-keys' : keyLayout ? 'key-layout' : writeLayout ? 'write-layout' : pageCache ? 'page-cache' : writes ? 'writes' : urlRead ? 'url-read' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : searchProjection ? 'search-projection' : search ? 'search' : textMapping ? 'text-mapping' : highlightScheduling ? 'highlight-scheduling' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
+        res.end(`<!doctype html><script type="module" src="/tests/performance/${countTransition ? 'count-transition' : paginationCount ? 'pagination-count' : paginationKeys ? 'pagination-keys' : keyLayout ? 'key-layout' : writeLayout ? 'write-layout' : pageCache ? 'page-cache' : writes ? 'writes' : urlRead ? 'url-read' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : searchProjection ? 'search-projection' : search ? 'search' : textMapping ? 'text-mapping' : highlightScheduling ? 'highlight-scheduling' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
       });
     }
   }]

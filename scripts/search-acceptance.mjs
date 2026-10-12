@@ -97,11 +97,13 @@ try {
     await reload(); await waitFor(ready);
     await waitFor(records => document.querySelector('.clip-toolbar__stat-value')?.textContent.trim() === String(records), records);
     await evaluate(() => {
-      window.__searchProbe = { scans: 0, revisions: 0, keyCursors: 0, lookups: 0, counts: 0 };
+      window.__searchProbe = { scans: 0, revisions: 0, keyCursors: 0, valueCursors: 0, lookups: 0, counts: 0 };
       const getAll = IDBObjectStore.prototype.getAll, get = IDBObjectStore.prototype.get, keyCursor = IDBIndex.prototype.openKeyCursor;
       IDBObjectStore.prototype.getAll = function(...args) { if (this.name === 'clips') window.__searchProbe.scans++; return getAll.apply(this, args); };
       IDBObjectStore.prototype.get = function(key) { if (this.name === 'clips') window.__searchProbe.lookups++; if (this.name === 'metadata' && key === '__clipseyClipRevision') window.__searchProbe.revisions++; return get.call(this, key); };
       IDBIndex.prototype.openKeyCursor = function(...args) { if (this.objectStore.name === 'clips') window.__searchProbe.keyCursors++; return keyCursor.apply(this, args); };
+      const valueCursor = IDBIndex.prototype.openCursor;
+      IDBIndex.prototype.openCursor = function(...args) { if (this.objectStore.name === 'clips') window.__searchProbe.valueCursors++; return valueCursor.apply(this, args); };
       const count = IDBIndex.prototype.count, storeCount = IDBObjectStore.prototype.count;
       IDBIndex.prototype.count = function(...args) { if (this.objectStore.name === 'clips') window.__searchProbe.counts++; return count.apply(this, args); };
       IDBObjectStore.prototype.count = function(...args) { if (this.name === 'clips') window.__searchProbe.counts++; return storeCount.apply(this, args); };
@@ -154,10 +156,20 @@ try {
   assert.equal((await send({ type: 'SAVE_CLIP', payload })).success, true);
   const fresh = (await send({ type: 'EXPORT_DATA' })).data.clips.find(clip => clip.textContent === 'cache fresh'); assert(fresh);
   await check('@content cache fresh', 1, [fresh.id]); record('background single-record save is visible in the options search');
+  await evaluate(() => { window.__searchProbe.revisions = 0; document.querySelectorAll('thead th')[3].click(); });
+  await waitFor(() => window.__searchProbe.revisions > 0 && !document.querySelector('.ant-spin-spinning'));
   assert.equal((await send({ type: 'DELETE_CLIP', payload: { id: fresh.id } })).success, true);
   await check('@content CACHE FRESH', 0, []); record('background delete invalidates the search snapshot');
   assert.equal((await send({ type: 'CLEAR_CLIPS' })).success, true);
   await check('@content needle', 0, []); record('background clear leaves no cached matches');
+  await check('', 0, []);
+  await evaluate(() => {
+    Object.assign(window.__searchProbe, { scans: 0, revisions: 0, keyCursors: 0, valueCursors: 0, counts: 0 });
+  });
+  const emptyProbe = await check(' ', 0, []);
+  assert.equal(emptyProbe.counts, 0); assert.equal(emptyProbe.valueCursors, 0); assert.equal(emptyProbe.keyCursors, 0); assert.equal(emptyProbe.scans, 0);
+  assert.equal(await evaluate(() => document.querySelectorAll('tbody tr[data-row-key]').length), 0);
+  record('actual empty ordinary search validates its count without opening either cursor');
   const quotaClip = { id: 'quota', textContent: 'quota needle', htmlContent: '<b>Quota</b>', sourceUrl: 'https://example.com/native-search', createdAt: '2025-01-01T00:00:00.000Z' };
   assert.equal((await send({ type: 'IMPORT_DATA', payload: { clips: [quotaClip] } })).success, true);
   await check('@content quota needle', 1, ['quota']);
