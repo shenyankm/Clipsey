@@ -97,11 +97,13 @@ try {
     await reload(); await waitFor(ready);
     await waitFor(records => document.querySelector('.clip-toolbar__stat-value')?.textContent.trim() === String(records), records);
     await evaluate(() => {
-      window.__searchProbe = { scans: 0, revisions: 0, keyCursors: 0, boundedKeyCursors: 0, advances: [], valueCursors: 0, lookups: 0, counts: 0 };
+      window.__searchProbe = { scans: 0, revisions: 0, indexKeys: 0, keyCursors: 0, boundedKeyCursors: 0, advances: [], valueCursors: 0, lookups: 0, counts: 0 };
       const getAll = IDBObjectStore.prototype.getAll, get = IDBObjectStore.prototype.get, keyCursor = IDBIndex.prototype.openKeyCursor;
       IDBObjectStore.prototype.getAll = function(...args) { if (this.name === 'clips') window.__searchProbe.scans++; return getAll.apply(this, args); };
       IDBObjectStore.prototype.get = function(key) { if (this.name === 'clips') window.__searchProbe.lookups++; if (this.name === 'metadata' && key === '__clipseyClipRevision') window.__searchProbe.revisions++; return get.call(this, key); };
       IDBIndex.prototype.openKeyCursor = function(...args) { if (this.objectStore.name === 'clips') { window.__searchProbe.keyCursors++; if (args[0] instanceof IDBKeyRange) window.__searchProbe.boundedKeyCursors++; } return keyCursor.apply(this, args); };
+      const keyDescriptor = Object.getOwnPropertyDescriptor(IDBCursor.prototype, 'key');
+      Object.defineProperty(IDBCursor.prototype, 'key', { ...keyDescriptor, get() { if (this.source.objectStore?.name === 'clips') window.__searchProbe.indexKeys++; return keyDescriptor.get.call(this); } });
       const advance = IDBCursor.prototype.advance;
       IDBCursor.prototype.advance = function(count) { if ((this.source.objectStore?.name ?? this.source.name) === 'clips') window.__searchProbe.advances.push(count); return advance.call(this, count); };
       const valueCursor = IDBIndex.prototype.openCursor;
@@ -120,6 +122,8 @@ try {
       assert.equal(probe.counts, 0); assert.equal(probe.revisions, 1);
       assert.equal(await evaluate(() => document.querySelector('.clip-toolbar__stat-value').textContent.trim()), '10000');
       record('10000: actual ordinary page 500 uses a key cursor and hydrates only its 20 rows');
+      assert.equal(probe.indexKeys, 2);
+      record('10000: uncached deep page reads only its two index endpoints');
       record('10000: actual ordinary pagination validates the revision and reuses its exact index count');
       await evaluate(() => document.querySelector('tbody tr[data-row-key] button').click());
       await waitFor(() => document.querySelector('.ant-modal-body b')?.textContent === 'rich 19');
@@ -128,22 +132,22 @@ try {
       await evaluate(() => document.querySelector('.ant-pagination-item-1').click());
       await waitFor(ids => JSON.stringify([...document.querySelectorAll('tbody tr[data-row-key]')].map(row => row.dataset.rowKey)) === JSON.stringify(ids), clips.toReversed().slice(0, 20).map(clip => clip.id));
       await evaluate(() => {
-        Object.assign(window.__searchProbe, { scans: 0, revisions: 0, keyCursors: 0, boundedKeyCursors: 0, advances: [], valueCursors: 0, lookups: 0, counts: 0 });
+        Object.assign(window.__searchProbe, { scans: 0, revisions: 0, indexKeys: 0, keyCursors: 0, boundedKeyCursors: 0, advances: [], valueCursors: 0, lookups: 0, counts: 0 });
         document.querySelector('.ant-pagination-item-500').click();
       });
       await waitFor(ids => window.__searchProbe.revisions > 0 && !document.querySelector('.ant-spin-spinning') &&
         JSON.stringify([...document.querySelectorAll('tbody tr[data-row-key]')].map(row => row.dataset.rowKey)) === JSON.stringify(ids), last);
       const revisit = await evaluate(() => window.__searchProbe);
-      assert.equal(revisit.keyCursors, 0); assert.equal(revisit.valueCursors, 0); assert.equal(revisit.lookups, 20); assert.equal(revisit.counts, 0); assert.equal(revisit.scans, 0);
+      assert.equal(revisit.indexKeys, 0); assert.equal(revisit.keyCursors, 0); assert.equal(revisit.valueCursors, 0); assert.equal(revisit.lookups, 20); assert.equal(revisit.counts, 0); assert.equal(revisit.scans, 0);
       record('10000: revisiting ordinary page 500 validates revision and fetches 20 bodies without an index cursor');
       await evaluate(() => {
-        Object.assign(window.__searchProbe, { scans: 0, revisions: 0, keyCursors: 0, boundedKeyCursors: 0, advances: [], valueCursors: 0, lookups: 0, counts: 0 });
+        Object.assign(window.__searchProbe, { scans: 0, revisions: 0, indexKeys: 0, keyCursors: 0, boundedKeyCursors: 0, advances: [], valueCursors: 0, lookups: 0, counts: 0 });
         document.querySelector('.ant-pagination-item-499').click();
       });
       await waitFor(ids => window.__searchProbe.revisions > 0 && !document.querySelector('.ant-spin-spinning') &&
         JSON.stringify([...document.querySelectorAll('tbody tr[data-row-key]')].map(row => row.dataset.rowKey)) === JSON.stringify(ids), clips.slice(20, 40).toReversed().map(clip => clip.id));
       const nearby = await evaluate(() => window.__searchProbe);
-      assert.equal(nearby.keyCursors, 1); assert.equal(nearby.boundedKeyCursors, 1); assert.deepEqual(nearby.advances, [1]);
+      assert.equal(nearby.indexKeys, 3); assert.equal(nearby.keyCursors, 1); assert.equal(nearby.boundedKeyCursors, 1); assert.deepEqual(nearby.advances, [1]);
       assert.equal(nearby.valueCursors, 0); assert.equal(nearby.lookups, 20); assert.equal(nearby.counts, 0); assert.equal(nearby.scans, 0);
       await evaluate(() => document.querySelector('tbody tr[data-row-key] button').click());
       await waitFor(() => document.querySelector('.ant-modal-body b')?.textContent === 'rich 39');

@@ -68,7 +68,7 @@ export class IndexedDBQuery {
       const keyOnly = Number.isSafeInteger(offset) && offset >= 256 && offset <= 0xffffffff &&
         Number.isSafeInteger(limit) && limit! > 0 && limit! <= 100 && (direction === 'next' || direction === 'prev');
       const backwards = keyOnly && start?.backwards;
-      const pageLimit = backwards ? start!.end - offset + 1 : limit;
+      const pageLimit = start ? start.end - offset + 1 : limit;
       let first: PagePoint | undefined, last: PagePoint | undefined;
       const finish = () => {
         if (!keyOnly) { resolve(results); return; }
@@ -123,7 +123,7 @@ export class IndexedDBQuery {
 
         if (keyOnly) {
           keys.push(cursor.primaryKey);
-          if (onKeys) {
+          if (onKeys && (!count || count === pageLimit! - 1)) {
             const key = cursor.key, primaryKey = cursor.primaryKey;
             const point = typeof primaryKey === 'string' && (typeof key === 'string' || Array.isArray(key) && key.every(value => typeof value === 'string'))
               ? { offset: backwards ? start!.end - count : offset + count, key: key as string | string[], primaryKey } : undefined;

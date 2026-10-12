@@ -26,10 +26,11 @@ const pageKeys = process.argv.includes('--page-keys');
 const paginationOnePass = process.argv.includes('--pagination-one-pass');
 const pageAnchors = process.argv.includes('--page-anchors');
 const paginationTail = process.argv.includes('--pagination-tail');
-const pagination = paginationTail || paginationKeys || paginationCount || countTransition || pageKeys || paginationOnePass || pageAnchors;
+const pageEndpoints = process.argv.includes('--page-endpoints');
+const pagination = pageEndpoints || paginationTail || paginationKeys || paginationCount || countTransition || pageKeys || paginationOnePass || pageAnchors;
 const allocations = process.argv.includes('--allocations');
 if (process.env.PROFILE && allocations) throw new Error('Run CPU profiling separately from allocation sampling');
-if (allocations && !cache && !index && !normalize && !urlRead && !pageCache && !keyLayout && !highlights && (!search || searchProjection)) throw new Error('--allocations requires a cache, search or highlight benchmark');
+if (allocations && !pageEndpoints && !cache && !index && !normalize && !urlRead && !pageCache && !keyLayout && !highlights && (!search || searchProjection)) throw new Error('--allocations requires a cache, search, highlight or page-endpoints benchmark');
 if (urlRead && baseline) throw new Error('--url-read compares the current cache path and experimental strategies in one run');
 if (searchProjection && baseline) throw new Error('--search-projection compares the current query path and experimental store in one run');
 const baselineRef = baseline
@@ -73,7 +74,7 @@ const server = await createServer({
       server.middlewares.use((req, res, next) => {
         if (req.url?.split('?')[0] !== '/') return next();
         res.setHeader('Content-Type', 'text/html');
-        res.end(`<!doctype html><script type="module" src="/tests/performance/${paginationTail ? 'pagination-tail' : pageAnchors ? 'page-anchors' : paginationOnePass ? 'pagination-one-pass' : pageKeys ? 'page-keys' : countTransition ? 'count-transition' : paginationCount ? 'pagination-count' : paginationKeys ? 'pagination-keys' : keyLayout ? 'key-layout' : writeLayout ? 'write-layout' : pageCache ? 'page-cache' : writes ? 'writes' : urlRead ? 'url-read' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : searchProjection ? 'search-projection' : search ? 'search' : textMapping ? 'text-mapping' : highlightScheduling ? 'highlight-scheduling' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
+        res.end(`<!doctype html><script type="module" src="/tests/performance/${pageEndpoints ? 'page-endpoints' : paginationTail ? 'pagination-tail' : pageAnchors ? 'page-anchors' : paginationOnePass ? 'pagination-one-pass' : pageKeys ? 'page-keys' : countTransition ? 'count-transition' : paginationCount ? 'pagination-count' : paginationKeys ? 'pagination-keys' : keyLayout ? 'key-layout' : writeLayout ? 'write-layout' : pageCache ? 'page-cache' : writes ? 'writes' : urlRead ? 'url-read' : normalize ? 'normalize' : index ? 'index' : cache ? 'cache' : searchProjection ? 'search-projection' : search ? 'search' : textMapping ? 'text-mapping' : highlightScheduling ? 'highlight-scheduling' : highlights ? 'highlights' : 'browser'}.ts"></script>`);
       });
     }
   }]
@@ -131,7 +132,7 @@ try {
     await send('Profiler.start');
   }
   const query = new URLSearchParams();
-  if (allocations && (highlights || search)) query.set('allocations', '1');
+  if (allocations && (highlights || search || pageEndpoints)) query.set('allocations', '1');
   if (highlightScheduling && process.argv.includes('--timer-yield')) query.set('timer-yield', '1');
   if ((pagination || urlRead || pageCache || writeLayout || keyLayout || highlights || search) && process.argv.includes('--reverse')) query.set('reverse', '1');
   if (pageCache && process.argv.includes('--legacy-v4')) query.set('legacy-v4', '1');
@@ -168,13 +169,13 @@ try {
       for (let i = 0; i < 7; i++) {
         await evaluate(`window.${caseList}[${index}].prepare()`);
         await send('HeapProfiler.collectGarbage');
-        const heapBefore = search ? await send('Runtime.getHeapUsage') : undefined;
+        const heapBefore = search || pageEndpoints ? await send('Runtime.getHeapUsage') : undefined;
         await send('HeapProfiler.startSampling', {
           samplingInterval: 16384, includeObjectsCollectedByMajorGC: true, includeObjectsCollectedByMinorGC: true
         });
         await evaluate(`window.${caseList}[${index}].operation()`);
         const { profile } = await send('HeapProfiler.stopSampling');
-        if (search) {
+        if (search || pageEndpoints) {
           await send('HeapProfiler.collectGarbage');
           heapSamples.push({ before: heapBefore, after: await send('Runtime.getHeapUsage') });
         }
@@ -195,7 +196,7 @@ try {
       const sites = [...allocationSites.values()].map(site => ({ ...site, medianBytes: site.samplesBytes.toSorted((a, b) => a - b)[3] }))
         .sort((a, b) => b.medianBytes - a.medianBytes);
       if (samplesBytes.some((bytes, index) => sites.reduce((sum, site) => sum + site.samplesBytes[index], 0) !== bytes)) throw new Error('Allocation site totals do not match sampled bytes');
-      result.allocationSamples.push({ ...scenario, medianBytes: samplesBytes.toSorted((a, b) => a - b)[3], samplesBytes, sites, ...(search ? { heapSamples } : {}) });
+      result.allocationSamples.push({ ...scenario, medianBytes: samplesBytes.toSorted((a, b) => a - b)[3], samplesBytes, sites, ...(search || pageEndpoints ? { heapSamples } : {}) });
     }
   }
   await send('Runtime.evaluate', { expression: 'window.__performanceCleanup?.()' });

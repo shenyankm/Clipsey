@@ -1,6 +1,6 @@
 # 搜索性能优化
 
-最新优化见[冷深页的近末端读取验收](./performance-pagination-tail.md)，用同事务精确总数缩短靠近末尾的定位；此前见[未访问深页的有界游标边界验收](./performance-page-anchors.md)。
+最新优化见[分页端点的临时分配验收](./performance-page-endpoints.md)，只采集首尾两行的索引键；此前见[冷深页的近末端读取验收](./performance-pagination-tail.md)。
 
 后续实验[冷深页的一次主键扫描](./performance-one-pass.md)因 Firefox 与超窗口回退未接入生产，保留完整取舍数据。
 
