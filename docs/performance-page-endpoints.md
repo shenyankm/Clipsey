@@ -1,61 +1,61 @@
-# 分页端点的临时分配验收
+# Temporary allocation at page endpoints
 
-2026-10-12；基线 `08326ed`。以 10,000 条为主、100 条为辅。全部 28 轮主测量及八轮诊断复测、原生 getter 计数、Chrome V8 分配采样与 GC 后 JS 堆快照、红测试、源码/构建 SHA-256、界面检查见[原始数据](./performance-page-endpoints-results.json)。此前阶段的过程记录可从 Git 历史恢复。
+Recorded on 2026-10-12 for commit `7699784`, against baseline `08326ed`. The main dataset contains 10,000 clips, with 100 clips as a smaller comparison. The [raw results](./performance-page-endpoints-results.json) retain all 28 main measurement runs and eight diagnostic repeats, native getter counts, Chrome V8 allocation samples, post-GC JavaScript heap snapshots, baseline test failures, source/build SHA-256 hashes, and UI checks. Earlier stage records are available in Git history. These are recorded results; this English documentation update did not rerun the measurements.
 
-## 实现与测量边界
+## Implementation and measurement scope
 
-生产只改两行。此前逐行读取索引键、校验键类型并创建边界对象，最终只保留首尾两个。现在只在首尾行采集；沿已有边界向前读取部分末页时，使用同事务精确总数给出的 end 确定实际页量，保证最后一个边界仍被采集，并省去末页多余的 EOF 回调。单行页只采集一次。
+The production change modifies two lines in `src/background/indexeddb-query.ts`. Previously, each row read its index key, validated the key type, and constructed a boundary object, although only the first and last boundaries were retained. Keys are now captured only at those endpoints. When reading a partial final page forward from a cached boundary, the exact total from the same transaction determines the actual page length through `end`. This preserves the last boundary and avoids an extra EOF callback. A single-row page captures its endpoint once.
 
-缓存资格、16 页/256 KiB 字段预算、版本校验与失效、新鲜正文读取及公开 API 保持原有规则。缓存正文索引键可能包含正文字符串，字段预算不是真实堆上限；这次减少中间对象和 getter 调用，不宣称缓存容量变小。
+Cache eligibility, the 16-page/256 KiB field-weight budget, revision validation and invalidation, fresh full-record reads, and public APIs retain their existing rules. Cached content index keys may contain full text strings; the field budget is not an actual heap limit. This change reduces intermediate objects and getter calls, without establishing a smaller cache footprint.
 
-完整新页的原生探针独立于计时，查询前关闭/重开连接、只预热精确 count，不预热该页或边界。两种索引：长正文字符串与 `[createdAt, id]` 复合数组；双方向、1/20/100 条页量。探针用 try/finally 恢复浏览器 getter，七次完整方法计时不安装探针，包含总数、页数、顺序和全部字段断言。10,000 条目标 offset 约 4,500；100 条的 offset 小于 256，保持原浅页路径。
+Native probes for uncached full pages ran independently of timing. Each query closed and reopened its connection, warmed only the exact count, and did not warm that page or its boundaries. Two indexes were tested: long text strings and compound `[createdAt, id]` arrays, in both directions with page sizes of 1, 20, and 100. Probes restored browser getters in `try/finally`; the seven complete-method timing repetitions used no getter probes and asserted totals, page counts, order, and all fields. Target offsets for 10,000 clips were around 4,500. Offsets for 100 clips stayed below 256 and used the original shallow-page path.
 
-两个浏览器、两种执行顺序均核对：20 条完整页的索引键读取 20 → 2，主键读取 40 → 22；100 条为 100 → 2、200 → 102；单行页为 1/2 次，100 条小数据为 0/0 次，没有额外采集。
+Both browsers and both fixture execution orders confirmed the same counts. For a full 20-row page, index-key reads fell from 20 to 2 and primary-key reads from 40 to 22. For a full 100-row page, they fell from 100 to 2 and from 200 to 102. A single-row page used 1 index-key read and 2 primary-key reads. The 100-clip shallow path used 0/0, with no additional endpoint capture.
 
-## 完整新页时间
+## Complete uncached-page timing
 
-每格基线生产 → 最终生产，单位 ms，七次中位数。getter 次数下降不等于完整查询按相同比例提速，游标定位与正文读取仍有成本。
+Each cell shows baseline production → final production, in milliseconds, using the median of seven repetitions. Normal and reverse columns refer to fixture execution order; ascending and descending rows refer to index traversal direction. Fewer getter calls do not imply a proportional improvement in complete query time: cursor positioning and full-record reads still cost time.
 
-| 索引 / 方向 / 页量 | Chrome 正序 | Chrome 反序 | Firefox 正序 | Firefox 反序 |
+| Index / direction / page size | Chrome: normal run order | Chrome: reverse run order | Firefox: normal run order | Firefox: reverse run order |
 | --- | --- | --- | --- | --- |
-| 正文升序 / 1 | 35.8 → 39.2 | 33.1 → 36.3 | 2.0 → 2.0 | 3.0 → 3.0 |
-| 正文升序 / 20 | 37.7 → 36.7 | 32.6 → 36.2 | 3.0 → 3.0 | 3.0 → 4.0 |
-| 正文升序 / 100 | 41.1 → 41.3 | 35.8 → 39.3 | 6.0 → 6.0 | 10.0 → 9.0 |
-| 正文降序 / 1 | 37.9 → 51.2 | 30.3 → 34.3 | 2.0 → 2.0 | 2.0 → 3.0 |
-| 正文降序 / 20 | 35.1 → 41.0 | 31.6 → 67.3 | 2.0 → 2.0 | 3.0 → 3.0 |
-| 正文降序 / 100 | 38.6 → 38.1 | 34.5 → 38.2 | 6.0 → 6.0 | 8.0 → 9.0 |
-| 复合时间升序 / 1 | 16.5 → 16.7 | 13.7 → 17.9 | 1.0 → 1.0 | 1.0 → 1.0 |
-| 复合时间升序 / 20 | 17.2 → 17.4 | 14.9 → 16.8 | 1.0 → 1.0 | 2.0 → 2.0 |
-| 复合时间升序 / 100 | 19.2 → 19.1 | 21.8 → 19.7 | 5.0 → 4.0 | 6.0 → 6.0 |
-| 复合时间降序 / 1 | 16.6 → 14.7 | 12.7 → 14.1 | 1.0 → 1.0 | 2.0 → 1.0 |
-| 复合时间降序 / 20 | 29.1 → 15.7 | 13.6 → 14.2 | 1.0 → 2.0 | 2.0 → 2.0 |
-| 复合时间降序 / 100 | 21.8 → 17.9 | 22.7 → 19.7 | 4.0 → 4.0 | 7.0 → 6.0 |
+| Text ascending / 1 | 35.8 → 39.2 | 33.1 → 36.3 | 2.0 → 2.0 | 3.0 → 3.0 |
+| Text ascending / 20 | 37.7 → 36.7 | 32.6 → 36.2 | 3.0 → 3.0 | 3.0 → 4.0 |
+| Text ascending / 100 | 41.1 → 41.3 | 35.8 → 39.3 | 6.0 → 6.0 | 10.0 → 9.0 |
+| Text descending / 1 | 37.9 → 51.2 | 30.3 → 34.3 | 2.0 → 2.0 | 2.0 → 3.0 |
+| Text descending / 20 | 35.1 → 41.0 | 31.6 → 67.3 | 2.0 → 2.0 | 3.0 → 3.0 |
+| Text descending / 100 | 38.6 → 38.1 | 34.5 → 38.2 | 6.0 → 6.0 | 8.0 → 9.0 |
+| Compound time ascending / 1 | 16.5 → 16.7 | 13.7 → 17.9 | 1.0 → 1.0 | 1.0 → 1.0 |
+| Compound time ascending / 20 | 17.2 → 17.4 | 14.9 → 16.8 | 1.0 → 1.0 | 2.0 → 2.0 |
+| Compound time ascending / 100 | 19.2 → 19.1 | 21.8 → 19.7 | 5.0 → 4.0 | 6.0 → 6.0 |
+| Compound time descending / 1 | 16.6 → 14.7 | 12.7 → 14.1 | 1.0 → 1.0 | 2.0 → 1.0 |
+| Compound time descending / 20 | 29.1 → 15.7 | 13.6 → 14.2 | 1.0 → 2.0 | 2.0 → 2.0 |
+| Compound time descending / 100 | 21.8 → 17.9 | 22.7 → 19.7 | 4.0 → 4.0 | 7.0 → 6.0 |
 
-100 条小数据最慢的候选案例如下，基线列为同一案例；不能据此宣称小数据提速。尤其 Chrome 反序中的复合降序 / 100 从 21.4 到 24.8 ms，原路径没有端点键读取，但观测仍较慢，原因未建立。
+The slowest candidate cases for 100 clips are listed below, paired with the same baseline case. They do not establish a small-dataset speedup. In particular, Chrome's reverse run of compound descending / 100 increased from 21.4 to 24.8 ms. That path performs no endpoint-key reads, but the observed timing was still slower; the cause was not established.
 
-| 浏览器 / 顺序 | 候选最慢案例 | 同案例基线 → 最终 (ms) |
+| Browser / run order | Slowest candidate case | Same case: baseline → final (ms) |
 | --- | --- | --- |
 | chrome155 / normal | ('textContent', 'next', 100) | 1.9 → 2.1 |
 | chrome155 / reverse | ('createdAt_id', 'prev', 100) | 21.4 → 24.8 |
 | firefox / normal | ('textContent', 'next', 20) | 2.0 → 2.0 |
 | firefox / reverse | ('createdAt_id', 'prev', 100) | 3.0 → 3.0 |
 
+## Partial final pages
 
-## 部分末页
+Five clips were added only at the end of the requested order, bringing the exact total to 10,005. Page 500 was read first, followed by the first visit to page 501. Ascending runs used future dates for the added clips, and descending runs used past dates. Native index-key reads fell from 6 to 3 and primary-key reads from 11 to 8, including one boundary-alignment read. Checks verified all five records, native ordering, and reuse of the final boundary with a different page size.
 
-增加五条仅位于请求顺序末端的摘录，精确 total 为 10,005。先读第 500 页，再首次访问第 501 页；升序用未来日期，降序用过去日期。原生索引键读取 6 → 3、主键 11 → 8，其中含一次边界对齐。完整五条、原生顺序及之后不同页量对末端边界的复用均验证。
+The following timings are in milliseconds, as baseline → final.
 
-| 方向 | Chrome 正序 | Chrome 反序 | Firefox 正序 | Firefox 反序 |
+| Direction | Chrome: normal run order | Chrome: reverse run order | Firefox: normal run order | Firefox: reverse run order |
 | --- | --- | --- | --- | --- |
-| 升序 | 0.7 → 0.6 | 0.6 → 0.6 | 0.0 → 0.0 | 1.0 → 2.0 |
-| 降序 | 0.7 → 0.8 | 0.6 → 0.9 | 1.0 → 3.0 | 1.0 → 1.0 |
+| Ascending | 0.7 → 0.6 | 0.6 → 0.6 | 0.0 → 0.0 | 1.0 → 2.0 |
+| Descending | 0.7 → 0.8 | 0.6 → 0.9 | 1.0 → 3.0 | 1.0 → 1.0 |
 
+## Independent allocation sampling
 
-## 独立分配采样
+Four additional Chrome runs were separate from timing, tests, and builds. HeapProfiler used a 16 KiB sampling interval and included objects collected by minor and major GC. Outside sampling, each case reset synthetic data, warmed the count, read reference fields, and ran GC. Inside sampling, it executed 100 complete pagination queries with field assertions. The 10,000-clip runs mostly queried different pages; the final queries beyond the last page were clamped to that page. The 100-clip runs cycled through shallow pages. Two indexes, two directions, two page sizes (20 and 100), and two dataset sizes produced 16 cases, with seven repetitions each. The table shows median sampled bytes across all allocation sites, in KiB. These are not exact total allocations, peak memory, or RSS.
 
-另跑四轮 Chrome，和计时、测试、构建分开。沿用 HeapProfiler 的 16 KiB 采样间隔，包含 minor/major GC 收集对象。每个案例在采样外重置合成数据、预热 count、读取参考字段并执行 GC；采样内连续执行 100 次完整分页及字段断言。10,000 条主要是不同页（超出末页的末几次按末页处理），100 条循环浅页。索引、方向与 20/100 页量共 16 案例，各七次。下表为所有站点采样字节的中位数，单位 KiB；不是精确分配总量、峰值或 RSS。
-
-| 10,000 条案例 | 正序基线 → 最终 | 反序基线 → 最终 |
+| 10,000-clip case | Normal order: baseline → final | Reverse order: baseline → final |
 | --- | --- | --- |
 | textContent/next/size20 | 12205.7 → 12334.0 | 11937.5 → 12415.2 |
 | textContent/next/size100 | 80014.3 → 79242.0 | 79586.4 → 79208.2 |
@@ -66,11 +66,11 @@
 | createdAt_id/prev/size20 | 19544.0 → 19328.6 | 19584.0 → 19428.1 |
 | createdAt_id/prev/size100 | 94277.0 → 93418.4 | 94249.2 → 94442.1 |
 
-全部站点及每次样本保留，站点样本总和逐次核对一致；不能将各站点中位数之和当作总中位数。GC 后 Runtime.getHeapUsage 的 before/after 快照单列于原始数据，只表示该批查询的短期 JS 堆差值，未测长期占用、进程峰值或 RSS。
+All allocation sites and individual samples are retained. The sum across sites was checked against each sample's total. Adding site medians does not produce the median total. Before/after snapshots from `Runtime.getHeapUsage` after GC are stored separately in the raw results; they show only the short-term JavaScript heap difference for that query batch. Long-term use, process peaks, and RSS were not measured.
 
-游标回调的自分配另列如下，仍为七次采样中位数（KiB），不与其他站点中位数相加。站点是冻结源码经 Vite 转换后的 request.onsuccess，URL 路径 /src/background/indexeddb-query.ts、零基 lineNumber=65 / columnNumber=23；包含该回调自身的采样分配，并非仅边界对象。正文还原与夹具字段断言的大量分配不属于这一站点。
+Cursor-callback self-allocation is listed separately below, also as seven-sample medians in KiB. Do not add these medians to those from other sites. The site is `request.onsuccess` in the frozen source after Vite transformation, at URL path `/src/background/indexeddb-query.ts`, zero-based `lineNumber=65` / `columnNumber=23`. It includes sampled allocations attributed to the callback itself, not just boundary objects. Large allocations from full-record materialization and fixture field assertions belong to other sites.
 
-| 10,000 条游标回调 | 正序基线 → 最终 | 反序基线 → 最终 |
+| 10,000-clip cursor callback | Normal order: baseline → final | Reverse order: baseline → final |
 | --- | --- | --- |
 | textContent/next/size20 | 423.1 → 440.3 | 472.1 → 424.0 |
 | textContent/next/size100 | 513.8 → 273.3 | 450.3 → 305.1 |
@@ -81,13 +81,13 @@
 | createdAt_id/prev/size20 | 652.0 → 537.9 | 666.1 → 524.2 |
 | createdAt_id/prev/size100 | 1170.1 → 289.1 | 1058.3 → 353.6 |
 
-1 万条、100 条页量的八组中，该站点中位数下降约 31%–75%；20 条页量仍有上升约 4.1% 与 6.1% 的两组。完整批次总量变化约 -2.1% 到 +4.0%，不能建立一致的总分配改善结论。局部站点变化不能直接换算为扩展总内存收益，短期堆差值也不能建立长期占用结论。
+Across the eight 10,000-clip comparisons with 100-row pages, the median at this site fell by about 31%–75%. Two 20-row comparisons still rose by about 4.1% and 6.1%. Whole-batch sampled totals changed by about -2.1% to +4.0%, which does not establish a consistent reduction in total allocation. Changes at one site cannot be converted directly into overall extension memory savings, and short-term heap differences do not establish long-term memory use.
 
-## 小数据及原有路径
+## Small datasets and existing paths
 
-另完整重跑原计数夹具八轮与原边界夹具八轮，覆盖冷/热、第一/深/空页、范围、插入/删除、相邻与远跳、早页及 20,000 条重复值。精确字段断言全部通过；原生计数、游标推进及完整方法仍有不利中位数，不宣称所有查询提速。最大十个变化如下，其余及 100 条的全部结果见原始数据。
+The existing count fixture and boundary fixture each ran eight complete comparisons, covering cold/warm queries, first/deep/empty pages, ranges, insertions/deletions, adjacent and distant navigation, early pages, and 20,000 duplicate-valued records. All exact-field assertions passed. Native counts, cursor advancement, and complete-method timings still included worse medians; these results do not establish a speedup for every query. The ten largest increases are shown below. The remaining comparisons and all 100-clip results are in the raw data. Scenario identifiers are retained verbatim.
 
-| 场景 | 基线 → 最终 (ms) |
+| Scenario | Baseline → final (ms) |
 | --- | --- |
 | page-endpoints-chrome155-baseline-reverse/10000/('textContent', 'prev', 20, 226, None, None, None)/scenarios | 31.6 → 67.3 |
 | pagination-count-chrome155-baseline-reverse/10000/('sourceUrl', 'prev', None, None, None, None, False)/501/cold | 37.6 → 65.3 |
@@ -100,28 +100,27 @@
 | pagination-count-chrome155-baseline-reverse/10000/('sourceUrl', 'next', None, None, None, None, False)/1/cold | 48.0 → 62.8 |
 | pagination-count-chrome155-baseline-reverse/10000/('sourceUrl', 'next', None, None, None, None, False)/afterDelete | 43.5 → 58.0 |
 
+## Interleaved repeats of slower samples
 
-## 较慢样本的交错复测
+While preparing the report, slower text-descending / 20 and compound shallow-page samples prompted eight additional Chrome timing runs in reverse fixture order. Source code was unchanged, and these diagnostic runs followed the validation checks. Each fixture ran in candidate, baseline, baseline, candidate order, without overlap with tests, builds, or allocation sampling. Complete results are retained alongside the main measurements. The table selects the cases that triggered the review; timings are in milliseconds.
 
-报告整理时发现正文降序 / 20 与复合浅页的较慢样本，随后在源码不变、gates 结束后，单独追加八轮 Chrome 反序计时；每个夹具执行顺序为候选、基线、基线、候选。未与测试、构建或采样重叠。完整结果保留，不替代主测量；下表选取触发复查的案例。
-
-| 场景 | 候选 1 | 基线 2 | 基线 3 | 候选 4 |
+| Scenario | Candidate 1 | Baseline 2 | Baseline 3 | Candidate 4 |
 | --- | --- | --- | --- | --- |
 | page-endpoints / 10000 / ('textContent', 'prev', 20) | 36.9 | 29.5 | 30.1 | 30.0 |
 | page-endpoints / 100 / ('createdAt_id', 'prev', 100) | 21.6 | 19.4 | 25.2 | 19.0 |
 | page-anchors / 100 / ('createdAt_id', 'prev', 4, 5) | 7.2 | 18.0 | 16.7 | 17.8 |
 
-复测仍不能建立普遍耗时改善，也不能仅凭执行顺序将差异归因于环境。浅页没有端点键读取，这一结构性检查不等于响应时间没有回退；局部调用与分配减少是已验证结果，整体延迟仍需后续定位。
+The repeats still do not establish a general timing improvement. Execution order alone cannot attribute the differences to the environment. Shallow pages have no endpoint-key reads, but that structural check does not establish unchanged response time. Reduced local calls and allocation are verified; overall latency still needs further investigation.
 
+## Validation and reproduction
 
+The recorded coverage run passed 462 tests in 36 files with `maxWorkers=2`: statements 62.56%, branches 61.15%, functions 63.99%, and lines 62.3%. Seven related files passed 184 tests. Of the seven new tests, the baseline failed five and passed two; the candidate passed all seven. Coverage includes bounds on index-key reads, revisits without index-key reads, array keys, different page sizes, and reuse of the final endpoint of partial forward pages. Existing budget, type, revision, queued-write, failure, and data-field checks also passed.
 
-## 验证与复跑
+Application and fixture type checks, script syntax checks, and diff checks passed, as did Chrome/Edge/Firefox builds. Chrome for Testing 153.0.8010.12 and a Playwright-patched Firefox Nightly 153.0 each passed 21 actual management-page checks against unmodified production builds. Page 500 read only two index keys; revisiting it read none; page 499 read one for alignment plus two endpoints. Ordering of all 20 rows and rich content in the detail view were correct. Checks also covered keywords, title sorting, backups, saving/deleting/clearing, warm empty pages, revision-request quota-error fallback, and absence of extension-page script errors. Injecting the quota-error condition is not equivalent to filling the disk. Getter probes were not used to measure UI latency.
 
-462 项测试、36 个文件通过 coverage（maxWorkers=2）；语句 62.56%、分支 61.15%、函数 63.99%、行 62.3%。七个相关文件 184 项通过，新增七项在基线 5 失败、2 通过，候选全部通过。覆盖键读取次数上界、复访不读取索引键、数组键、不同页量以及部分向前页的末端复用；原有预算、类型、版本、排队写入、失败与数据字段检查继续通过。
+After freezing the source, 24 ordinary measurement runs completed serially, followed by four allocation-sampling runs, validation checks, and the eight diagnostic repeats above. Timing did not overlap with getter probes, allocation sampling, tests, or builds. Allocation samples include complete-field assertions and cannot be treated as production byte counts without validation overhead. The environment was macOS / Node.js 22.23.2, installed Chrome 155.0.8059.39, and the Firefox Nightly above with geckodriver 0.37.1. Text content was about 640 characters and HTML about 840 characters. Isolated temporary origins and synthetic data left installed extensions untouched.
 
-应用与夹具类型检查、脚本语法与 diff 检查通过，Chrome/Edge/Firefox 构建通过。Chrome for Testing 153.0.8010.12 与带 Playwright 补丁的 Firefox Nightly 153.0 各通过 21 项原始生产构建的实际管理页检查：第 500 页索引键读取仅 2 次，复访为 0，第 499 页为对齐 1 次加端点 2 次；20 条顺序与详情富文本正确。保留关键词、标题、备份、保存/删除/清空、热空页、配额回退与无脚本错误。配额错误身份模拟不等于填满磁盘，getter 探针不用于界面延迟测量。
-
-冻结源码后串行完成 24 轮普通测量，再完成四轮分配采样，随后运行 gates，再追加上述八轮诊断。计时期间没有 getter 探针、采样、测试或构建；分配采样包含完整字段断言，不能当作不含校验的生产字节量。环境为 macOS / Node 22.23.2、安装版 Chrome 155.0.8059.39 与上述 Firefox Nightly / geckodriver 0.37.1，正文约 640 字符、HTML 约 840 字符。独立临时来源和合成数据不影响已安装扩展。
+Install dependencies with the Node.js and pnpm versions in the [README](../README.md). Run each comparison separately:
 
 ```sh
 BASELINE_REF=08326ed node scripts/performance.mjs --page-endpoints --baseline
@@ -133,6 +132,12 @@ BASELINE_REF=08326ed node scripts/performance.mjs --page-endpoints --allocations
 node scripts/performance.mjs --page-endpoints --allocations
 ```
 
-分配采样同样运行 --reverse 两组；Firefox 普通测量用 `scripts/firefox-highlight-scheduling.mjs` 相同参数，需要 FIREFOX_PATH、GECKODRIVER_PATH。原有夹具用 --pagination-count 和 --page-anchors。真实界面使用 `scripts/search-acceptance.mjs` 及 --firefox，需 PLAYWRIGHT_MODULE 与对应路径。
+Chrome timing and allocation scripts use `CHROME_PATH` when set; otherwise they default to `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`. Repeat both allocation commands with `--reverse` as well. For Firefox timing, replace `scripts/performance.mjs` with `scripts/firefox-highlight-scheduling.mjs`, keeping the timing flags, and set `FIREFOX_PATH` and `GECKODRIVER_PATH` to the appropriate executables. Firefox allocation sampling is not supported by that script. Use `--pagination-count` and `--page-anchors` for the existing fixtures.
 
-未测 Firefox 分配采样、正式版 Firefox、Chrome 155 扩展界面、Edge 运行时、低端设备、实际用户访问分布、长期堆占用、峰值/RSS 或远程 CI；未推送。原生计数与部分重复键定位仍有成本，未证明整体性能已达最优。本报告保留当次验收结果；目录清理没有重跑测量，构建产物已移除，可按现有命令重新生成。
+For actual management-page checks, build first with `pnpm build:all`, then run `node scripts/search-acceptance.mjs` for Chrome or `node scripts/search-acceptance.mjs --firefox` for Firefox. Chrome requires `CHROME_PATH` pointing to Chrome for Testing and an available Playwright runtime; use `PLAYWRIGHT_MODULE` to specify its module path when it is not locally installed. Firefox requires `FIREFOX_PATH` and `GECKODRIVER_PATH` with support for the script's privileged WebDriver operations. `EXTENSION_PATH` can override the default build directory (`.output/chrome-mv3` or `.output/firefox-mv2`). Playwright and geckodriver are not project dependencies.
+
+## Limits and publication status
+
+These runs did not cover Firefox allocation sampling, stable Firefox, the Chrome 155 extension UI, the Edge runtime, low-end devices, actual user access patterns, long-term heap use, peak memory/RSS, or remote CI. Native counts and some duplicate-key positioning still cost time; overall performance has not been proved optimal. The measured implementation was subsequently committed as `7699784` and merged into `main`. The directory cleanup and this documentation update did not rerun measurements. Build artifacts removed during cleanup can be recreated using the commands above.
+
+The raw JSON remains unchanged, including the original fixture source snapshot and its comments. Its temporary artifact paths may no longer exist; inline results and source/build hashes remain available as evidence.
